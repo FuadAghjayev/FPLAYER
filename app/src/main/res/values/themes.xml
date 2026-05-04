@@ -1,0 +1,4 @@
+<resources>
+
+    <style name="Theme.FPLAYER" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>
