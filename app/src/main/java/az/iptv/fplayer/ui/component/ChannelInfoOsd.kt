@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -20,7 +21,6 @@ import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.BadgeBg
-import az.iptv.fplayer.ui.theme.OsdBg
 import az.iptv.fplayer.ui.theme.TextSecondary
 import coil.compose.AsyncImage
 
@@ -40,79 +40,166 @@ fun ChannelInfoOsd(
         modifier = modifier
     ) {
         channel ?: return@AnimatedVisibility
-        
-        // Receiver style Bottom Bar
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color(0xE6050505), Color(0xFF000000))
+                        0f to Color.Transparent,
+                        0.3f to Color(0xCC000000),
+                        1f to Color(0xFF000000)
                     )
                 )
-                .padding(bottom = 24.dp, top = 40.dp, start = 32.dp, end = 32.dp)
+                .padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 28.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Channel Logo
-                ChannelLogo(logoUrl = channel.logoUrl, size = 64)
+                // Sol accent çubuğu
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            Brush.verticalGradient(listOf(Accent, Accent.copy(alpha = 0.3f)))
+                        )
+                )
 
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // Channel Number and Name
+                // Kanal loqosu
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF141414))
+                        .border(1.dp, Color(0x25FFFFFF), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (channel.logoUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = channel.logoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(6.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "TV",
+                            color = Accent,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Kanal məlumatları
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Nömrə + ad
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
                             text = String.format("%03d", channelIndex),
                             color = Accent,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 26.sp
                         )
                         Text(
                             text = channel.name,
                             color = Color.White,
-                            fontSize = 24.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 26.sp
                         )
                     }
 
-                    // Group and Stream Info
+                    // Qrup + texniki məlumat
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = channel.group, color = TextSecondary, fontSize = 14.sp)
-                        
-                        // Technical Badges
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (videoInfo.label.isNotEmpty()) MiniBadge(videoInfo.label)
-                            if (videoInfo.fpsLabel.isNotEmpty()) MiniBadge(videoInfo.fpsLabel)
-                            if (videoInfo.codec.isNotEmpty()) MiniBadge(videoInfo.codec.uppercase())
+                        if (channel.group.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0x30FFFFFF))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = channel.group,
+                                    color = TextSecondary,
+                                    fontSize = 11.sp,
+                                    maxLines = 1
+                                )
+                            }
                         }
+
+                        if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
+                        if (videoInfo.fpsLabel.isNotEmpty()) TechBadge(videoInfo.fpsLabel)
+                        if (videoInfo.codec.isNotEmpty()) TechBadge(videoInfo.codec.uppercase())
                     }
                 }
 
-                // Clock or Date (Optional, can add later)
-                Column(horizontalAlignment = Alignment.End) {
+                // Sağ: texniki info + sayğac
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (videoInfo.width > 0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0x20FF8C00))
+                                .border(1.dp, Accent.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "${videoInfo.width}×${videoInfo.height}",
+                                color = Accent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                     Text(
-                        text = "${videoInfo.width}×${videoInfo.height}",
-                        color = TextSecondary,
-                        fontSize = 12.sp
+                        text = "$channelIndex / $totalChannels",
+                        color = Color(0xFF555555),
+                        fontSize = 10.sp
                     )
                     Text(
                         text = "FPLAYER",
-                        color = Accent.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
+                        color = Accent.copy(alpha = 0.35f),
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Black
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TechBadge(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color(0x1AFFFFFF))
+            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(3.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(text = text, color = Color(0xFFCCCCCC), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -141,7 +228,9 @@ fun ChannelLogo(logoUrl: String, size: Int, modifier: Modifier = Modifier) {
                 model = logoUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(4.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(4.dp)
             )
         } else {
             Text("TV", color = Accent, fontSize = (size / 3).sp, fontWeight = FontWeight.Bold)

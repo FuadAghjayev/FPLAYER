@@ -133,20 +133,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectChannel(channel: Channel) {
         _currentChannel.value = channel
-        _osdVisible.value = true
-        osdJob?.cancel()
-        osdJob = viewModelScope.launch {
-            delay(4000)
-            _osdVisible.value = false
-        }
-    }
-
-    fun playCurrentChannel() {
         _sidebarVisible.value = false
         _osdVisible.value = true
         osdJob?.cancel()
         osdJob = viewModelScope.launch {
-            delay(4000)
+            delay(5000)
             _osdVisible.value = false
         }
     }
@@ -160,9 +151,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _osdVisible.value = true
         osdJob?.cancel()
         osdJob = viewModelScope.launch {
-            delay(4000)
+            delay(5000)
             _osdVisible.value = false
         }
+    }
+
+    fun hideOsd() {
+        osdJob?.cancel()
+        _osdVisible.value = false
     }
 
     fun onPlaybackStateChanged(state: PlaybackState) { _playbackState.value = state }

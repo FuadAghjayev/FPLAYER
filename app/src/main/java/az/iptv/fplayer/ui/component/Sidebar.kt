@@ -32,6 +32,7 @@ fun Sidebar(
     groups: List<ChannelGroup>,
     channels: List<Channel>,
     currentChannel: Channel?,
+    focusedIndex: Int = -1,
     selectedGroup: String?,
     onGroupSelect: (String?) -> Unit,
     onChannelSelect: (Channel) -> Unit,
@@ -55,6 +56,7 @@ fun Sidebar(
             ChannelPanel(
                 channels = channels,
                 currentChannel = currentChannel,
+                focusedIndex = focusedIndex,
                 onChannelSelect = onChannelSelect
             )
         }
@@ -123,6 +125,7 @@ private fun GroupPanel(
 private fun ChannelPanel(
     channels: List<Channel>,
     currentChannel: Channel?,
+    focusedIndex: Int,
     onChannelSelect: (Channel) -> Unit
 ) {
     Column(
@@ -134,6 +137,7 @@ private fun ChannelPanel(
         ChannelList(
             channels = channels,
             currentChannel = currentChannel,
+            focusedIndex = focusedIndex,
             onChannelClick = onChannelSelect,
             modifier = Modifier.fillMaxSize()
         )

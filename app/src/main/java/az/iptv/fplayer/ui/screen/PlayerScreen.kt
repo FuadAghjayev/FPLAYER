@@ -4,6 +4,7 @@ import android.view.SurfaceView
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
@@ -35,6 +38,8 @@ import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlin.math.absoluteValue
+
+private enum class SidebarPane { CHANNELS, GROUPS }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -79,22 +84,111 @@ fun PlayerScreen(
 
     val channelIndex = visibleChannels.indexOf(currentChannel) + 1
 
+    var sidebarFocusedIndex by remember { mutableIntStateOf(0) }
+    var sidebarPane by remember { mutableStateOf(SidebarPane.CHANNELS) }
+    var groupFocusedIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(sidebarVisible) {
+        if (sidebarVisible) {
+            sidebarFocusedIndex = visibleChannels.indexOf(currentChannel).coerceAtLeast(0)
+            sidebarPane = SidebarPane.CHANNELS
+        }
+    }
+
+    LaunchedEffect(visibleChannels) {
+        sidebarFocusedIndex = visibleChannels.indexOf(currentChannel).coerceAtLeast(0)
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            // TV remote / D-pad idarəsi
+            .focusRequester(focusRequester)
+            .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> { vm.showSidebar(); true }
-                    Key.DirectionRight -> if (sidebarVisible) { vm.hideSidebar(); true } else false
-                    Key.DirectionUp -> if (!sidebarVisible) { vm.prevChannel(); true } else false
-                    Key.DirectionDown -> if (!sidebarVisible) { vm.nextChannel(); true } else false
-                    Key.Enter, Key.NumPadEnter -> {
-                        if (sidebarVisible) { vm.playCurrentChannel(); true } else false
+                    Key.DirectionLeft -> {
+                        if (!sidebarVisible) {
+                            vm.showSidebar()
+                            sidebarPane = SidebarPane.CHANNELS
+                        } else if (sidebarPane == SidebarPane.CHANNELS) {
+                            sidebarPane = SidebarPane.GROUPS
+                            val idx = if (selectedGroup == null) 0
+                                else groups.indexOfFirst { it.name == selectedGroup } + 1
+                            groupFocusedIndex = idx.coerceAtLeast(0)
+                        }
+                        true
                     }
-                    Key.Back -> { vm.toggleSidebar(); true }
+                    Key.DirectionRight -> {
+                        if (sidebarVisible) {
+                            if (sidebarPane == SidebarPane.GROUPS) {
+                                sidebarPane = SidebarPane.CHANNELS
+                            } else {
+                                vm.hideSidebar()
+                            }
+                            true
+                        } else false
+                    }
+                    Key.DirectionUp -> {
+                        if (sidebarVisible) {
+                            when (sidebarPane) {
+                                SidebarPane.CHANNELS ->
+                                    if (sidebarFocusedIndex > 0) sidebarFocusedIndex--
+                                SidebarPane.GROUPS ->
+                                    if (groupFocusedIndex > 0) groupFocusedIndex--
+                            }
+                            true
+                        } else {
+                            vm.prevChannel(); true
+                        }
+                    }
+                    Key.DirectionDown -> {
+                        if (sidebarVisible) {
+                            when (sidebarPane) {
+                                SidebarPane.CHANNELS ->
+                                    if (sidebarFocusedIndex < visibleChannels.size - 1) sidebarFocusedIndex++
+                                SidebarPane.GROUPS -> {
+                                    val groupCount = groups.size + 1
+                                    if (groupFocusedIndex < groupCount - 1) groupFocusedIndex++
+                                }
+                            }
+                            true
+                        } else {
+                            vm.nextChannel(); true
+                        }
+                    }
+                    Key.Enter, Key.NumPadEnter -> {
+                        if (sidebarVisible) {
+                            when (sidebarPane) {
+                                SidebarPane.CHANNELS ->
+                                    visibleChannels.getOrNull(sidebarFocusedIndex)?.let { vm.selectChannel(it) }
+                                SidebarPane.GROUPS -> {
+                                    val groupName = if (groupFocusedIndex == 0) null
+                                        else groups.getOrNull(groupFocusedIndex - 1)?.name
+                                    vm.selectGroup(groupName)
+                                    sidebarPane = SidebarPane.CHANNELS
+                                    sidebarFocusedIndex = 0
+                                }
+                            }
+                            true
+                        } else {
+                            vm.showOsd(); true
+                        }
+                    }
+                    Key.Back -> {
+                        when {
+                            sidebarVisible && sidebarPane == SidebarPane.GROUPS -> {
+                                sidebarPane = SidebarPane.CHANNELS; true
+                            }
+                            sidebarVisible -> { vm.hideSidebar(); true }
+                            osdVisible -> { vm.hideOsd(); true }
+                            else -> false
+                        }
+                    }
                     Key.Menu -> { vm.toggleSidebar(); true }
                     Key.Info -> { vm.showOsd(); true }
                     else -> false
@@ -104,13 +198,24 @@ fun PlayerScreen(
         val isWide = maxWidth > 500.dp
         val panelWidth = if (isWide) (maxWidth * 0.32f).coerceIn(280.dp, 380.dp) else maxWidth
 
-        // ── 1. Tam ekran video (həmişə arxada) ──────────────────────────
+        // 1. Tam ekran video
         VideoSurface(engine = engine)
 
-        // ── 2. Sol panel arxasında gradient ──────────────────────────────
+        // 2. Sidebar açıqkən örtük
+        if (sidebarVisible) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0x40000000))
+                    .zIndex(1f)
+            )
+        }
+
+        // 3. Sol gradient
         AnimatedVisibility(
             visible = sidebarVisible && isWide,
-            enter = fadeIn(), exit = fadeOut()
+            enter = fadeIn(), exit = fadeOut(),
+            modifier = Modifier.zIndex(2f)
         ) {
             Box(
                 modifier = Modifier
@@ -118,29 +223,30 @@ fun PlayerScreen(
                     .width(panelWidth)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0xF2050505), Color(0x660A0A0A))
+                            listOf(Color(0xF5050505), Color(0xAA0A0A0A))
                         )
                     )
             )
         }
 
-        // ── 3. Mobil — sidebar AÇIQDIR ───────────────────────────────────
-        // Panel xaricindəki sahəyə toxunmaq sidebar-ı bağlayır
+        // 4. Mobil — sidebar açıq: kənar tap bağlayır
         if (!isWide && sidebarVisible) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .zIndex(4f)         // sidebar-dan (10f) aşağı
+                    .zIndex(4f)
                     .clickable { vm.hideSidebar() }
             )
         }
 
-        // ── 4. Sol kanal paneli ──────────────────────────────────────────
+        // 5. Sol kanal paneli
         AnimatedVisibility(
             visible = sidebarVisible,
             enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
             exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
-            modifier = Modifier.fillMaxHeight().zIndex(10f)
+            modifier = Modifier
+                .fillMaxHeight()
+                .zIndex(10f)
         ) {
             Column(
                 modifier = Modifier
@@ -152,15 +258,26 @@ fun PlayerScreen(
                     title = selectedGroup ?: "Bütün kanallar",
                     channelCount = visibleChannels.size,
                     currentChannelName = currentChannel?.name,
+                    activePane = sidebarPane,
                     onPlaylistClick = onNavigateToPlaylist,
                     onCloseClick = { vm.hideSidebar() }
                 )
                 GroupTabs(
                     groups = groups,
                     selectedGroup = selectedGroup,
-                    onGroupSelect = vm::selectGroup
+                    onGroupSelect = {
+                        vm.selectGroup(it)
+                        sidebarPane = SidebarPane.CHANNELS
+                        sidebarFocusedIndex = 0
+                    },
+                    focusedGroupIndex = if (sidebarPane == SidebarPane.GROUPS) groupFocusedIndex else -1
                 )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0x22FFFFFF))
+                )
 
                 if (visibleChannels.isEmpty() && loadState !is LoadState.Loading) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -185,24 +302,24 @@ fun PlayerScreen(
                     ChannelList(
                         channels = visibleChannels,
                         currentChannel = currentChannel,
+                        focusedIndex = if (sidebarPane == SidebarPane.CHANNELS) sidebarFocusedIndex else -1,
                         onChannelClick = vm::selectChannel,
-                        modifier = Modifier.weight(1f).fillMaxWidth()
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
                     )
                 }
             }
         }
 
-        // ── 5. Mobil — sidebar BAĞLIDIR ──────────────────────────────────
-        // • Tap      → sidebar aç
-        // • Sola sürüşdür → növbəti kanal
-        // • Sağa sürüşdür → əvvəlki kanal
+        // 6. Mobil — sidebar bağlı: swipe + tap
         if (!isWide && !sidebarVisible) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .zIndex(5f)
                     .pointerInput(Unit) {
-                        val swipePx = 60.dp.toPx()   // swipe üçün minimum məsafə
+                        val swipePx = 60.dp.toPx()
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val startX = down.position.x
@@ -219,24 +336,22 @@ fun PlayerScreen(
 
                             val delta = currentX - startX
                             when {
-                                moved && delta < -swipePx -> vm.nextChannel()   // ← sola swipe
-                                moved && delta > swipePx  -> vm.prevChannel()   // → sağa swipe
-                                !moved -> vm.showSidebar()                      // tap → aç
+                                moved && delta < -swipePx -> vm.nextChannel()
+                                moved && delta > swipePx  -> vm.prevChannel()
+                                !moved -> vm.showSidebar()
                             }
                         }
                     }
             )
 
-            // Sol kənarda görünən "aç" düyməsi
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .zIndex(6f)
-                    .padding(start = 0.dp)
                     .width(20.dp)
                     .height(60.dp)
                     .clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
-                    .background(Color(0x99000000))
+                    .background(Color(0xAA000000))
                     .clickable { vm.showSidebar() },
                 contentAlignment = Alignment.Center
             ) {
@@ -244,20 +359,24 @@ fun PlayerScreen(
             }
         }
 
-        // ── 6. Yüklənir ──────────────────────────────────────────────────
+        // 7. Yüklənir
         AnimatedVisibility(
             visible = playbackState is PlaybackState.Buffering,
             enter = fadeIn(), exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(3f)
         ) {
             val offset = if (sidebarVisible && isWide) panelWidth / 2 else 0.dp
             CircularProgressIndicator(
                 color = Accent,
-                modifier = Modifier.padding(start = offset).size(48.dp)
+                modifier = Modifier
+                    .padding(start = offset)
+                    .size(48.dp)
             )
         }
 
-        // ── 7. Xəta bildirişi ─────────────────────────────────────────────
+        // 8. Xəta bildirişi
         AnimatedVisibility(
             visible = playbackState is PlaybackState.Error,
             enter = fadeIn(), exit = fadeOut(),
@@ -267,6 +386,7 @@ fun PlayerScreen(
                     start = if (sidebarVisible && isWide) panelWidth else 0.dp,
                     bottom = 24.dp
                 )
+                .zIndex(3f)
         ) {
             val msg = (playbackState as? PlaybackState.Error)?.message ?: ""
             Box(
@@ -279,7 +399,7 @@ fun PlayerScreen(
             }
         }
 
-        // ── 8. OSD kanalı məlumatları ─────────────────────────────────────
+        // 9. OSD
         ChannelInfoOsd(
             visible = osdVisible,
             channel = currentChannel,
@@ -287,16 +407,16 @@ fun PlayerScreen(
             channelIndex = channelIndex,
             totalChannels = visibleChannels.size,
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 12.dp, end = 12.dp)
+                .align(Alignment.BottomStart)
+                .zIndex(3f)
         )
 
-        // ── 9. Swipe göstəricisi (sidebar bağlı, mobil) ──────────────────
+        // 10. Swipe göstəricisi (sidebar bağlı, mobil)
         if (!isWide && !sidebarVisible && visibleChannels.size > 1) {
             SwipeHint(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp)
+                    .padding(bottom = 72.dp)
                     .zIndex(6f)
             )
         }
@@ -341,6 +461,7 @@ private fun ChannelPanelHeader(
     title: String,
     channelCount: Int,
     currentChannelName: String?,
+    activePane: SidebarPane,
     onPlaylistClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
@@ -356,21 +477,39 @@ private fun ChannelPanelHeader(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (currentChannelName != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Aktiv pane göstəricisi
+                    Text(
+                        text = if (activePane == SidebarPane.GROUPS) "≡" else "▶",
+                        color = Accent,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = if (activePane == SidebarPane.GROUPS) "Kateqoriyalar" else title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (currentChannelName != null && activePane == SidebarPane.CHANNELS) {
                     Text(
                         text = currentChannelName,
                         color = Accent,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (activePane == SidebarPane.GROUPS) {
+                    Text(
+                        text = "← Kanal siyahısına qayıt",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp
                     )
                 }
             }
@@ -393,7 +532,7 @@ private fun ChannelPanelHeader(
                 )
             }
         }
-        if (channelCount > 0) {
+        if (channelCount > 0 && activePane == SidebarPane.CHANNELS) {
             Text(
                 text = "$channelCount kanal",
                 color = Color(0xFF555555),

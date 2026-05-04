@@ -75,7 +75,7 @@ class ExoPlayerEngine(private val context: Context) : PlayerEngine {
                 VideoInfo(
                     width = videoSize.width,
                     height = videoSize.height,
-                    frameRate = format?.frameRate ?: 0f,
+                    frameRate = format?.frameRate?.takeIf { it > 0f } ?: 0f,
                     codec = format?.sampleMimeType?.substringAfterLast("/") ?: ""
                 )
             )

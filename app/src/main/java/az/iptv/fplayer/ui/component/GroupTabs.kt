@@ -1,14 +1,17 @@
 package az.iptv.fplayer.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,6 +26,7 @@ fun GroupTabs(
     groups: List<ChannelGroup>,
     selectedGroup: String?,
     onGroupSelect: (String?) -> Unit,
+    focusedGroupIndex: Int = -1,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -31,6 +35,10 @@ fun GroupTabs(
 
     LaunchedEffect(selectedIndex) {
         if (selectedIndex >= 0) listState.animateScrollToItem(selectedIndex)
+    }
+
+    LaunchedEffect(focusedGroupIndex) {
+        if (focusedGroupIndex >= 0) listState.animateScrollToItem(focusedGroupIndex)
     }
 
     LazyRow(
@@ -42,31 +50,48 @@ fun GroupTabs(
     ) {
         itemsIndexed(allGroups) { idx, groupName ->
             val isSelected = idx == selectedIndex
-            val count = if (groupName == null)
-                groups.sumOf { it.channels.size }
-            else
-                groups.find { it.name == groupName }?.channels?.size ?: 0
+            val isFocused = idx == focusedGroupIndex
 
             Column(
                 modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(
+                        when {
+                            isFocused && !isSelected -> Color(0x30FFFFFF)
+                            else -> Color.Transparent
+                        }
+                    )
+                    .then(
+                        if (isFocused) Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(6.dp))
+                        else Modifier
+                    )
                     .clickable { onGroupSelect(groupName) }
-                    .padding(horizontal = 12.dp, vertical = 0.dp),
+                    .padding(horizontal = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = groupName ?: "Bütün kanallar",
-                    color = if (isSelected) Color.White else TextSecondary,
+                    color = when {
+                        isSelected -> Color.White
+                        isFocused -> Color(0xFFDDDDDD)
+                        else -> TextSecondary
+                    },
                     fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (isSelected || isFocused) FontWeight.SemiBold else FontWeight.Normal,
                     modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
                     maxLines = 1
                 )
-                // Active underline
                 Box(
                     modifier = Modifier
-                        .width(if (isSelected) 24.dp else 0.dp)
+                        .width(
+                            when {
+                                isSelected -> 24.dp
+                                isFocused -> 16.dp
+                                else -> 0.dp
+                            }
+                        )
                         .height(2.dp)
-                        .background(Accent)
+                        .background(if (isSelected) Accent else Color(0x88FFFFFF))
                 )
                 Spacer(Modifier.height(4.dp))
             }

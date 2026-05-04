@@ -1,5 +1,10 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"d:\\\\FPLAYER\" -Recurse -Force)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)"
+    ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"
     ]

@@ -27,18 +27,24 @@ import coil.compose.AsyncImage
 fun ChannelList(
     channels: List<Channel>,
     currentChannel: Channel?,
+    focusedIndex: Int,
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
-    val currentIndex = channels.indexOf(currentChannel)
 
-    LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0) {
-            listState.animateScrollToItem(
-                index = currentIndex,
-                scrollOffset = -100
-            )
+    LaunchedEffect(focusedIndex) {
+        if (focusedIndex < 0 || focusedIndex >= channels.size) return@LaunchedEffect
+        val layoutInfo = listState.layoutInfo
+        val viewport = layoutInfo.viewportEndOffset
+        val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == focusedIndex }
+        when {
+            itemInfo == null ->
+                listState.animateScrollToItem(maxOf(0, focusedIndex - 3))
+            itemInfo.offset + itemInfo.size > viewport - 8 ->
+                listState.animateScrollToItem(focusedIndex)
+            itemInfo.offset < 8 ->
+                listState.animateScrollToItem(maxOf(0, focusedIndex - 3))
         }
     }
 
@@ -52,6 +58,7 @@ fun ChannelList(
                 channel = channel,
                 index = index + 1,
                 isPlaying = channel == currentChannel,
+                isFocused = index == focusedIndex,
                 onClick = { onChannelClick(channel) }
             )
         }
@@ -63,24 +70,48 @@ fun ChannelItem(
     channel: Channel,
     index: Int,
     isPlaying: Boolean,
+    isFocused: Boolean,
     onClick: () -> Unit
 ) {
-    val bg = if (isPlaying) Color(0x25FF8C00) else Color.Transparent
-    val nameColor = if (isPlaying) Color.White else Color(0xFFCCCCCC)
+    val bg = when {
+        isFocused && isPlaying -> Color(0x55FF8C00)
+        isPlaying              -> Color(0x35FF8C00)
+        isFocused              -> Color(0x40FFFFFF)
+        else                   -> Color.Transparent
+    }
+    val nameColor = when {
+        isPlaying -> Color.White
+        isFocused -> Color.White
+        else      -> Color(0xFFAAAAAA)
+    }
+    val barColor = when {
+        isPlaying -> Accent
+        isFocused -> Color(0xCCFFFFFF)
+        else      -> Color.Transparent
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(58.dp)
             .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Channel logo / placeholder
         Box(
             modifier = Modifier
-                .size(38.dp)
+                .width(3.dp)
+                .height(34.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(barColor)
+        )
+
+        Spacer(Modifier.width(8.dp))
+
+        Box(
+            modifier = Modifier
+                .size(36.dp)
                 .clip(RoundedCornerShape(5.dp))
                 .background(Color(0xFF1C1C1C)),
             contentAlignment = Alignment.Center
@@ -90,12 +121,14 @@ fun ChannelItem(
                     model = channel.logoUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().padding(3.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(3.dp)
                 )
             } else {
                 Text(
                     text = "TV",
-                    color = Color(0xFF555555),
+                    color = if (isPlaying) Accent else Color(0xFF555555),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -104,7 +137,6 @@ fun ChannelItem(
 
         Spacer(Modifier.width(10.dp))
 
-        // Channel number + name + program
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
@@ -112,7 +144,7 @@ fun ChannelItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "$index",
-                    color = TextSecondary,
+                    color = if (isPlaying) Accent.copy(alpha = 0.7f) else TextSecondary,
                     fontSize = 10.sp,
                     modifier = Modifier.widthIn(min = 22.dp)
                 )
@@ -120,7 +152,7 @@ fun ChannelItem(
                     text = channel.name,
                     color = nameColor,
                     fontSize = 13.sp,
-                    fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (isPlaying || isFocused) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -128,25 +160,12 @@ fun ChannelItem(
             if (channel.group.isNotEmpty()) {
                 Text(
                     text = channel.group,
-                    color = if (isPlaying) Accent.copy(alpha = 0.9f) else TextSecondary,
+                    color = if (isPlaying) Accent.copy(alpha = 0.8f) else TextSecondary,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-
-        // Oynayan kanal göstəricisi
-        if (isPlaying) {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Accent)
-            )
-        } else {
-            Spacer(Modifier.width(3.dp))
         }
     }
 }
