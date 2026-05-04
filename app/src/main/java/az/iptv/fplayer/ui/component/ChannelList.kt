@@ -11,8 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -20,8 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
-import az.iptv.fplayer.ui.theme.TextSecondary
-import coil.compose.AsyncImage
 
 @Composable
 fun ChannelList(
@@ -51,7 +49,7 @@ fun ChannelList(
     LazyColumn(
         state = listState,
         modifier = modifier,
-        contentPadding = PaddingValues(vertical = 4.dp)
+        contentPadding = PaddingValues(vertical = 2.dp)
     ) {
         itemsIndexed(channels, key = { _, ch -> ch.id }) { index, channel ->
             ChannelItem(
@@ -74,98 +72,105 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val bg = when {
-        isFocused && isPlaying -> Color(0x55FF8C00)
-        isPlaying              -> Color(0x35FF8C00)
-        isFocused              -> Color(0x40FFFFFF)
-        else                   -> Color.Transparent
-    }
-    val nameColor = when {
-        isPlaying -> Color.White
-        isFocused -> Color.White
-        else      -> Color(0xFFAAAAAA)
-    }
-    val barColor = when {
-        isPlaying -> Accent
-        isFocused -> Color(0xCCFFFFFF)
-        else      -> Color.Transparent
+        isPlaying && isFocused -> Color(0xFFBF6B00)
+        isPlaying              -> Color(0xFF1A1200)
+        isFocused              -> Color(0xFF0D1B2A)
+        index % 2 == 0         -> Color(0xFF0A0A0A)
+        else                   -> Color(0xFF060606)
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(42.dp)
             .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp),
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Sol rəng çubuğu
         Box(
             modifier = Modifier
                 .width(3.dp)
-                .height(34.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(barColor)
+                .fillMaxHeight()
+                .background(
+                    when {
+                        isPlaying -> Brush.verticalGradient(listOf(Accent, Accent.copy(0.4f)))
+                        isFocused -> Brush.verticalGradient(listOf(Color(0xFF4A90D9), Color(0xFF1A4A80)))
+                        else      -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+                    }
+                )
         )
 
-        Spacer(Modifier.width(8.dp))
-
+        // Nömrə bloku
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Color(0xFF1C1C1C)),
+                .width(52.dp)
+                .fillMaxHeight()
+                .background(
+                    when {
+                        isPlaying -> Color(0x40FF8C00)
+                        isFocused -> Color(0x25FFFFFF)
+                        else      -> Color(0x0AFFFFFF)
+                    }
+                ),
             contentAlignment = Alignment.Center
         ) {
-            if (channel.logoUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = channel.logoUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(3.dp)
-                )
-            } else {
+            Text(
+                text = String.format("%d", index),
+                color = when {
+                    isPlaying -> Accent
+                    isFocused -> Color(0xFF7EB8E8)
+                    else      -> Color(0xFF4A4A4A)
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Kanal adı
+        Text(
+            text = channel.name,
+            color = when {
+                isPlaying -> Color.White
+                isFocused -> Color(0xFFD0E8FF)
+                else      -> Color(0xFF888888)
+            },
+            fontSize = 13.sp,
+            fontWeight = when {
+                isPlaying -> FontWeight.SemiBold
+                isFocused -> FontWeight.Medium
+                else      -> FontWeight.Normal
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+        )
+
+        // Oynatılır işarəsi
+        if (isPlaying) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Accent.copy(alpha = 0.2f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
                 Text(
-                    text = "TV",
-                    color = if (isPlaying) Accent else Color(0xFF555555),
-                    fontSize = 9.sp,
+                    text = "▶",
+                    color = Accent,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
-        }
-
-        Spacer(Modifier.width(10.dp))
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "$index",
-                    color = if (isPlaying) Accent.copy(alpha = 0.7f) else TextSecondary,
-                    fontSize = 10.sp,
-                    modifier = Modifier.widthIn(min = 22.dp)
-                )
-                Text(
-                    text = channel.name,
-                    color = nameColor,
-                    fontSize = 13.sp,
-                    fontWeight = if (isPlaying || isFocused) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (channel.group.isNotEmpty()) {
-                Text(
-                    text = channel.group,
-                    color = if (isPlaying) Accent.copy(alpha = 0.8f) else TextSecondary,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        } else if (isFocused) {
+            Text(
+                text = "›",
+                color = Color(0xFF4A90D9),
+                fontSize = 16.sp,
+                modifier = Modifier.padding(end = 10.dp)
+            )
         }
     }
 }

@@ -51,7 +51,8 @@ fun ChannelInfoOsd(
                         1f to Color(0xFF000000)
                     )
                 )
-                .padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 28.dp)
+                .padding(horizontal = 56.dp, vertical = 0.dp)
+                .padding(top = 48.dp, bottom = 28.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

@@ -126,7 +126,12 @@ fun PlayerScreen(
                     Key.DirectionRight -> {
                         if (sidebarVisible) {
                             if (sidebarPane == SidebarPane.GROUPS) {
+                                // Qrupu seç və kanallar paneline keç
+                                val groupName = if (groupFocusedIndex == 0) null
+                                    else groups.getOrNull(groupFocusedIndex - 1)?.name
+                                vm.selectGroup(groupName)
                                 sidebarPane = SidebarPane.CHANNELS
+                                sidebarFocusedIndex = 0
                             } else {
                                 vm.hideSidebar()
                             }
@@ -143,7 +148,7 @@ fun PlayerScreen(
                             }
                             true
                         } else {
-                            vm.prevChannel(); true
+                            vm.nextChannel(); true
                         }
                     }
                     Key.DirectionDown -> {
@@ -158,7 +163,7 @@ fun PlayerScreen(
                             }
                             true
                         } else {
-                            vm.nextChannel(); true
+                            vm.prevChannel(); true
                         }
                     }
                     Key.Enter, Key.NumPadEnter -> {
@@ -176,7 +181,9 @@ fun PlayerScreen(
                             }
                             true
                         } else {
-                            vm.showOsd(); true
+                            vm.showSidebar()
+                            sidebarPane = SidebarPane.CHANNELS
+                            true
                         }
                     }
                     Key.Back -> {
@@ -270,7 +277,10 @@ fun PlayerScreen(
                         sidebarPane = SidebarPane.CHANNELS
                         sidebarFocusedIndex = 0
                     },
-                    focusedGroupIndex = if (sidebarPane == SidebarPane.GROUPS) groupFocusedIndex else -1
+                    focusedGroupIndex = if (sidebarPane == SidebarPane.GROUPS) groupFocusedIndex else -1,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
                 )
                 Box(
                     Modifier

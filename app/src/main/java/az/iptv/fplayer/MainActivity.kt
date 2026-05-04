@@ -71,7 +71,7 @@ private fun ExitHandler(snackbarHostState: SnackbarHostState) {
     BackHandler {
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastBackTime < 2000) {
-            (context as? ComponentActivity)?.finish()
+            (context as? ComponentActivity)?.finishAffinity()
         } else {
             lastBackTime = currentTime
             // Burada snackbar göstərə bilərik
