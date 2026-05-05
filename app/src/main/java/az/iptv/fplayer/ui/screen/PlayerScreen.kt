@@ -133,7 +133,8 @@ fun PlayerScreen(
                                 sidebarPane = SidebarPane.CHANNELS
                                 sidebarFocusedIndex = 0
                             } else {
-                                vm.hideSidebar()
+                                // Sağ düymə kanalı seçir və sidebarı bağlayır
+                                visibleChannels.getOrNull(sidebarFocusedIndex)?.let { vm.selectChannel(it) }
                             }
                             true
                         } else false
@@ -165,6 +166,12 @@ fun PlayerScreen(
                         } else {
                             vm.prevChannel(); true
                         }
+                    }
+                    Key.ChannelUp, Key.PageUp -> {
+                        if (!sidebarVisible) { vm.nextChannel(); true } else false
+                    }
+                    Key.ChannelDown, Key.PageDown -> {
+                        if (!sidebarVisible) { vm.prevChannel(); true } else false
                     }
                     Key.Enter, Key.NumPadEnter -> {
                         if (sidebarVisible) {

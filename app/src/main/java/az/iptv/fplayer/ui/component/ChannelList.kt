@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +85,7 @@ fun ChannelItem(
             .fillMaxWidth()
             .height(42.dp)
             .background(bg)
+            .focusProperties { canFocus = false }
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {

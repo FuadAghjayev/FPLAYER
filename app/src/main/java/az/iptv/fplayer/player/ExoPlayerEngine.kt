@@ -35,6 +35,7 @@ class ExoPlayerEngine(private val context: Context) : PlayerEngine {
     override fun play(url: String) {
         val exo = player ?: return
         listener?.onStateChanged(PlaybackState.Buffering)
+        exo.stop()
         exo.setMediaItem(MediaItem.fromUri(url))
         exo.prepare()
     }
