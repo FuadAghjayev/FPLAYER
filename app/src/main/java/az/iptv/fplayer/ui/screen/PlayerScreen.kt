@@ -30,7 +30,14 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
-import az.iptv.fplayer.player.*
+import az.iptv.fplayer.player.AudioDecoderMode
+import az.iptv.fplayer.player.ExoPlayerEngine
+import az.iptv.fplayer.player.PlaybackState
+import az.iptv.fplayer.player.PlayerEngine
+import az.iptv.fplayer.player.PlayerEventListener
+import az.iptv.fplayer.player.PlayerType
+import az.iptv.fplayer.player.VideoInfo
+import az.iptv.fplayer.player.VlcPlayerEngine
 import az.iptv.fplayer.ui.component.ChannelInfoOsd
 import az.iptv.fplayer.ui.component.ChannelList
 import az.iptv.fplayer.ui.component.GroupTabs
@@ -58,11 +65,12 @@ fun PlayerScreen(
     val selectedGroup by vm.selectedGroup.collectAsState()
     val loadState by vm.loadState.collectAsState()
     val playerType by vm.playerType.collectAsState()
+    val audioDecoderMode by vm.audioDecoderMode.collectAsState()
 
-    val engine: PlayerEngine = remember(playerType, context) {
+    val engine: PlayerEngine = remember(playerType, audioDecoderMode, context) {
         when (playerType) {
             PlayerType.VLC -> VlcPlayerEngine(context)
-            else -> ExoPlayerEngine(context)
+            else -> ExoPlayerEngine(context, audioDecoderMode)
         }
     }
 

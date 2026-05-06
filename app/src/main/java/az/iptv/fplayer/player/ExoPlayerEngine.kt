@@ -3,16 +3,22 @@ package az.iptv.fplayer.player
 import android.content.Context
 import android.view.SurfaceView
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 
 @OptIn(UnstableApi::class)
-class ExoPlayerEngine(private val context: Context) : PlayerEngine {
+class ExoPlayerEngine(
+    private val context: Context,
+    private val audioMode: AudioDecoderMode = AudioDecoderMode.AUTO
+) : PlayerEngine {
 
     override val type = PlayerType.EXOPLAYER
 
@@ -22,8 +28,25 @@ class ExoPlayerEngine(private val context: Context) : PlayerEngine {
 
     override fun init(surfaceView: SurfaceView) {
         surface = surfaceView
-        player = ExoPlayer.Builder(context)
+
+        val rendererMode = when (audioMode) {
+            AudioDecoderMode.SOFTWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+            AudioDecoderMode.HARDWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+            AudioDecoderMode.AUTO     -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+        }
+
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+
+        player = ExoPlayer.Builder(
+            context,
+            DefaultRenderersFactory(context).setExtensionRendererMode(rendererMode)
+        )
             .setMediaSourceFactory(DefaultMediaSourceFactory(context))
+            .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
+            .setHandleAudioBecomingNoisy(true)
             .build()
             .also { exo ->
                 exo.setVideoSurfaceView(surfaceView)

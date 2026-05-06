@@ -23,6 +23,7 @@ class AppPreferences(private val context: Context) {
         private val KEY_XTREAM_PASS = stringPreferencesKey("xtream_pass")
         private val KEY_PLAYER_TYPE = stringPreferencesKey("player_type")
         private val KEY_LAST_CHANNEL_ID = stringPreferencesKey("last_channel_id")
+        private val KEY_AUDIO_DECODER = stringPreferencesKey("audio_decoder")
     }
 
     val playlistType: Flow<String> = context.dataStore.data.map { it[KEY_PLAYLIST_TYPE] ?: "" }
@@ -32,6 +33,7 @@ class AppPreferences(private val context: Context) {
     val xtreamPass: Flow<String> = context.dataStore.data.map { it[KEY_XTREAM_PASS] ?: "" }
     val playerType: Flow<String> = context.dataStore.data.map { it[KEY_PLAYER_TYPE] ?: "EXOPLAYER" }
     val lastChannelId: Flow<String> = context.dataStore.data.map { it[KEY_LAST_CHANNEL_ID] ?: "" }
+    val audioDecoderMode: Flow<String> = context.dataStore.data.map { it[KEY_AUDIO_DECODER] ?: "AUTO" }
 
     suspend fun saveM3u(url: String) = context.dataStore.edit {
         it[KEY_PLAYLIST_TYPE] = PlaylistType.M3U.name
@@ -47,4 +49,5 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setPlayerType(type: String) = context.dataStore.edit { it[KEY_PLAYER_TYPE] = type }
     suspend fun setLastChannelId(id: String) = context.dataStore.edit { it[KEY_LAST_CHANNEL_ID] = id }
+    suspend fun setAudioDecoderMode(mode: String) = context.dataStore.edit { it[KEY_AUDIO_DECODER] = mode }
 }

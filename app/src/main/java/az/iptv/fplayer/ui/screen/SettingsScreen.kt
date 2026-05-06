@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.PlayerType
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.CardBg
@@ -32,6 +33,7 @@ fun SettingsScreen(
     vm: PlayerViewModel = viewModel()
 ) {
     val playerType by vm.playerType.collectAsState()
+    val audioDecoderMode by vm.audioDecoderMode.collectAsState()
     val loadState by vm.loadState.collectAsState()
     var m3uUrl by remember { mutableStateOf("") }
 
@@ -128,6 +130,40 @@ fun SettingsScreen(
                 )
             }
 
+            SectionLabel("Аудио декодер")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DecoderChip(
+                    label = "Авто",
+                    subtitle = "Рекомендуется",
+                    mode = AudioDecoderMode.AUTO,
+                    current = audioDecoderMode,
+                    onClick = { vm.setAudioDecoderMode(AudioDecoderMode.AUTO) }
+                )
+                DecoderChip(
+                    label = "Аппаратный",
+                    subtitle = "HW",
+                    mode = AudioDecoderMode.HARDWARE,
+                    current = audioDecoderMode,
+                    onClick = { vm.setAudioDecoderMode(AudioDecoderMode.HARDWARE) }
+                )
+                DecoderChip(
+                    label = "Программный",
+                    subtitle = "SW",
+                    mode = AudioDecoderMode.SOFTWARE,
+                    current = audioDecoderMode,
+                    onClick = { vm.setAudioDecoderMode(AudioDecoderMode.SOFTWARE) }
+                )
+            }
+            Text(
+                text = when (audioDecoderMode) {
+                    AudioDecoderMode.AUTO     -> "Авто: аппаратный декодер, при ошибке — программный"
+                    AudioDecoderMode.HARDWARE -> "HW: только аппаратный (MediaCodec). Если нет звука — попробуйте Авто/SW"
+                    AudioDecoderMode.SOFTWARE -> "SW: предпочтительно программный декодер (помогает с RAW-каналами)"
+                },
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+
             SectionLabel("Версия")
             Text("FPLAYER v1.0  •  ExoPlayer + LibVLC", color = TextSecondary, fontSize = 12.sp)
         }
@@ -157,6 +193,36 @@ private fun ActionButton(label: String, enabled: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun DecoderChip(
+    label: String,
+    subtitle: String,
+    mode: AudioDecoderMode,
+    current: AudioDecoderMode,
+    onClick: () -> Unit
+) {
+    val selected = mode == current
+    val bg = if (selected) Color(0xFF0D2035) else CardBg
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = label,
+                color = if (selected) Color(0xFF7EB8E8) else Color.White,
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+            Text(text = subtitle, color = TextSecondary, fontSize = 11.sp)
+        }
     }
 }
 

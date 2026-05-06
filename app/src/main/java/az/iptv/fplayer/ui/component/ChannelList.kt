@@ -39,11 +39,11 @@ fun ChannelList(
         val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == focusedIndex }
         when {
             itemInfo == null ->
-                listState.animateScrollToItem(maxOf(0, focusedIndex - 3))
+                listState.scrollToItem(maxOf(0, focusedIndex - 3))
             itemInfo.offset + itemInfo.size > viewport - 8 ->
-                listState.animateScrollToItem(focusedIndex)
+                listState.scrollToItem(focusedIndex)
             itemInfo.offset < 8 ->
-                listState.animateScrollToItem(maxOf(0, focusedIndex - 3))
+                listState.scrollToItem(maxOf(0, focusedIndex - 3))
         }
     }
 

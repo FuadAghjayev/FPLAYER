@@ -4,6 +4,8 @@ import android.view.SurfaceView
 
 enum class PlayerType { EXOPLAYER, VLC }
 
+enum class AudioDecoderMode { AUTO, HARDWARE, SOFTWARE }
+
 data class VideoInfo(
     val width: Int = 0,
     val height: Int = 0,

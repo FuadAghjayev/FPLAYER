@@ -9,6 +9,7 @@ import az.iptv.fplayer.data.model.XtreamConfig
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.PlaylistType
 import az.iptv.fplayer.data.repository.ChannelRepository
+import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.PlayerType
 import az.iptv.fplayer.player.VideoInfo
@@ -56,6 +57,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _playerType = MutableStateFlow(PlayerType.EXOPLAYER)
     val playerType: StateFlow<PlayerType> = _playerType
 
+    private val _audioDecoderMode = MutableStateFlow(AudioDecoderMode.AUTO)
+    val audioDecoderMode: StateFlow<AudioDecoderMode> = _audioDecoderMode
+
     val visibleChannels: StateFlow<List<Channel>> = combine(_groups, _selectedGroup) { groups, group ->
         if (group == null) groups.flatMap { it.channels }
         else groups.find { it.name == group }?.channels ?: emptyList()
@@ -65,6 +69,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             prefs.playerType.collect { saved ->
                 _playerType.value = if (saved == "VLC") PlayerType.VLC else PlayerType.EXOPLAYER
+            }
+        }
+        viewModelScope.launch {
+            prefs.audioDecoderMode.collect { saved ->
+                _audioDecoderMode.value = when (saved) {
+                    "HARDWARE" -> AudioDecoderMode.HARDWARE
+                    "SOFTWARE" -> AudioDecoderMode.SOFTWARE
+                    else -> AudioDecoderMode.AUTO
+                }
             }
         }
     }
@@ -167,6 +180,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun setPlayerType(type: PlayerType) {
         _playerType.value = type
         viewModelScope.launch { prefs.setPlayerType(type.name) }
+    }
+
+    fun setAudioDecoderMode(mode: AudioDecoderMode) {
+        _audioDecoderMode.value = mode
+        viewModelScope.launch { prefs.setAudioDecoderMode(mode.name) }
     }
 
     fun nextChannel() {
