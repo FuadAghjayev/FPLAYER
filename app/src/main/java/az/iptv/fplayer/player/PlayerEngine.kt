@@ -1,6 +1,7 @@
 package az.iptv.fplayer.player
 
 import android.view.SurfaceView
+import kotlin.math.roundToInt
 
 enum class PlayerType { EXOPLAYER, VLC }
 
@@ -19,7 +20,7 @@ data class VideoInfo(
         width > 0 -> "SD"
         else -> ""
     }
-    val fpsLabel: String get() = if (frameRate > 0) "${frameRate.toInt()}fps" else ""
+    val fpsLabel: String get() = if (frameRate > 0) "${frameRate.roundToInt()}fps" else ""
 }
 
 sealed class PlaybackState {

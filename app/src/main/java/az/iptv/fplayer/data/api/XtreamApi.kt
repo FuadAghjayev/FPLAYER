@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import org.json.JSONObject
 
 object XtreamApi {
 
@@ -51,11 +52,24 @@ object XtreamApi {
                         url = config.streamUrl(streamId),
                         logoUrl = obj.optString("stream_icon"),
                         group = catMap[catId] ?: catId,
-                        epgId = obj.optString("epg_channel_id")
+                        epgId = obj.optString("epg_channel_id"),
+                        frameRate = parseFrameRate(obj)
                     )
                 )
             }
         }
+    }
+
+    private fun parseFrameRate(obj: JSONObject): Float {
+        val keys = listOf("fps", "frame_rate", "framerate", "stream_fps")
+        return keys.firstNotNullOfOrNull { key ->
+            obj.optString(key, "").toPositiveFrameRate()
+        } ?: 0f
+    }
+
+    private fun String.toPositiveFrameRate(): Float? {
+        val value = Regex("""\d+(?:\.\d+)?""").find(this)?.value?.toFloatOrNull()
+        return value?.takeIf { it > 0f }
     }
 
     private fun get(client: OkHttpClient, url: String): String {

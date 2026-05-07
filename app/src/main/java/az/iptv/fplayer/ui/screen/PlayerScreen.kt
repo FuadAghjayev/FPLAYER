@@ -87,10 +87,17 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(currentChannel) {
-        currentChannel?.let { engine.play(it.url) }
+        currentChannel?.let {
+            vm.onVideoInfoChanged(VideoInfo())
+            engine.play(it.url)
+        }
     }
 
-    val channelIndex = visibleChannels.indexOf(currentChannel) + 1
+    val currentChannelKey = currentChannel?.stableKey
+    val currentChannelIndex = remember(visibleChannels, currentChannelKey) {
+        visibleChannels.indexOfFirst { it.stableKey == currentChannelKey }
+    }
+    val channelIndex = currentChannelIndex + 1
 
     var sidebarFocusedIndex by remember { mutableIntStateOf(0) }
     var sidebarPane by remember { mutableStateOf(SidebarPane.CHANNELS) }
@@ -98,13 +105,13 @@ fun PlayerScreen(
 
     LaunchedEffect(sidebarVisible) {
         if (sidebarVisible) {
-            sidebarFocusedIndex = visibleChannels.indexOf(currentChannel).coerceAtLeast(0)
+            sidebarFocusedIndex = currentChannelIndex.coerceAtLeast(0)
             sidebarPane = SidebarPane.CHANNELS
         }
     }
 
-    LaunchedEffect(visibleChannels) {
-        sidebarFocusedIndex = visibleChannels.indexOf(currentChannel).coerceAtLeast(0)
+    LaunchedEffect(visibleChannels, currentChannelKey) {
+        sidebarFocusedIndex = currentChannelIndex.coerceAtLeast(0)
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -327,6 +334,7 @@ fun PlayerScreen(
                     ChannelList(
                         channels = visibleChannels,
                         currentChannel = currentChannel,
+                        currentFrameRate = videoInfo.frameRate,
                         focusedIndex = if (sidebarPane == SidebarPane.CHANNELS) sidebarFocusedIndex else -1,
                         onChannelClick = vm::selectChannel,
                         modifier = Modifier

@@ -189,13 +189,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun nextChannel() {
         val channels = visibleChannels.value
-        val idx = channels.indexOf(_currentChannel.value)
+        val currentKey = _currentChannel.value?.stableKey
+        val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx + 1) ?: channels.firstOrNull())?.let { selectChannel(it) }
     }
 
     fun prevChannel() {
         val channels = visibleChannels.value
-        val idx = channels.indexOf(_currentChannel.value)
+        val currentKey = _currentChannel.value?.stableKey
+        val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx - 1) ?: channels.lastOrNull())?.let { selectChannel(it) }
     }
 }

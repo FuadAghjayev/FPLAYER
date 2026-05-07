@@ -7,8 +7,11 @@ data class Channel(
     val logoUrl: String = "",
     val group: String = "",
     val epgId: String = "",
-    val isFavorite: Boolean = false
-)
+    val isFavorite: Boolean = false,
+    val frameRate: Float = 0f
+) {
+    val stableKey: String get() = "$id|$url"
+}
 
 data class ChannelGroup(
     val name: String,

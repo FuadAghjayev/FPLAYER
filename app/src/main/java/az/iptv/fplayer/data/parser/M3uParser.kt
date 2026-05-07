@@ -37,7 +37,8 @@ object M3uParser {
             url = url,
             logoUrl = attrs["tvg-logo"] ?: "",
             group = attrs["group-title"] ?: "",
-            epgId = attrs["tvg-id"] ?: ""
+            epgId = attrs["tvg-id"] ?: "",
+            frameRate = parseFrameRate(attrs)
         )
     }
 
@@ -49,6 +50,18 @@ object M3uParser {
             result[match.groupValues[1]] = match.groupValues[2]
         }
         return result
+    }
+
+    private fun parseFrameRate(attrs: Map<String, String>): Float {
+        val keys = listOf("fps", "frame-rate", "frame_rate", "framerate", "tvg-fps")
+        return keys.firstNotNullOfOrNull { key ->
+            attrs[key]?.toPositiveFrameRate()
+        } ?: 0f
+    }
+
+    private fun String.toPositiveFrameRate(): Float? {
+        val value = Regex("""\d+(?:\.\d+)?""").find(this)?.value?.toFloatOrNull()
+        return value?.takeIf { it > 0f }
     }
 
     private fun groupChannels(channels: List<Channel>): List<ChannelGroup> {
