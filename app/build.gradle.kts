@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.media3.exoplayer.rtsp)
     implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.ui)
+    implementation(libs.media3.ffmpeg.decoder)
     // LibVLC - add manually: place libvlc-all-3.6.0.aar in app/libs/ then uncomment:
     // implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
     // Coil image loading

@@ -32,7 +32,7 @@ class ExoPlayerEngine(
         val rendererMode = when (audioMode) {
             AudioDecoderMode.SOFTWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
             AudioDecoderMode.HARDWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
-            AudioDecoderMode.AUTO     -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+            AudioDecoderMode.AUTO     -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
         }
 
         val audioAttributes = AudioAttributes.Builder()
