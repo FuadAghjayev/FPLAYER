@@ -14,20 +14,24 @@ object XtreamApi {
 
     suspend fun loadChannels(config: XtreamConfig, client: OkHttpClient): List<ChannelGroup> =
         withContext(Dispatchers.IO) {
-            val catMap = fetchCategories(config, client)
+            val categories = fetchCategories(config, client)
+            val catMap = categories.associate { it.id to it.name }
             val channels = fetchStreams(config, catMap, client)
-            channels
-                .groupBy { it.group.ifEmpty { "-" } }
-                .map { (group, list) -> ChannelGroup(name = group, channels = list) }
+            groupChannels(categories, channels)
         }
 
-    private fun fetchCategories(config: XtreamConfig, client: OkHttpClient): Map<String, String> {
+    private fun fetchCategories(config: XtreamConfig, client: OkHttpClient): List<XtreamCategory> {
         val body = get(client, "${config.apiUrl}&action=get_live_categories")
         val arr = JSONArray(body)
-        return buildMap {
+        return buildList {
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
-                put(obj.optString("category_id"), obj.optString("category_name"))
+                add(
+                    XtreamCategory(
+                        id = obj.optString("category_id"),
+                        name = obj.optString("category_name").ifEmpty { "-" }
+                    )
+                )
             }
         }
     }
@@ -60,6 +64,23 @@ object XtreamApi {
         }
     }
 
+    private fun groupChannels(
+        categories: List<XtreamCategory>,
+        channels: List<Channel>
+    ): List<ChannelGroup> {
+        val grouped = linkedMapOf<String, MutableList<Channel>>()
+        channels.forEach { channel ->
+            grouped.getOrPut(channel.group.ifEmpty { "-" }) { mutableListOf() }.add(channel)
+        }
+
+        val ordered = mutableListOf<ChannelGroup>()
+        categories.forEach { category ->
+            grouped.remove(category.name)?.let { ordered.add(ChannelGroup(category.name, it)) }
+        }
+        grouped.forEach { (group, list) -> ordered.add(ChannelGroup(group, list)) }
+        return ordered
+    }
+
     private fun parseFrameRate(obj: JSONObject): Float {
         val keys = listOf("fps", "frame_rate", "framerate", "stream_fps")
         return keys.firstNotNullOfOrNull { key ->
@@ -74,8 +95,14 @@ object XtreamApi {
 
     private fun get(client: OkHttpClient, url: String): String {
         val req = Request.Builder().url(url).build()
-        val resp = client.newCall(req).execute()
-        if (!resp.isSuccessful) error("HTTP ${resp.code}")
-        return resp.body?.string() ?: error("Boş cavab")
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) error("HTTP ${resp.code}")
+            return resp.body?.string() ?: error("Boş cavab")
+        }
     }
+
+    private data class XtreamCategory(
+        val id: String,
+        val name: String
+    )
 }

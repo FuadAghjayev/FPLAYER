@@ -3,6 +3,7 @@ package az.iptv.fplayer.ui.screen
 import android.view.SurfaceView
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -42,6 +43,9 @@ import az.iptv.fplayer.ui.component.ChannelInfoOsd
 import az.iptv.fplayer.ui.component.ChannelList
 import az.iptv.fplayer.ui.component.GroupTabs
 import az.iptv.fplayer.ui.theme.Accent
+import az.iptv.fplayer.ui.theme.AppBg
+import az.iptv.fplayer.ui.theme.PanelBg
+import az.iptv.fplayer.ui.theme.PanelBgSoft
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlin.math.absoluteValue
@@ -120,7 +124,7 @@ fun PlayerScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(AppBg)
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { event ->
@@ -218,7 +222,10 @@ fun PlayerScreen(
                             else -> false
                         }
                     }
-                    Key.Menu -> { vm.toggleSidebar(); true }
+                    Key.Menu -> {
+                        if (sidebarVisible) vm.refreshPlaylist() else vm.toggleSidebar()
+                        true
+                    }
                     Key.Info -> { vm.showOsd(); true }
                     else -> false
                 }
@@ -252,7 +259,7 @@ fun PlayerScreen(
                     .width(panelWidth)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0xF5050505), Color(0xAA0A0A0A))
+                            listOf(PanelBg, PanelBgSoft.copy(alpha = 0.46f), Color.Transparent)
                         )
                     )
             )
@@ -281,13 +288,16 @@ fun PlayerScreen(
                 modifier = Modifier
                     .width(panelWidth)
                     .fillMaxHeight()
-                    .background(Color(0xF2050505))
+                    .background(PanelBg)
             ) {
                 ChannelPanelHeader(
                     title = selectedGroup ?: "Bütün kanallar",
                     channelCount = visibleChannels.size,
                     currentChannelName = currentChannel?.name,
                     activePane = sidebarPane,
+                    isRefreshing = loadState is LoadState.Loading,
+                    fromCache = (loadState as? LoadState.Success)?.fromCache == true,
+                    onRefreshClick = vm::refreshPlaylist,
                     onPlaylistClick = onNavigateToPlaylist,
                     onCloseClick = { vm.hideSidebar() }
                 )
@@ -300,47 +310,80 @@ fun PlayerScreen(
                         sidebarFocusedIndex = 0
                     },
                     focusedGroupIndex = if (sidebarPane == SidebarPane.GROUPS) groupFocusedIndex else -1,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
+                    modifier = if (sidebarPane == SidebarPane.GROUPS) {
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 178.dp)
+                    }
                 )
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0x22FFFFFF))
-                )
+                if (sidebarPane == SidebarPane.CHANNELS) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0x22FFFFFF))
+                    )
 
-                if (visibleChannels.isEmpty() && loadState !is LoadState.Loading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    if (visibleChannels.isEmpty() && loadState is LoadState.Loading) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("📺", fontSize = 32.sp)
-                            Text("Kanal tapılmadı", color = Color(0xFF888888), fontSize = 13.sp)
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Accent.copy(alpha = 0.2f))
-                                    .clickable(onClick = onNavigateToPlaylist)
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text("Pleylist əlavə et", color = Accent, fontSize = 12.sp)
+                                CircularProgressIndicator(color = Accent, modifier = Modifier.size(34.dp))
+                                Text("Kanallar hazırlanır", color = Color.White, fontSize = 14.sp)
+                                Text(
+                                    "İlk yükləmədən sonra cache-dən açılacaq",
+                                    color = Color(0xFF7B919D),
+                                    fontSize = 11.sp
+                                )
                             }
                         }
+                    } else if (visibleChannels.isEmpty()) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FPlayerMark(size = 46)
+                                Text("Kanal tapılmadı", color = Color(0xFF8EA1AA), fontSize = 13.sp)
+                                Box(
+                                    Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Accent.copy(alpha = 0.2f))
+                                        .clickable(onClick = onNavigateToPlaylist)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text("Pleylist əlavə et", color = Accent, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    } else {
+                        ChannelList(
+                            channels = visibleChannels,
+                            currentChannel = currentChannel,
+                            currentFrameRate = videoInfo.frameRate,
+                            focusedIndex = sidebarFocusedIndex,
+                            onChannelClick = vm::selectChannel,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        )
                     }
-                } else {
-                    ChannelList(
-                        channels = visibleChannels,
-                        currentChannel = currentChannel,
-                        currentFrameRate = videoInfo.frameRate,
-                        focusedIndex = if (sidebarPane == SidebarPane.CHANNELS) sidebarFocusedIndex else -1,
-                        onChannelClick = vm::selectChannel,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                    )
                 }
             }
         }
@@ -466,6 +509,28 @@ private fun VideoSurface(engine: PlayerEngine) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+private fun FPlayerMark(size: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .clip(RoundedCornerShape((size / 5).dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF0B2A35), Color(0xFF061014))
+                )
+            )
+            .border(1.dp, Accent.copy(alpha = 0.45f), RoundedCornerShape((size / 5).dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("F", color = Accent, fontSize = (size * 0.48f).sp, fontWeight = FontWeight.Black)
+            Text("▶", color = Color(0xFFFFC857), fontSize = (size * 0.26f).sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 private fun SwipeHint(modifier: Modifier = Modifier) {
     var visible by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
@@ -495,35 +560,44 @@ private fun ChannelPanelHeader(
     channelCount: Int,
     currentChannelName: String?,
     activePane: SidebarPane,
+    isRefreshing: Boolean,
+    fromCache: Boolean,
+    onRefreshClick: () -> Unit,
     onPlaylistClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF0D0D0D))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .background(Color(0xFF091820))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FPlayerMark(size = 34)
+                Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Aktiv pane göstəricisi
                     Text(
-                        text = if (activePane == SidebarPane.GROUPS) "≡" else "▶",
+                        text = if (activePane == SidebarPane.GROUPS) "KATEQORIYA" else "KANALLAR",
                         color = Accent,
-                        fontSize = 12.sp
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = if (activePane == SidebarPane.GROUPS) "Kateqoriyalar" else title,
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -541,36 +615,66 @@ private fun ChannelPanelHeader(
                 if (activePane == SidebarPane.GROUPS) {
                     Text(
                         text = "← Kanal siyahısına qayıt",
-                        color = Color(0xFF666666),
+                        color = Color(0xFF6F8792),
                         fontSize = 10.sp
                     )
                 }
+                }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    text = "≡",
-                    color = Color(0xFF888888),
-                    fontSize = 18.sp,
+                    text = if (isRefreshing) "..." else "↻",
+                    color = if (isRefreshing) Color(0xFF7B919D) else Accent,
+                    fontSize = 16.sp,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0x14FFFFFF))
+                        .clickable(enabled = !isRefreshing, onClick = onRefreshClick)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+                Text(
+                    text = "☰",
+                    color = Color(0xFF9FB1BA),
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onPlaylistClick)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
                 Text(
                     text = "✕",
-                    color = Color(0xFFAAAAAA),
+                    color = Color(0xFFB8C6CC),
                     fontSize = 16.sp,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onCloseClick)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
         }
         if (channelCount > 0 && activePane == SidebarPane.CHANNELS) {
-            Text(
-                text = "$channelCount kanal",
-                color = Color(0xFF555555),
-                fontSize = 10.sp
-            )
+            Row(
+                modifier = Modifier.padding(start = 44.dp, top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$channelCount kanal",
+                    color = Color(0xFF6F8792),
+                    fontSize = 10.sp
+                )
+                if (fromCache) {
+                    Text(
+                        text = "cache",
+                        color = Accent,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     }
 }

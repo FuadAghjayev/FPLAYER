@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
+import az.iptv.fplayer.ui.theme.FocusBorder
 import kotlin.math.roundToInt
 
 @Composable
@@ -87,15 +88,15 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val bg = when {
-        isPlaying && isFocused -> Color(0x99BF6B00)
-        isPlaying -> Color(0x661A1200)
-        isFocused -> Color(0x770D1B2A)
-        index % 2 == 0 -> Color(0x330B1118)
-        else -> Color(0x22060606)
+        isPlaying && isFocused -> Color(0xCC12383D)
+        isPlaying -> Color(0x9910222B)
+        isFocused -> Color(0xAA163241)
+        index % 2 == 0 -> Color(0x3312252F)
+        else -> Color(0x22061014)
     }
     val borderColor = when {
-        isPlaying -> Accent.copy(alpha = 0.42f)
-        isFocused -> Color(0xFF4A90D9).copy(alpha = 0.42f)
+        isPlaying -> Accent.copy(alpha = 0.5f)
+        isFocused -> FocusBorder.copy(alpha = 0.58f)
         else -> Color(0x16FFFFFF)
     }
     val fpsLabel = formatFrameRate(liveFrameRate.takeIf { it > 0f } ?: channel.frameRate)
@@ -119,7 +120,7 @@ fun ChannelItem(
                 .background(
                     when {
                         isPlaying -> Brush.verticalGradient(listOf(Accent, Accent.copy(0.4f)))
-                        isFocused -> Brush.verticalGradient(listOf(Color(0xFF4A90D9), Color(0xFF1A4A80)))
+                        isFocused -> Brush.verticalGradient(listOf(FocusBorder, FocusBorder.copy(alpha = 0.28f)))
                         else -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
                     }
                 )
@@ -131,7 +132,7 @@ fun ChannelItem(
                 .fillMaxHeight()
                 .background(
                     when {
-                        isPlaying -> Color(0x33FF8C00)
+                        isPlaying -> Accent.copy(alpha = 0.18f)
                         isFocused -> Color(0x18FFFFFF)
                         else -> Color(0x08FFFFFF)
                     }
@@ -142,8 +143,8 @@ fun ChannelItem(
                 text = String.format("%d", index),
                 color = when {
                     isPlaying -> Accent
-                    isFocused -> Color(0xFF7EB8E8)
-                    else -> Color(0xFF4A4A4A)
+                    isFocused -> FocusBorder
+                    else -> Color(0xFF66757C)
                 },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
@@ -154,8 +155,8 @@ fun ChannelItem(
             text = channel.name,
             color = when {
                 isPlaying -> Color.White
-                isFocused -> Color(0xFFD0E8FF)
-                else -> Color(0xFF888888)
+                isFocused -> Color(0xFFEAF8FF)
+                else -> Color(0xFF9AABB4)
             },
             fontSize = 13.sp,
             fontWeight = when {
@@ -196,7 +197,7 @@ fun ChannelItem(
         } else if (isFocused) {
             Text(
                 text = ">",
-                color = Color(0xFF4A90D9),
+                color = FocusBorder,
                 fontSize = 16.sp,
                 modifier = Modifier.padding(end = 10.dp)
             )
@@ -213,7 +214,7 @@ private fun ReceiverBadge(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(3.dp))
-            .background(if (isActive) Color(0x24FF8C00) else Color(0x14FFFFFF))
+            .background(if (isActive) Accent.copy(alpha = 0.16f) else Color(0x14FFFFFF))
             .border(
                 1.dp,
                 if (isActive) Accent.copy(alpha = 0.32f) else Color(0x22FFFFFF),
@@ -224,7 +225,7 @@ private fun ReceiverBadge(
     ) {
         Text(
             text = text,
-            color = if (isActive) Accent else Color(0xFF777777),
+            color = if (isActive) Accent else Color(0xFF7D8E96),
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1

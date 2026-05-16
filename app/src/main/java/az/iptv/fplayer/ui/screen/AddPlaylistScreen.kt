@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -27,8 +28,12 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import az.iptv.fplayer.player.PlayerType
 import az.iptv.fplayer.ui.theme.Accent
+import az.iptv.fplayer.ui.theme.AppBg
 import az.iptv.fplayer.ui.theme.CardBg
+import az.iptv.fplayer.ui.theme.FocusBorder
+import az.iptv.fplayer.ui.theme.PanelBg
 import az.iptv.fplayer.ui.theme.TextSecondary
+import az.iptv.fplayer.ui.theme.WarmAccent
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlinx.coroutines.flow.first
@@ -68,7 +73,11 @@ fun AddPlaylistScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF050505))
+            .background(
+                Brush.linearGradient(
+                    listOf(AppBg, Color(0xFF0B1F27), Color(0xFF020609))
+                )
+            )
     ) {
         val isWide = maxWidth > 600.dp
         val scrollState = rememberScrollState()
@@ -80,17 +89,12 @@ fun AddPlaylistScreen(
                     modifier = Modifier
                         .width(300.dp)
                         .fillMaxHeight()
-                        .background(Color(0xFF0D0D0D))
+                        .background(PanelBg)
                         .padding(40.dp),
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = "F",
-                        color = Accent,
-                        fontSize = 80.sp,
-                        fontWeight = FontWeight.Black,
-                        lineHeight = 80.sp
-                    )
+                    FPlayerLogo(size = 92)
+                    Spacer(Modifier.height(22.dp))
                     Text(
                         text = "PLAYER",
                         color = Color.White,
@@ -100,13 +104,13 @@ fun AddPlaylistScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        text = "IPTV",
-                        color = Accent.copy(alpha = 0.7f),
+                        text = "LIVE TV",
+                        color = WarmAccent.copy(alpha = 0.82f),
                         fontSize = 13.sp,
                         letterSpacing = 4.sp
                     )
                     Spacer(Modifier.height(32.dp))
-                    Box(Modifier.width(36.dp).height(2.dp).background(Accent))
+                    Box(Modifier.width(42.dp).height(2.dp).background(Accent))
                     Spacer(Modifier.height(20.dp))
                     Text(
                         text = "M3U pleylist və Xtream\nCodes dəstəyi",
@@ -136,12 +140,7 @@ fun AddPlaylistScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "F",
-                            color = Accent,
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Black
-                        )
+                        FPlayerLogo(size = 44)
                         Column {
                             Text(
                                 text = "PLAYER",
@@ -150,21 +149,21 @@ fun AddPlaylistScreen(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 4.sp
                             )
-                            Text(text = "IPTV", color = TextSecondary, fontSize = 11.sp)
+                            Text(text = "LIVE TV", color = TextSecondary, fontSize = 11.sp)
                         }
                     }
                     Spacer(Modifier.height(24.dp))
                 }
 
                 Text(
-                    text = "Pleylist əlavə et",
+                    text = "Kanal mənbəyi",
                     color = Color.White,
                     fontSize = if (isWide) 24.sp else 20.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Mənbə seçin və məlumatları daxil edin",
+                    text = "Mənbə seçin, kanalları yükləyin və sonra istədiyiniz vaxt yeniləyin",
                     color = TextSecondary,
                     fontSize = 13.sp
                 )
@@ -173,7 +172,7 @@ fun AddPlaylistScreen(
                 // Mənbə seçim kartları
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SourceCard(
-                        icon = "📋",
+                        icon = "M3U",
                         title = "M3U Pleylist",
                         subtitle = "URL linkdən yüklə",
                         selected = selectedTab == SourceTab.M3U,
@@ -181,7 +180,7 @@ fun AddPlaylistScreen(
                         modifier = Modifier.weight(1f)
                     )
                     SourceCard(
-                        icon = "🔐",
+                        icon = "XC",
                         title = "Xtream Codes",
                         subtitle = "Server, istifadəçi, şifrə",
                         selected = selectedTab == SourceTab.XTREAM,
@@ -257,7 +256,7 @@ fun AddPlaylistScreen(
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     LoadButton(
-                        label = if (isLoading) "Yüklənir..." else "Yüklə",
+                        label = if (isLoading) "Yüklənir..." else "Yüklə / Yenilə",
                         enabled = canLoad,
                         onClick = {
                             when (selectedTab) {
@@ -311,6 +310,24 @@ fun AddPlaylistScreen(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+private fun FPlayerLogo(size: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .clip(RoundedCornerShape((size / 5).dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF0B2A35), Color(0xFF061014))))
+            .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape((size / 5).dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("F", color = Accent, fontSize = (size * 0.48f).sp, fontWeight = FontWeight.Black)
+            Text("▶", color = WarmAccent, fontSize = (size * 0.25f).sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 private fun SourceCard(
     icon: String,
     title: String,
@@ -319,23 +336,35 @@ private fun SourceCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = if (selected) Accent else Color(0x33FFFFFF)
-    val bgColor = if (selected) Accent.copy(alpha = 0.12f) else CardBg
+    val borderColor = if (selected) FocusBorder else Color(0x2EFFFFFF)
+    val bgColor = if (selected) Color(0xAA12383D) else CardBg
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(bgColor)
             .border(
                 width = if (selected) 1.5.dp else 1.dp,
                 color = borderColor,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
             .padding(14.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(icon, fontSize = 22.sp)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(if (selected) Accent.copy(alpha = 0.18f) else Color(0x18FFFFFF))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    icon,
+                    color = if (selected) Accent else TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
             Text(
                 text = title,
                 color = if (selected) Color.White else Color(0xFFCCCCCC),
@@ -376,8 +405,8 @@ private fun FormField(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x22FFFFFF))
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+            .background(Color(0x6612252F))
+            .border(1.dp, Color(0x2FFFFFFF), RoundedCornerShape(8.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         decorationBox = { inner ->
             if (value.isEmpty()) {
@@ -398,9 +427,9 @@ private fun LoadButton(label: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (enabled) Accent else Color(0x44FF8C00))
+            .background(if (enabled) Accent else Accent.copy(alpha = 0.22f))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 28.dp, vertical = 13.dp)
+            .padding(horizontal = 30.dp, vertical = 13.dp)
     ) {
         Text(text = label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
     }
@@ -418,10 +447,10 @@ private fun PlayerChip(label: String, subtitle: String, selected: Boolean, onCli
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Accent.copy(alpha = 0.15f) else CardBg)
+            .background(if (selected) Color(0xAA12383D) else CardBg)
             .border(
                 width = if (selected) 1.dp else 0.dp,
-                color = if (selected) Accent else Color.Transparent,
+                color = if (selected) Accent.copy(alpha = 0.62f) else Color.Transparent,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)

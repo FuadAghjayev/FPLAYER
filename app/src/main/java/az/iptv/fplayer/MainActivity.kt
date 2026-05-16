@@ -5,17 +5,20 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -27,6 +30,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import az.iptv.fplayer.ui.screen.AddPlaylistScreen
 import az.iptv.fplayer.ui.screen.PlayerScreen
+import az.iptv.fplayer.ui.theme.AppBg
 import az.iptv.fplayer.ui.theme.FPLAYERTheme
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
@@ -119,7 +123,19 @@ private fun SplashScreen(
     LaunchedEffect(Unit) {
         val type = vm.prefs.playlistType.first()
         val hasPlaylist = type.isNotEmpty()
+        delay(180)
         onFinish(hasPlaylist)
     }
-    Box(Modifier.fillMaxSize().background(Color.Black))
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_fplayer_logo),
+            contentDescription = null,
+            modifier = Modifier.size(96.dp)
+        )
+    }
 }

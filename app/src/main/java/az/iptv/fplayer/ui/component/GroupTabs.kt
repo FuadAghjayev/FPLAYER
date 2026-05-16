@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.ChannelGroup
 import az.iptv.fplayer.ui.theme.Accent
+import az.iptv.fplayer.ui.theme.FocusBorder
+import az.iptv.fplayer.ui.theme.PanelBgSoft
 
 @Composable
 fun GroupTabs(
@@ -35,18 +37,18 @@ fun GroupTabs(
     val selectedIndex = if (selectedGroup == null) 0 else groups.indexOfFirst { it.name == selectedGroup } + 1
 
     LaunchedEffect(selectedIndex) {
-        if (selectedIndex >= 0) listState.animateScrollToItem(selectedIndex)
+        if (selectedIndex >= 0) listState.scrollToItem(selectedIndex)
     }
 
     LaunchedEffect(focusedGroupIndex) {
-        if (focusedGroupIndex >= 0) listState.animateScrollToItem(focusedGroupIndex)
+        if (focusedGroupIndex >= 0) listState.scrollToItem(focusedGroupIndex)
     }
 
     LazyColumn(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF080808)),
+            .background(PanelBgSoft),
         contentPadding = PaddingValues(vertical = 4.dp)
     ) {
         itemsIndexed(allGroups) { idx, groupName ->
@@ -57,11 +59,11 @@ fun GroupTabs(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(40.dp)
-                    .background(
-                        when {
-                            isSelected && isFocused -> Color(0xFF1A1000)
-                            isSelected -> Color(0xFF120D00)
-                            isFocused -> Color(0xFF0D1B2A)
+                        .background(
+                            when {
+                            isSelected && isFocused -> Color(0xCC12383D)
+                            isSelected -> Color(0xAA102A31)
+                            isFocused -> Color(0x9918323C)
                             else -> Color.Transparent
                         }
                     )
@@ -77,7 +79,7 @@ fun GroupTabs(
                         .background(
                             when {
                                 isSelected -> Brush.verticalGradient(listOf(Accent, Accent.copy(0.3f)))
-                                isFocused -> Brush.verticalGradient(listOf(Color(0xFF4A90D9), Color(0xFF1A4A80)))
+                                isFocused -> Brush.verticalGradient(listOf(FocusBorder, FocusBorder.copy(alpha = 0.25f)))
                                 else -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
                             }
                         )
@@ -94,8 +96,8 @@ fun GroupTabs(
                         text = if (idx == 0) "☰" else "▸",
                         color = when {
                             isSelected -> Accent
-                            isFocused -> Color(0xFF4A90D9)
-                            else -> Color(0xFF3A3A3A)
+                            isFocused -> FocusBorder
+                            else -> Color(0xFF5C7079)
                         },
                         fontSize = if (idx == 0) 13.sp else 10.sp
                     )
@@ -106,8 +108,8 @@ fun GroupTabs(
                     text = groupName ?: "Bütün kanallar",
                     color = when {
                         isSelected -> Color.White
-                        isFocused -> Color(0xFFD0E8FF)
-                        else -> Color(0xFF606060)
+                        isFocused -> Color(0xFFEAF8FF)
+                        else -> Color(0xFF8EA1AA)
                     },
                     fontSize = 12.sp,
                     fontWeight = when {
@@ -137,7 +139,7 @@ fun GroupTabs(
                         ) {
                             Text(
                                 text = "$count",
-                                color = if (isSelected) Accent else Color(0xFF444444),
+                                color = if (isSelected) Accent else Color(0xFF788D96),
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
                             )

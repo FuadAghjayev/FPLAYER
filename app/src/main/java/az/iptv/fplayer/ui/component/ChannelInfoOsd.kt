@@ -21,7 +21,9 @@ import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.BadgeBg
+import az.iptv.fplayer.ui.theme.OsdBg
 import az.iptv.fplayer.ui.theme.TextSecondary
+import az.iptv.fplayer.ui.theme.WarmAccent
 import coil.compose.AsyncImage
 
 @Composable
@@ -47,8 +49,8 @@ fun ChannelInfoOsd(
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        0.3f to Color(0xCC000000),
-                        1f to Color(0xFF000000)
+                        0.3f to OsdBg,
+                        1f to Color(0xFF061014)
                     )
                 )
                 .padding(horizontal = 56.dp, vertical = 0.dp)
@@ -75,7 +77,7 @@ fun ChannelInfoOsd(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF141414))
+                        .background(Color(0xFF10232D))
                         .border(1.dp, Color(0x25FFFFFF), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -162,7 +164,7 @@ fun ChannelInfoOsd(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0x20FF8C00))
+                                .background(Accent.copy(alpha = 0.16f))
                                 .border(1.dp, Accent.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
@@ -181,7 +183,7 @@ fun ChannelInfoOsd(
                     )
                     Text(
                         text = "FPLAYER",
-                        color = Accent.copy(alpha = 0.35f),
+                        color = WarmAccent.copy(alpha = 0.42f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black
                     )

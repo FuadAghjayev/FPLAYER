@@ -21,13 +21,13 @@ import kotlinx.coroutines.launch
 sealed class LoadState {
     data object Idle : LoadState()
     data object Loading : LoadState()
-    data class Success(val count: Int) : LoadState()
+    data class Success(val count: Int, val fromCache: Boolean = false) : LoadState()
     data class Error(val message: String) : LoadState()
 }
 
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = ChannelRepository()
+    private val repo = ChannelRepository(app)
     val prefs = AppPreferences(app)
 
     private val _groups = MutableStateFlow<List<ChannelGroup>>(emptyList())
@@ -45,7 +45,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _videoInfo = MutableStateFlow(VideoInfo())
     val videoInfo: StateFlow<VideoInfo> = _videoInfo
 
-    private val _sidebarVisible = MutableStateFlow(true)
+    private val _sidebarVisible = MutableStateFlow(false)
     val sidebarVisible: StateFlow<Boolean> = _sidebarVisible
 
     private val _osdVisible = MutableStateFlow(false)
@@ -59,6 +59,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _audioDecoderMode = MutableStateFlow(AudioDecoderMode.AUTO)
     val audioDecoderMode: StateFlow<AudioDecoderMode> = _audioDecoderMode
+
+    private var playlistLoadJob: Job? = null
 
     val visibleChannels: StateFlow<List<Channel>> = combine(_groups, _selectedGroup) { groups, group ->
         if (group == null) groups.flatMap { it.channels }
@@ -82,21 +84,47 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // Bug fix #2: sadece qruplar boşdursa yüklə
     fun autoLoadSavedPlaylist() {
         if (_groups.value.isNotEmpty()) return
-        viewModelScope.launch {
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
             val type = prefs.playlistType.first()
+            val lastChannelKey = prefs.lastChannelId.first()
             when (type) {
                 PlaylistType.M3U.name -> {
                     val url = prefs.m3uUrl.first()
-                    if (url.isNotEmpty()) loadM3u(url)
+                    if (url.isNotEmpty()) {
+                        repo.loadCachedM3u(url)
+                            .onSuccess {
+                                onGroupsLoaded(
+                                    groups = it,
+                                    fromCache = true,
+                                    preferredChannelKey = lastChannelKey,
+                                    revealSidebar = false
+                                )
+                                return@launch
+                            }
+                        loadM3uFromNetwork(url, preferredChannelKey = lastChannelKey)
+                    }
                 }
                 PlaylistType.XTREAM.name -> {
                     val server = prefs.xtreamServer.first()
                     val user = prefs.xtreamUser.first()
                     val pass = prefs.xtreamPass.first()
-                    if (server.isNotEmpty() && user.isNotEmpty()) loadXtream(server, user, pass)
+                    if (server.isNotEmpty() && user.isNotEmpty()) {
+                        val config = xtreamConfig(server, user, pass)
+                        repo.loadCachedXtream(config)
+                            .onSuccess {
+                                onGroupsLoaded(
+                                    groups = it,
+                                    fromCache = true,
+                                    preferredChannelKey = lastChannelKey,
+                                    revealSidebar = false
+                                )
+                                return@launch
+                            }
+                        loadXtreamFromNetwork(config, preferredChannelKey = lastChannelKey)
+                    }
                 }
             }
         }
@@ -108,38 +136,111 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadM3u(url: String) {
-        viewModelScope.launch {
-            _loadState.value = LoadState.Loading
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
             prefs.saveM3u(url)
-            repo.loadM3u(url)
-                .onSuccess { onGroupsLoaded(it) }
-                .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
+            loadM3uFromNetwork(url, revealSidebar = true)
         }
     }
 
     fun loadXtream(server: String, username: String, password: String) {
-        viewModelScope.launch {
-            _loadState.value = LoadState.Loading
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
             prefs.saveXtream(server, username, password)
-            val config = XtreamConfig(
-                serverUrl = if (server.startsWith("http")) server else "http://$server",
-                username = username,
-                password = password
-            )
-            repo.loadXtream(config)
-                .onSuccess { onGroupsLoaded(it) }
-                .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
+            loadXtreamFromNetwork(xtreamConfig(server, username, password), revealSidebar = true)
         }
     }
 
-    private fun onGroupsLoaded(groups: List<ChannelGroup>) {
-        _groups.value = groups
-        _loadState.value = LoadState.Success(groups.sumOf { it.channels.size })
-        // Bug fix #1: ilk kanalı sidebar-ı gizlətmədən set et
-        if (_currentChannel.value == null) {
-            _currentChannel.value = groups.firstOrNull()?.channels?.firstOrNull()
+    fun refreshPlaylist() {
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
+            val currentKey = _currentChannel.value?.stableKey ?: prefs.lastChannelId.first()
+            when (prefs.playlistType.first()) {
+                PlaylistType.M3U.name -> {
+                    val url = prefs.m3uUrl.first()
+                    if (url.isNotEmpty()) loadM3uFromNetwork(
+                        url = url,
+                        preferredChannelKey = currentKey,
+                        revealSidebar = _sidebarVisible.value
+                    )
+                }
+                PlaylistType.XTREAM.name -> {
+                    val server = prefs.xtreamServer.first()
+                    val user = prefs.xtreamUser.first()
+                    val pass = prefs.xtreamPass.first()
+                    if (server.isNotEmpty() && user.isNotEmpty()) loadXtreamFromNetwork(
+                        config = xtreamConfig(server, user, pass),
+                        preferredChannelKey = currentKey,
+                        revealSidebar = _sidebarVisible.value
+                    )
+                }
+            }
         }
-        _sidebarVisible.value = true
+    }
+
+    private suspend fun loadM3uFromNetwork(
+        url: String,
+        preferredChannelKey: String? = null,
+        revealSidebar: Boolean = false
+    ) {
+        _loadState.value = LoadState.Loading
+        repo.loadM3u(url)
+            .onSuccess {
+                onGroupsLoaded(
+                    groups = it,
+                    fromCache = false,
+                    preferredChannelKey = preferredChannelKey,
+                    revealSidebar = revealSidebar
+                )
+            }
+            .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
+    }
+
+    private suspend fun loadXtreamFromNetwork(
+        config: XtreamConfig,
+        preferredChannelKey: String? = null,
+        revealSidebar: Boolean = false
+    ) {
+        _loadState.value = LoadState.Loading
+        repo.loadXtream(config)
+            .onSuccess {
+                onGroupsLoaded(
+                    groups = it,
+                    fromCache = false,
+                    preferredChannelKey = preferredChannelKey,
+                    revealSidebar = revealSidebar
+                )
+            }
+            .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
+    }
+
+    private fun onGroupsLoaded(
+        groups: List<ChannelGroup>,
+        fromCache: Boolean,
+        preferredChannelKey: String? = null,
+        revealSidebar: Boolean = false
+    ) {
+        _groups.value = groups
+        _loadState.value = LoadState.Success(groups.sumOf { it.channels.size }, fromCache)
+
+        if (_selectedGroup.value != null && groups.none { it.name == _selectedGroup.value }) {
+            _selectedGroup.value = null
+        }
+
+        val channels = groups.flatMap { it.channels }
+        val currentKey = _currentChannel.value?.stableKey
+        _currentChannel.value = channels.firstOrNull { it.stableKey == currentKey }
+            ?: channels.firstOrNull { it.stableKey == preferredChannelKey }
+            ?: channels.firstOrNull()
+        _sidebarVisible.value = revealSidebar
+    }
+
+    private fun xtreamConfig(server: String, username: String, password: String): XtreamConfig {
+        return XtreamConfig(
+            serverUrl = if (server.startsWith("http")) server else "http://$server",
+            username = username,
+            password = password
+        )
     }
 
     private var osdJob: Job? = null
@@ -148,6 +249,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _currentChannel.value = channel
         _sidebarVisible.value = false
         _osdVisible.value = true
+        viewModelScope.launch { prefs.setLastChannelId(channel.stableKey) }
         osdJob?.cancel()
         osdJob = viewModelScope.launch {
             delay(5000)

@@ -65,8 +65,12 @@ object M3uParser {
     }
 
     private fun groupChannels(channels: List<Channel>): List<ChannelGroup> {
-        val grouped = channels.groupBy { it.group.ifEmpty { "-" } }
-        return grouped.entries.map { (group, list) ->
+        val grouped = linkedMapOf<String, MutableList<Channel>>()
+        channels.forEach { channel ->
+            val groupName = channel.group.ifEmpty { "-" }
+            grouped.getOrPut(groupName) { mutableListOf() }.add(channel)
+        }
+        return grouped.map { (group, list) ->
             ChannelGroup(name = group, channels = list)
         }
     }
