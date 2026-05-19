@@ -90,57 +90,57 @@ fun ChannelItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .height(94.dp)
+            .padding(vertical = 4.dp)
+            .height(72.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(background)
             .focusProperties { canFocus = false }
             .clickable(onClick = onClick)
-            .padding(horizontal = 28.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ChannelLogo(channel.logoUrl, size = 64)
+        ChannelLogo(channel.logoUrl, size = 48)
 
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 28.dp),
+                .padding(start = 14.dp),
             horizontalAlignment = Alignment.Start
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "$index",
                     color = primaryText,
-                    fontSize = 20.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(32.dp)
+                    modifier = Modifier.width(24.dp)
                 )
                 Text(
                     text = channel.name,
                     color = primaryText,
-                    fontSize = 20.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (fpsLabel.isNotEmpty()) {
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(8.dp))
                     ReceiverBadge(text = fpsLabel.uppercase(), active = isFocused || isPlaying)
                 }
             }
             Text(
                 text = "Program",
                 color = secondaryText,
-                fontSize = 19.sp,
+                fontSize = 15.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 4.dp)
             )
             Box(
                 modifier = Modifier
-                    .padding(top = 8.dp)
+                    .padding(top = 6.dp)
                     .fillMaxWidth()
-                    .height(3.dp)
+                    .height(2.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(Color(0x66D9DCE0))
             ) {
@@ -165,12 +165,12 @@ private fun ReceiverBadge(text: String, active: Boolean) {
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(if (active) Color(0x33111111) else Color(0x24FFFFFF))
-            .padding(horizontal = 7.dp, vertical = 3.dp)
+            .padding(horizontal = 5.dp, vertical = 2.dp)
     ) {
         Text(
             text = text,
             color = if (active) Color(0xFF111417) else Color(0xFFCED3D8),
-            fontSize = 11.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )

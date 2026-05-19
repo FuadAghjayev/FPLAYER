@@ -65,46 +65,47 @@ fun ChannelInfoOsd(
                         1f to Color(0xEA000000)
                     )
                 )
-                .padding(start = 80.dp, end = 80.dp, top = 34.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(start = 68.dp, end = 68.dp, top = 28.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                ChannelLogo(channel.logoUrl, size = 82)
+                ChannelLogo(channel.logoUrl, size = 72)
 
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = "$channelIndex  ${channel.name}",
                         color = Color.White,
-                        fontSize = 26.sp,
+                        fontSize = 23.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Program", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                        Text("11:58 - 12:51 PM", color = Color(0xFFC7C9CD), fontSize = 18.sp)
-                        ProgramProgress(width = 70.dp, progress = 0.35f)
-                        Text("26 min", color = Color(0xFFC7C9CD), fontSize = 18.sp)
+                        Text("Program", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text("11:58 - 12:51 PM", color = Color(0xFFC7C9CD), fontSize = 16.sp)
+                        ProgramProgress(width = 62.dp, progress = 0.35f)
+                        Text("26 min", color = Color(0xFFC7C9CD), fontSize = 16.sp)
                         if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
-                        val fps = videoInfo.fpsLabel.ifBlank {
-                            channel.frameRate.takeIf { it > 0f }?.let { "${it.toInt()} FPS" } ?: ""
+                        if (videoInfo.width > 0 && videoInfo.height > 0) {
+                            TechBadge("${videoInfo.width}x${videoInfo.height}")
                         }
-                        if (fps.isNotEmpty()) TechBadge(fps.uppercase())
+                        val fps = formatFrameRate(videoInfo.frameRate.takeIf { it > 0f } ?: channel.frameRate)
+                        if (fps.isNotEmpty()) TechBadge(fps)
                         if (videoInfo.codec.isNotEmpty()) TechBadge(videoInfo.codec.uppercase())
                     }
                     Text(
                         text = "12:51 - 01:51 PM   Program",
                         color = Color(0xFFAEB0B5),
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -114,7 +115,7 @@ fun ChannelInfoOsd(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
+                    .height(3.dp)
                     .clip(RoundedCornerShape(3.dp))
                     .background(Color(0x66FFFFFF))
             ) {
@@ -137,7 +138,7 @@ fun TechBadge(text: String) {
             .background(Color(0xBFD1D4D8))
             .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
-        Text(text = text, color = Color(0xFF111317), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, color = Color(0xFF111317), fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -192,3 +193,6 @@ private fun ProgramProgress(width: androidx.compose.ui.unit.Dp, progress: Float)
         )
     }
 }
+
+private fun formatFrameRate(frameRate: Float): String =
+    if (frameRate > 0f) "${frameRate.toInt()} FPS" else ""

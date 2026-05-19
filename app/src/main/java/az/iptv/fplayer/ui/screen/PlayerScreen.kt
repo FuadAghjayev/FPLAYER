@@ -1,5 +1,6 @@
 package az.iptv.fplayer.ui.screen
 
+import android.app.Activity
 import android.view.SurfaceView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -78,6 +79,7 @@ import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
+import kotlinx.coroutines.delay
 import kotlin.math.absoluteValue
 
 private enum class SelectorPane { CHANNELS, GROUPS }
@@ -136,6 +138,9 @@ fun PlayerScreen(
     var focusedChannelIndex by remember { mutableIntStateOf(0) }
     var focusedGroupIndex by remember { mutableIntStateOf(0) }
     var selectorPane by remember { mutableStateOf(SelectorPane.CHANNELS) }
+    var exitPromptVisible by remember { mutableStateOf(false) }
+    var exitHintVisible by remember { mutableStateOf(false) }
+    var lastExitBackAt by remember { mutableStateOf(0L) }
 
     LaunchedEffect(selectorVisible) {
         if (selectorVisible) {
@@ -150,6 +155,12 @@ fun PlayerScreen(
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(exitHintVisible) {
+        if (exitHintVisible) {
+            delay(2200)
+            exitHintVisible = false
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -159,6 +170,48 @@ fun PlayerScreen(
             .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val isExitKey = event.key == Key.Back
+                if (exitPromptVisible) {
+                    when {
+                        event.key == Key.Enter ||
+                            event.key == Key.NumPadEnter ||
+                            event.key == Key.DirectionCenter -> {
+                            (context as? Activity)?.finish()
+                            true
+                        }
+                        isExitKey -> {
+                            exitPromptVisible = false
+                            true
+                        }
+                        else -> true
+                    }
+                } else if (isExitKey) {
+                    when {
+                        selectorVisible && selectorPane == SelectorPane.GROUPS -> {
+                            selectorPane = SelectorPane.CHANNELS
+                            true
+                        }
+                        selectorVisible -> {
+                            vm.hideSidebar()
+                            true
+                        }
+                        osdVisible -> {
+                            vm.hideOsd()
+                            true
+                        }
+                        else -> {
+                            val now = System.currentTimeMillis()
+                            if (now - lastExitBackAt <= 2200L) {
+                                exitHintVisible = false
+                                exitPromptVisible = true
+                            } else {
+                                lastExitBackAt = now
+                                exitHintVisible = true
+                            }
+                            true
+                        }
+                    }
+                } else {
                 when (event.key) {
                     Key.DirectionLeft -> {
                         if (selectorVisible) {
@@ -241,24 +294,6 @@ fun PlayerScreen(
                         }
                     }
 
-                    Key.Back -> {
-                        when {
-                            selectorVisible && selectorPane == SelectorPane.GROUPS -> {
-                                selectorPane = SelectorPane.CHANNELS
-                                true
-                            }
-                            selectorVisible -> {
-                                vm.hideSidebar()
-                                true
-                            }
-                            osdVisible -> {
-                                vm.hideOsd()
-                                true
-                            }
-                            else -> false
-                        }
-                    }
-
                     Key.Menu -> {
                         if (selectorVisible) vm.refreshPlaylist() else vm.showOsd()
                         true
@@ -271,10 +306,11 @@ fun PlayerScreen(
 
                     else -> false
                 }
+                }
             }
     ) {
         val isWide = maxWidth > 700.dp
-        val guideWidth = if (isWide) (maxWidth * 0.31f).coerceIn(520.dp, 640.dp) else maxWidth
+        val guideWidth = if (isWide) (maxWidth * 0.18f).coerceIn(300.dp, 360.dp) else maxWidth * 0.78f
 
         VideoSurface(engine = engine)
 
@@ -304,7 +340,6 @@ fun PlayerScreen(
                     currentChannel = currentChannel,
                     selectedGroup = selectedGroup,
                     focusedIndex = focusedChannelIndex,
-                    channelIndex = channelIndex,
                     videoInfo = videoInfo,
                     guideWidth = guideWidth,
                     isLoading = loadState is LoadState.Loading,
@@ -355,6 +390,21 @@ fun PlayerScreen(
                 .zIndex(5f)
         )
 
+        ExitHint(
+            visible = exitHintVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 36.dp)
+                .zIndex(20f)
+        )
+
+        ExitConfirmDialog(
+            visible = exitPromptVisible,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(21f)
+        )
+
         if (!isWide && !selectorVisible) {
             MobileTapLayer(
                 onTap = {
@@ -375,6 +425,54 @@ private fun VideoSurface(engine: PlayerEngine) {
         factory = { ctx -> SurfaceView(ctx).also { engine.init(it) } },
         modifier = Modifier.fillMaxSize()
     )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ExitHint(visible: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xC81D2228))
+                .padding(horizontal = 18.dp, vertical = 10.dp)
+        ) {
+            Text(
+                text = "Çıxış üçün bir daha bas",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ExitConfirmDialog(visible: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .width(420.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xE61D2228))
+                .padding(horizontal = 28.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Çıxmaq istəyirsən?",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "OK basanda tətbiq bağlanacaq",
+                color = Color(0xFFC8CCD1),
+                fontSize = 16.sp
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -422,18 +520,15 @@ private fun ChannelSelectorOverlay(
     currentChannel: Channel?,
     selectedGroup: String?,
     focusedIndex: Int,
-    channelIndex: Int,
     videoInfo: VideoInfo,
     guideWidth: androidx.compose.ui.unit.Dp,
     isLoading: Boolean,
     onChannelClick: (Channel) -> Unit
 ) {
-    val focusedChannel = channels.getOrNull(focusedIndex) ?: currentChannel
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x5E000000))
+            .background(Color(0x22000000))
     ) {
         Box(
             modifier = Modifier
@@ -441,7 +536,7 @@ private fun ChannelSelectorOverlay(
                 .fillMaxHeight()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xD51D2228), Color(0xB20F1216), Color.Transparent)
+                        listOf(Color(0xA81D2228), Color(0x7210151B), Color.Transparent)
                     )
                 )
         )
@@ -450,17 +545,17 @@ private fun ChannelSelectorOverlay(
             modifier = Modifier
                 .width(guideWidth)
                 .fillMaxHeight()
-                .background(Color(0x6C1A2026))
-                .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 18.dp)
+                .background(Color(0x4F1A2026))
+                .padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 14.dp)
         ) {
             Text(
                 text = selectedGroup ?: "All channels",
                 color = Color.White,
-                fontSize = 21.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 16.dp, bottom = 18.dp)
+                modifier = Modifier.padding(start = 10.dp, bottom = 10.dp)
             )
 
             if (isLoading && channels.isEmpty()) {
@@ -477,28 +572,6 @@ private fun ChannelSelectorOverlay(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-        }
-
-        if (focusedChannel != null) {
-            ProgramTimeline(
-                channel = focusedChannel,
-                channelIndex = (focusedIndex + 1).coerceAtLeast(1),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = guideWidth + 28.dp, top = 20.dp)
-                    .widthIn(max = 470.dp)
-            )
-
-            ProgramInfoCard(
-                channel = focusedChannel,
-                channelIndex = (focusedIndex + 1).coerceAtLeast(1),
-                videoInfo = videoInfo,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 48.dp, end = 48.dp)
-                    .width(620.dp)
-                    .heightIn(min = 138.dp)
-            )
         }
     }
 }

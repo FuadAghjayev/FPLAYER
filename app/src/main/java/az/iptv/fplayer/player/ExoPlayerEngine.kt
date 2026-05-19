@@ -93,16 +93,31 @@ class ExoPlayerEngine(
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
-            if (videoSize.width == 0) return
-            val format = player?.videoFormat
-            listener?.onVideoInfoChanged(
-                VideoInfo(
-                    width = videoSize.width,
-                    height = videoSize.height,
-                    frameRate = format?.frameRate?.takeIf { it > 0f } ?: 0f,
-                    codec = format?.sampleMimeType?.substringAfterLast("/") ?: ""
-                )
-            )
+            emitVideoInfo(videoSize)
         }
+
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (
+                events.contains(Player.EVENT_TRACKS_CHANGED) ||
+                events.contains(Player.EVENT_VIDEO_SIZE_CHANGED)
+            ) {
+                emitVideoInfo()
+            }
+        }
+    }
+
+    private fun emitVideoInfo(videoSize: VideoSize? = null) {
+        val exo = player ?: return
+        val size = videoSize ?: exo.videoSize
+        if (size.width == 0) return
+        val format = exo.videoFormat
+        listener?.onVideoInfoChanged(
+            VideoInfo(
+                width = size.width,
+                height = size.height,
+                frameRate = format?.frameRate?.takeIf { it > 0f } ?: 0f,
+                codec = format?.sampleMimeType?.substringAfterLast("/") ?: ""
+            )
+        )
     }
 }
