@@ -52,110 +52,77 @@ fun ChannelInfoOsd(
         modifier = modifier
     ) {
         channel ?: return@AnimatedVisibility
+        @Suppress("UNUSED_VARIABLE")
+        val ignoredTotalChannels = totalChannels
 
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color(0x55000000),
-                        0.46f to Color.Transparent,
-                        0.72f to Color(0xAA000000),
-                        1f to Color(0xED000000)
+                        0f to Color.Transparent,
+                        0.24f to Color(0x8A000000),
+                        1f to Color(0xEA000000)
                     )
                 )
-                .padding(horizontal = 32.dp, vertical = 26.dp)
+                .padding(start = 80.dp, end = 80.dp, top = 34.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = "Playlist 1  •  ${channel.group.ifBlank { "All channels" }}",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.TopStart)
-            )
-            Text(
-                text = "Wed, Apr 17, 12:25 PM",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.align(Alignment.TopEnd)
-            )
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(start = 92.dp, bottom = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(26.dp)
-                ) {
-                    ChannelLogo(channel.logoUrl, size = 116)
+                ChannelLogo(channel.logoUrl, size = 82)
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Program",
-                            color = Color.White,
-                            fontSize = 34.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            Text("11:58 - 12:51 PM", color = Color(0xFFC7C9CD), fontSize = 23.sp)
-                            ProgramProgress(width = 82.dp, progress = 0.35f)
-                            Text("26 min", color = Color(0xFFC7C9CD), fontSize = 23.sp)
-                            Text(
-                                "$channelIndex  ${channel.name}",
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.width(260.dp)
-                            )
-                            if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
-                            val fps = videoInfo.fpsLabel.ifBlank {
-                                channel.frameRate.takeIf { it > 0f }?.let { "${it.toInt()} FPS" } ?: ""
-                            }
-                            if (fps.isNotEmpty()) TechBadge(fps.uppercase())
-                            if (videoInfo.codec.isNotEmpty()) TechBadge(videoInfo.codec.uppercase())
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Text(
+                        text = "$channelIndex  ${channel.name}",
+                        color = Color.White,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text("Program", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text("11:58 - 12:51 PM", color = Color(0xFFC7C9CD), fontSize = 18.sp)
+                        ProgramProgress(width = 70.dp, progress = 0.35f)
+                        Text("26 min", color = Color(0xFFC7C9CD), fontSize = 18.sp)
+                        if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
+                        val fps = videoInfo.fpsLabel.ifBlank {
+                            channel.frameRate.takeIf { it > 0f }?.let { "${it.toInt()} FPS" } ?: ""
                         }
-                        Text(
-                            text = "12:51 - 01:51 PM   Program",
-                            color = Color(0xFFAEB0B5),
-                            fontSize = 23.sp
-                        )
+                        if (fps.isNotEmpty()) TechBadge(fps.uppercase())
+                        if (videoInfo.codec.isNotEmpty()) TechBadge(videoInfo.codec.uppercase())
                     }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 48.dp)
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color(0x66FFFFFF))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(0.52f)
-                            .background(Accent)
+                    Text(
+                        text = "12:51 - 01:51 PM   Program",
+                        color = Color(0xFFAEB0B5),
+                        fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
 
-                Text(
-                    text = "$channelIndex / $totalChannels",
-                    color = Color(0xFF9B9DA2),
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(start = 48.dp, top = 12.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color(0x66FFFFFF))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.52f)
+                        .background(Accent)
                 )
             }
         }
@@ -170,7 +137,7 @@ fun TechBadge(text: String) {
             .background(Color(0xBFD1D4D8))
             .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
-        Text(text = text, color = Color(0xFF111317), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, color = Color(0xFF111317), fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 

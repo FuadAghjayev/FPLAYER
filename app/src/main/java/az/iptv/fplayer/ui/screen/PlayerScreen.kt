@@ -454,9 +454,9 @@ private fun ChannelSelectorOverlay(
                 .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 18.dp)
         ) {
             Text(
-                text = "Playlist 1  •  ${selectedGroup ?: "All channels"}",
+                text = selectedGroup ?: "All channels",
                 color = Color.White,
-                fontSize = 24.sp,
+                fontSize = 21.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -496,8 +496,8 @@ private fun ChannelSelectorOverlay(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 48.dp, end = 48.dp)
-                    .width(720.dp)
-                    .heightIn(min = 168.dp)
+                    .width(620.dp)
+                    .heightIn(min = 138.dp)
             )
         }
     }
@@ -520,15 +520,15 @@ private fun CategoryOverlay(
     ) {
         Column(Modifier.fillMaxSize()) {
             Text(
-                text = "Playlist 1  •  Categories",
+                text = "Categories",
                 color = Color.White,
-                fontSize = 26.sp,
+                fontSize = 23.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = "Select a category, then choose a channel",
                 color = Color(0xFFB5B7BB),
-                fontSize = 17.sp,
+                fontSize = 15.sp,
                 modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
             )
 
@@ -652,15 +652,15 @@ private fun ProgramTimeline(
                 Text(
                     text = "$channelIndex  ${channel.name}",
                     color = Color.White,
-                    fontSize = 23.sp,
+                    fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Playlist 1  •  ${channel.group.ifBlank { "All channels" }}",
+                    text = channel.group.ifBlank { "All channels" },
                     color = Color(0xFFB9BBC0),
-                    fontSize = 19.sp,
+                    fontSize = 17.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -680,13 +680,13 @@ private fun ProgramTimeline(
                 Text(
                     time,
                     color = if (active) Accent else Color.White,
-                    fontSize = 25.sp,
+                    fontSize = 22.sp,
                     modifier = Modifier.width(150.dp)
                 )
                 Text(
                     title,
                     color = if (active) Accent else Color.White,
-                    fontSize = 25.sp,
+                    fontSize = 22.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -710,20 +710,27 @@ private fun ProgramInfoCard(
             .padding(horizontal = 32.dp, vertical = 26.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Program", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "$channelIndex  ${channel.name}",
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("11:58 - 12:51 PM", color = Color(0xFFC4C6CA), fontSize = 22.sp)
-                ProgressLine(width = 86.dp, progress = 0.36f)
-                Text("26 min", color = Color(0xFFC4C6CA), fontSize = 22.sp)
-                Text("$channelIndex  ${channel.name}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Program", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                Text("11:58 - 12:51 PM", color = Color(0xFFC4C6CA), fontSize = 19.sp)
+                ProgressLine(width = 74.dp, progress = 0.36f)
+                Text("26 min", color = Color(0xFFC4C6CA), fontSize = 19.sp)
                 if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
                 val fps = videoInfo.fpsLabel.ifBlank { channel.frameRate.takeIf { it > 0f }?.let { "${it.toInt()} FPS" } ?: "" }
                 if (fps.isNotEmpty()) TechBadge(fps.uppercase())
             }
-            Text("Program description", color = Color(0xFFB7B9BD), fontSize = 22.sp)
+            Text("Program description", color = Color(0xFFB7B9BD), fontSize = 18.sp)
         }
     }
 }

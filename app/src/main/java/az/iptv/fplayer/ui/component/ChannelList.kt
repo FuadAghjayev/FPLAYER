@@ -91,7 +91,7 @@ fun ChannelItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .height(104.dp)
+            .height(94.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(background)
             .focusProperties { canFocus = false }
@@ -99,7 +99,7 @@ fun ChannelItem(
             .padding(horizontal = 28.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ChannelLogo(channel.logoUrl, size = 72)
+        ChannelLogo(channel.logoUrl, size = 64)
 
         Column(
             modifier = Modifier
@@ -111,14 +111,14 @@ fun ChannelItem(
                 Text(
                     text = "$index",
                     color = primaryText,
-                    fontSize = 23.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.width(32.dp)
                 )
                 Text(
                     text = channel.name,
                     color = primaryText,
-                    fontSize = 23.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -131,7 +131,7 @@ fun ChannelItem(
             Text(
                 text = "Program",
                 color = secondaryText,
-                fontSize = 22.sp,
+                fontSize = 19.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 4.dp)
