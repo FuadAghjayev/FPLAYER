@@ -10,13 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.player.VideoInfo
-import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.BadgeBg
 import coil.compose.AsyncImage
 
@@ -58,6 +54,8 @@ fun ChannelInfoOsd(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 64.dp, vertical = 18.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
@@ -65,7 +63,7 @@ fun ChannelInfoOsd(
                         1f to Color(0xEA000000)
                     )
                 )
-                .padding(start = 68.dp, end = 68.dp, top = 28.dp, bottom = 24.dp),
+                .padding(start = 28.dp, end = 28.dp, top = 24.dp, bottom = 22.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -86,45 +84,25 @@ fun ChannelInfoOsd(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Program", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        Text("11:58 - 12:51 PM", color = Color(0xFFC7C9CD), fontSize = 16.sp)
-                        ProgramProgress(width = 62.dp, progress = 0.35f)
-                        Text("26 min", color = Color(0xFFC7C9CD), fontSize = 16.sp)
-                        if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
-                        if (videoInfo.width > 0 && videoInfo.height > 0) {
-                            TechBadge("${videoInfo.width}x${videoInfo.height}")
+                    val fps = formatFrameRate(videoInfo.frameRate.takeIf { it > 0f } ?: channel.frameRate)
+                    val hasTechInfo = videoInfo.label.isNotEmpty() ||
+                        (videoInfo.width > 0 && videoInfo.height > 0) ||
+                        fps.isNotEmpty() ||
+                        videoInfo.codec.isNotEmpty()
+                    if (hasTechInfo) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
+                            if (videoInfo.width > 0 && videoInfo.height > 0) {
+                                TechBadge("${videoInfo.width}x${videoInfo.height}")
+                            }
+                            if (fps.isNotEmpty()) TechBadge(fps)
+                            if (videoInfo.codec.isNotEmpty()) TechBadge(videoInfo.codec.uppercase())
                         }
-                        val fps = formatFrameRate(videoInfo.frameRate.takeIf { it > 0f } ?: channel.frameRate)
-                        if (fps.isNotEmpty()) TechBadge(fps)
-                        if (videoInfo.codec.isNotEmpty()) TechBadge(videoInfo.codec.uppercase())
                     }
-                    Text(
-                        text = "12:51 - 01:51 PM   Program",
-                        color = Color(0xFFAEB0B5),
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0x66FFFFFF))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(0.52f)
-                        .background(Accent)
-                )
             }
         }
     }
@@ -173,24 +151,6 @@ fun ChannelLogo(logoUrl: String, size: Int, modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.Black
             )
         }
-    }
-}
-
-@Composable
-private fun ProgramProgress(width: androidx.compose.ui.unit.Dp, progress: Float) {
-    Box(
-        modifier = Modifier
-            .width(width)
-            .height(5.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0x66FFFFFF))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .background(Color(0xFFDADDE1))
-        )
     }
 }
 

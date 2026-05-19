@@ -327,6 +327,7 @@ fun PlayerScreen(
                     groups = groups.map { it.name to it.channels.size },
                     selectedGroup = selectedGroup,
                     focusedIndex = focusedGroupIndex,
+                    guideWidth = guideWidth,
                     onGroupClick = {
                         vm.selectGroup(it)
                         selectorPane = SelectorPane.CHANNELS
@@ -582,27 +583,41 @@ private fun CategoryOverlay(
     groups: List<Pair<String, Int>>,
     selectedGroup: String?,
     focusedIndex: Int,
+    guideWidth: androidx.compose.ui.unit.Dp,
     onGroupClick: (String?) -> Unit,
     onPlaylistClick: () -> Unit
 ) {
     Box(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC11151A))
-            .padding(horizontal = 44.dp, vertical = 28.dp)
+            .background(Color(0x22000000))
     ) {
-        Column(Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .width(guideWidth)
+                .fillMaxHeight()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xA81D2228), Color(0x7210151B), Color.Transparent)
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .width(guideWidth)
+                .fillMaxHeight()
+                .background(Color(0x4F1A2026))
+                .padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 14.dp)
+        ) {
             Text(
                 text = "Categories",
                 color = Color.White,
-                fontSize = 23.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = "Select a category, then choose a channel",
-                color = Color(0xFFB5B7BB),
-                fontSize = 15.sp,
-                modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 10.dp, bottom = 10.dp)
             )
 
             CategoryList(
@@ -611,24 +626,25 @@ private fun CategoryOverlay(
                 focusedIndex = focusedIndex,
                 onGroupClick = onGroupClick,
                 modifier = Modifier
-                    .fillMaxWidth()
                     .weight(1f)
-                    .clip(RoundedCornerShape(4.dp))
+                    .fillMaxWidth()
+            )
+
+            Text(
+                text = "Playlists",
+                color = Color(0xFFD8DBDF),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Color(0x26FFFFFF))
+                    .clickable(onClick = onPlaylistClick)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
             )
         }
-
-        Text(
-            text = "Playlists",
-            color = Color(0xFFD8DBDF),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Color(0x26FFFFFF))
-                .clickable(onClick = onPlaylistClick)
-                .padding(horizontal = 18.dp, vertical = 10.dp)
-        )
     }
 }
 
@@ -671,17 +687,18 @@ private fun CategoryList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(76.dp)
+                    .padding(vertical = 4.dp)
+                    .height(64.dp)
                     .clip(RoundedCornerShape(5.dp))
                     .background(bg)
                     .clickable { onGroupClick(name) }
-                    .padding(horizontal = 28.dp),
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = name ?: "All channels",
                     color = textColor,
-                    fontSize = 24.sp,
+                    fontSize = 16.sp,
                     fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -690,7 +707,7 @@ private fun CategoryList(
                 Text(
                     text = "$count",
                     color = if (focused) Color(0xFF33363A) else Color(0xFFB7BAC0),
-                    fontSize = 18.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
