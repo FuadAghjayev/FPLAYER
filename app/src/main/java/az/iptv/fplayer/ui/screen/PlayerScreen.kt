@@ -1,17 +1,43 @@
 package az.iptv.fplayer.ui.screen
 
 import android.view.SurfaceView
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,7 +45,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +61,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.ExoPlayerEngine
 import az.iptv.fplayer.player.PlaybackState
@@ -41,16 +72,15 @@ import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.player.VlcPlayerEngine
 import az.iptv.fplayer.ui.component.ChannelInfoOsd
 import az.iptv.fplayer.ui.component.ChannelList
-import az.iptv.fplayer.ui.component.GroupTabs
+import az.iptv.fplayer.ui.component.ChannelLogo
+import az.iptv.fplayer.ui.component.TechBadge
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
-import az.iptv.fplayer.ui.theme.PanelBg
-import az.iptv.fplayer.ui.theme.PanelBgSoft
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlin.math.absoluteValue
 
-private enum class SidebarPane { CHANNELS, GROUPS }
+private enum class SelectorPane { CHANNELS, GROUPS }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -63,7 +93,7 @@ fun PlayerScreen(
     val currentChannel by vm.currentChannel.collectAsState()
     val playbackState by vm.playbackState.collectAsState()
     val videoInfo by vm.videoInfo.collectAsState()
-    val sidebarVisible by vm.sidebarVisible.collectAsState()
+    val selectorVisible by vm.sidebarVisible.collectAsState()
     val osdVisible by vm.osdVisible.collectAsState()
     val visibleChannels by vm.visibleChannels.collectAsState()
     val selectedGroup by vm.selectedGroup.collectAsState()
@@ -103,19 +133,19 @@ fun PlayerScreen(
     }
     val channelIndex = currentChannelIndex + 1
 
-    var sidebarFocusedIndex by remember { mutableIntStateOf(0) }
-    var sidebarPane by remember { mutableStateOf(SidebarPane.CHANNELS) }
-    var groupFocusedIndex by remember { mutableIntStateOf(0) }
+    var focusedChannelIndex by remember { mutableIntStateOf(0) }
+    var focusedGroupIndex by remember { mutableIntStateOf(0) }
+    var selectorPane by remember { mutableStateOf(SelectorPane.CHANNELS) }
 
-    LaunchedEffect(sidebarVisible) {
-        if (sidebarVisible) {
-            sidebarFocusedIndex = currentChannelIndex.coerceAtLeast(0)
-            sidebarPane = SidebarPane.CHANNELS
+    LaunchedEffect(selectorVisible) {
+        if (selectorVisible) {
+            focusedChannelIndex = currentChannelIndex.coerceAtLeast(0)
+            selectorPane = SelectorPane.CHANNELS
         }
     }
 
     LaunchedEffect(visibleChannels, currentChannelKey) {
-        sidebarFocusedIndex = currentChannelIndex.coerceAtLeast(0)
+        focusedChannelIndex = currentChannelIndex.coerceAtLeast(0)
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -131,369 +161,209 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> {
-                        if (!sidebarVisible) {
+                        if (selectorVisible) {
+                            selectorPane = SelectorPane.GROUPS
+                            focusedGroupIndex = selectedGroupIndex(groups.map { it.name }, selectedGroup)
+                        } else {
                             vm.showSidebar()
-                            sidebarPane = SidebarPane.CHANNELS
-                        } else if (sidebarPane == SidebarPane.CHANNELS) {
-                            sidebarPane = SidebarPane.GROUPS
-                            val idx = if (selectedGroup == null) 0
-                                else groups.indexOfFirst { it.name == selectedGroup } + 1
-                            groupFocusedIndex = idx.coerceAtLeast(0)
+                            selectorPane = SelectorPane.CHANNELS
                         }
                         true
                     }
+
                     Key.DirectionRight -> {
-                        if (sidebarVisible) {
-                            if (sidebarPane == SidebarPane.GROUPS) {
-                                // Qrupu seç və kanallar paneline keç
-                                val groupName = if (groupFocusedIndex == 0) null
-                                    else groups.getOrNull(groupFocusedIndex - 1)?.name
-                                vm.selectGroup(groupName)
-                                sidebarPane = SidebarPane.CHANNELS
-                                sidebarFocusedIndex = 0
-                            } else {
-                                // Sağ düymə kanalı seçir və sidebarı bağlayır
-                                visibleChannels.getOrNull(sidebarFocusedIndex)?.let { vm.selectChannel(it) }
-                            }
+                        if (selectorVisible && selectorPane == SelectorPane.GROUPS) {
+                            selectorPane = SelectorPane.CHANNELS
                             true
                         } else false
                     }
+
                     Key.DirectionUp -> {
-                        if (sidebarVisible) {
-                            when (sidebarPane) {
-                                SidebarPane.CHANNELS ->
-                                    if (sidebarFocusedIndex > 0) sidebarFocusedIndex--
-                                SidebarPane.GROUPS ->
-                                    if (groupFocusedIndex > 0) groupFocusedIndex--
+                        if (selectorVisible) {
+                            if (selectorPane == SelectorPane.CHANNELS) {
+                                focusedChannelIndex = (focusedChannelIndex - 1).coerceAtLeast(0)
+                            } else {
+                                focusedGroupIndex = (focusedGroupIndex - 1).coerceAtLeast(0)
                             }
                             true
                         } else {
-                            vm.nextChannel(); true
+                            vm.nextChannel()
+                            true
                         }
                     }
+
                     Key.DirectionDown -> {
-                        if (sidebarVisible) {
-                            when (sidebarPane) {
-                                SidebarPane.CHANNELS ->
-                                    if (sidebarFocusedIndex < visibleChannels.size - 1) sidebarFocusedIndex++
-                                SidebarPane.GROUPS -> {
-                                    val groupCount = groups.size + 1
-                                    if (groupFocusedIndex < groupCount - 1) groupFocusedIndex++
-                                }
+                        if (selectorVisible) {
+                            if (selectorPane == SelectorPane.CHANNELS) {
+                                focusedChannelIndex =
+                                    (focusedChannelIndex + 1).coerceAtMost((visibleChannels.size - 1).coerceAtLeast(0))
+                            } else {
+                                focusedGroupIndex =
+                                    (focusedGroupIndex + 1).coerceAtMost(groups.size)
                             }
                             true
                         } else {
-                            vm.prevChannel(); true
+                            vm.prevChannel()
+                            true
                         }
                     }
+
                     Key.ChannelUp, Key.PageUp -> {
-                        if (!sidebarVisible) { vm.nextChannel(); true } else false
+                        if (!selectorVisible) {
+                            vm.nextChannel()
+                            true
+                        } else false
                     }
+
                     Key.ChannelDown, Key.PageDown -> {
-                        if (!sidebarVisible) { vm.prevChannel(); true } else false
+                        if (!selectorVisible) {
+                            vm.prevChannel()
+                            true
+                        } else false
                     }
-                    Key.Enter, Key.NumPadEnter -> {
-                        if (sidebarVisible) {
-                            when (sidebarPane) {
-                                SidebarPane.CHANNELS ->
-                                    visibleChannels.getOrNull(sidebarFocusedIndex)?.let { vm.selectChannel(it) }
-                                SidebarPane.GROUPS -> {
-                                    val groupName = if (groupFocusedIndex == 0) null
-                                        else groups.getOrNull(groupFocusedIndex - 1)?.name
-                                    vm.selectGroup(groupName)
-                                    sidebarPane = SidebarPane.CHANNELS
-                                    sidebarFocusedIndex = 0
-                                }
+
+                    Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                        if (selectorVisible) {
+                            if (selectorPane == SelectorPane.CHANNELS) {
+                                visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::selectChannel)
+                            } else {
+                                val groupName = if (focusedGroupIndex == 0) null
+                                else groups.getOrNull(focusedGroupIndex - 1)?.name
+                                vm.selectGroup(groupName)
+                                selectorPane = SelectorPane.CHANNELS
+                                focusedChannelIndex = 0
                             }
                             true
                         } else {
                             vm.showSidebar()
-                            sidebarPane = SidebarPane.CHANNELS
+                            selectorPane = SelectorPane.CHANNELS
                             true
                         }
                     }
+
                     Key.Back -> {
                         when {
-                            sidebarVisible && sidebarPane == SidebarPane.GROUPS -> {
-                                sidebarPane = SidebarPane.CHANNELS; true
+                            selectorVisible && selectorPane == SelectorPane.GROUPS -> {
+                                selectorPane = SelectorPane.CHANNELS
+                                true
                             }
-                            sidebarVisible -> { vm.hideSidebar(); true }
-                            osdVisible -> { vm.hideOsd(); true }
+                            selectorVisible -> {
+                                vm.hideSidebar()
+                                true
+                            }
+                            osdVisible -> {
+                                vm.hideOsd()
+                                true
+                            }
                             else -> false
                         }
                     }
+
                     Key.Menu -> {
-                        if (sidebarVisible) vm.refreshPlaylist() else vm.toggleSidebar()
+                        if (selectorVisible) vm.refreshPlaylist() else vm.showOsd()
                         true
                     }
-                    Key.Info -> { vm.showOsd(); true }
+
+                    Key.Info -> {
+                        vm.showOsd()
+                        true
+                    }
+
                     else -> false
                 }
             }
     ) {
-        val isWide = maxWidth > 500.dp
-        val panelWidth = if (isWide) (maxWidth * 0.32f).coerceIn(280.dp, 380.dp) else maxWidth
+        val isWide = maxWidth > 700.dp
+        val guideWidth = if (isWide) (maxWidth * 0.31f).coerceIn(520.dp, 640.dp) else maxWidth
 
-        // 1. Tam ekran video
         VideoSurface(engine = engine)
 
-        // 2. Sidebar açıqkən örtük
-        if (sidebarVisible) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0x40000000))
-                    .zIndex(1f)
-            )
-        }
-
-        // 3. Sol gradient
         AnimatedVisibility(
-            visible = sidebarVisible && isWide,
-            enter = fadeIn(), exit = fadeOut(),
-            modifier = Modifier.zIndex(2f)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(panelWidth)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(PanelBg, PanelBgSoft.copy(alpha = 0.46f), Color.Transparent)
-                        )
-                    )
-            )
-        }
-
-        // 4. Mobil — sidebar açıq: kənar tap bağlayır
-        if (!isWide && sidebarVisible) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(4f)
-                    .clickable { vm.hideSidebar() }
-            )
-        }
-
-        // 5. Sol kanal paneli
-        AnimatedVisibility(
-            visible = sidebarVisible,
-            enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
+            visible = selectorVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier
-                .fillMaxHeight()
+                .fillMaxSize()
                 .zIndex(10f)
         ) {
-            Column(
-                modifier = Modifier
-                    .width(panelWidth)
-                    .fillMaxHeight()
-                    .background(PanelBg)
-            ) {
-                ChannelPanelHeader(
-                    title = selectedGroup ?: "Bütün kanallar",
-                    channelCount = visibleChannels.size,
-                    currentChannelName = currentChannel?.name,
-                    activePane = sidebarPane,
-                    isRefreshing = loadState is LoadState.Loading,
-                    fromCache = (loadState as? LoadState.Success)?.fromCache == true,
-                    onRefreshClick = vm::refreshPlaylist,
-                    onPlaylistClick = onNavigateToPlaylist,
-                    onCloseClick = { vm.hideSidebar() }
-                )
-                GroupTabs(
-                    groups = groups,
+            if (selectorPane == SelectorPane.GROUPS) {
+                CategoryOverlay(
+                    groups = groups.map { it.name to it.channels.size },
                     selectedGroup = selectedGroup,
-                    onGroupSelect = {
+                    focusedIndex = focusedGroupIndex,
+                    onGroupClick = {
                         vm.selectGroup(it)
-                        sidebarPane = SidebarPane.CHANNELS
-                        sidebarFocusedIndex = 0
+                        selectorPane = SelectorPane.CHANNELS
+                        focusedChannelIndex = 0
                     },
-                    focusedGroupIndex = if (sidebarPane == SidebarPane.GROUPS) groupFocusedIndex else -1,
-                    modifier = if (sidebarPane == SidebarPane.GROUPS) {
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    } else {
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 178.dp)
-                    }
+                    onPlaylistClick = onNavigateToPlaylist
                 )
-                if (sidebarPane == SidebarPane.CHANNELS) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0x22FFFFFF))
-                    )
-
-                    if (visibleChannels.isEmpty() && loadState is LoadState.Loading) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                CircularProgressIndicator(color = Accent, modifier = Modifier.size(34.dp))
-                                Text("Kanallar hazırlanır", color = Color.White, fontSize = 14.sp)
-                                Text(
-                                    "İlk yükləmədən sonra cache-dən açılacaq",
-                                    color = Color(0xFF7B919D),
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    } else if (visibleChannels.isEmpty()) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FPlayerMark(size = 46)
-                                Text("Kanal tapılmadı", color = Color(0xFF8EA1AA), fontSize = 13.sp)
-                                Box(
-                                    Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Accent.copy(alpha = 0.2f))
-                                        .clickable(onClick = onNavigateToPlaylist)
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                ) {
-                                    Text("Pleylist əlavə et", color = Accent, fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    } else {
-                        ChannelList(
-                            channels = visibleChannels,
-                            currentChannel = currentChannel,
-                            currentFrameRate = videoInfo.frameRate,
-                            focusedIndex = sidebarFocusedIndex,
-                            onChannelClick = vm::selectChannel,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                        )
-                    }
-                }
+            } else {
+                ChannelSelectorOverlay(
+                    channels = visibleChannels,
+                    currentChannel = currentChannel,
+                    selectedGroup = selectedGroup,
+                    focusedIndex = focusedChannelIndex,
+                    channelIndex = channelIndex,
+                    videoInfo = videoInfo,
+                    guideWidth = guideWidth,
+                    isLoading = loadState is LoadState.Loading,
+                    onChannelClick = vm::selectChannel
+                )
             }
         }
 
-        // 6. Mobil — sidebar bağlı: swipe + tap
-        if (!isWide && !sidebarVisible) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(5f)
-                    .pointerInput(Unit) {
-                        val swipePx = 60.dp.toPx()
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            val startX = down.position.x
-                            var currentX = startX
-                            var moved = false
-
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull() ?: break
-                                if (!change.pressed) break
-                                if ((change.position.x - startX).absoluteValue > 12f) moved = true
-                                currentX = change.position.x
-                            }
-
-                            val delta = currentX - startX
-                            when {
-                                moved && delta < -swipePx -> vm.nextChannel()
-                                moved && delta > swipePx  -> vm.prevChannel()
-                                !moved -> vm.showSidebar()
-                            }
-                        }
-                    }
-            )
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .zIndex(6f)
-                    .width(20.dp)
-                    .height(60.dp)
-                    .clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
-                    .background(Color(0xAA000000))
-                    .clickable { vm.showSidebar() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("›", color = Color(0xFFAAAAAA), fontSize = 18.sp)
-            }
-        }
-
-        // 7. Yüklənir
         AnimatedVisibility(
             visible = playbackState is PlaybackState.Buffering,
-            enter = fadeIn(), exit = fadeOut(),
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.Center)
                 .zIndex(3f)
         ) {
-            val offset = if (sidebarVisible && isWide) panelWidth / 2 else 0.dp
-            CircularProgressIndicator(
-                color = Accent,
-                modifier = Modifier
-                    .padding(start = offset)
-                    .size(48.dp)
-            )
+            CircularProgressIndicator(color = Accent, modifier = Modifier.size(48.dp))
         }
 
-        // 8. Xəta bildirişi
         AnimatedVisibility(
             visible = playbackState is PlaybackState.Error,
-            enter = fadeIn(), exit = fadeOut(),
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(
-                    start = if (sidebarVisible && isWide) panelWidth else 0.dp,
-                    bottom = 24.dp
-                )
-                .zIndex(3f)
+                .padding(bottom = 28.dp)
+                .zIndex(4f)
         ) {
             val msg = (playbackState as? PlaybackState.Error)?.message ?: ""
             Box(
                 Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xCC1A0000))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .background(Color(0xDD1D1F23))
+                    .padding(horizontal = 18.dp, vertical = 10.dp)
             ) {
-                Text("⚠ $msg", color = Color(0xFFFF6666), fontSize = 13.sp)
+                Text(msg, color = Color(0xFFFFD4D4), fontSize = 14.sp, maxLines = 2)
             }
         }
 
-        // 9. OSD
         ChannelInfoOsd(
-            visible = osdVisible,
+            visible = osdVisible && !selectorVisible,
             channel = currentChannel,
             videoInfo = videoInfo,
             channelIndex = channelIndex,
             totalChannels = visibleChannels.size,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .zIndex(3f)
+                .zIndex(5f)
         )
 
-        // 10. Swipe göstəricisi (sidebar bağlı, mobil)
-        if (!isWide && !sidebarVisible && visibleChannels.size > 1) {
-            SwipeHint(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 72.dp)
-                    .zIndex(6f)
+        if (!isWide && !selectorVisible) {
+            MobileTapLayer(
+                onTap = {
+                    vm.showSidebar()
+                    selectorPane = SelectorPane.CHANNELS
+                },
+                onNext = vm::nextChannel,
+                onPrevious = vm::prevChannel,
+                modifier = Modifier.zIndex(6f)
             )
         }
     }
@@ -509,45 +379,37 @@ private fun VideoSurface(engine: PlayerEngine) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun FPlayerMark(size: Int, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(size.dp)
-            .clip(RoundedCornerShape((size / 5).dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(0xFF0B2A35), Color(0xFF061014))
-                )
-            )
-            .border(1.dp, Accent.copy(alpha = 0.45f), RoundedCornerShape((size / 5).dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("F", color = Accent, fontSize = (size * 0.48f).sp, fontWeight = FontWeight.Black)
-            Text("▶", color = Color(0xFFFFC857), fontSize = (size * 0.26f).sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun SwipeHint(modifier: Modifier = Modifier) {
-    var visible by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(3000)
-        visible = false
-    }
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+private fun PlaybackScrim(playlist: String, group: String, visible: Boolean) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
         Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0x88000000))
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color(0x66000000),
+                        0.16f to Color.Transparent,
+                        0.74f to Color.Transparent,
+                        1f to Color(0x88000000)
+                    )
+                )
         ) {
             Text(
-                text = "← Sürüşdür →   Tap = Kanal siyahısı",
-                color = Color(0xAAFFFFFF),
-                fontSize = 11.sp
+                text = "$playlist  •  $group",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 32.dp, top = 24.dp)
+            )
+            Text(
+                text = "Wed, Apr 17, 12:25 PM",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 32.dp, top = 24.dp)
             )
         }
     }
@@ -555,126 +417,371 @@ private fun SwipeHint(modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ChannelPanelHeader(
-    title: String,
-    channelCount: Int,
-    currentChannelName: String?,
-    activePane: SidebarPane,
-    isRefreshing: Boolean,
-    fromCache: Boolean,
-    onRefreshClick: () -> Unit,
-    onPlaylistClick: () -> Unit,
-    onCloseClick: () -> Unit
+private fun ChannelSelectorOverlay(
+    channels: List<Channel>,
+    currentChannel: Channel?,
+    selectedGroup: String?,
+    focusedIndex: Int,
+    channelIndex: Int,
+    videoInfo: VideoInfo,
+    guideWidth: androidx.compose.ui.unit.Dp,
+    isLoading: Boolean,
+    onChannelClick: (Channel) -> Unit
 ) {
-    Column(
+    val focusedChannel = channels.getOrNull(focusedIndex) ?: currentChannel
+
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF091820))
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .fillMaxSize()
+            .background(Color(0x5E000000))
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Box(
+            modifier = Modifier
+                .width(guideWidth)
+                .fillMaxHeight()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xD51D2228), Color(0xB20F1216), Color.Transparent)
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .width(guideWidth)
+                .fillMaxHeight()
+                .background(Color(0x6C1A2026))
+                .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 18.dp)
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                FPlayerMark(size = 34)
-                Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = if (activePane == SidebarPane.GROUPS) "KATEQORIYA" else "KANALLAR",
-                        color = Accent,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (activePane == SidebarPane.GROUPS) "Kateqoriyalar" else title,
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+            Text(
+                text = "Playlist 1  •  ${selectedGroup ?: "All channels"}",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 16.dp, bottom = 18.dp)
+            )
+
+            if (isLoading && channels.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Accent)
                 }
-                if (currentChannelName != null && activePane == SidebarPane.CHANNELS) {
-                    Text(
-                        text = currentChannelName,
-                        color = Accent,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (activePane == SidebarPane.GROUPS) {
-                    Text(
-                        text = "← Kanal siyahısına qayıt",
-                        color = Color(0xFF6F8792),
-                        fontSize = 10.sp
-                    )
-                }
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = if (isRefreshing) "..." else "↻",
-                    color = if (isRefreshing) Color(0xFF7B919D) else Accent,
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0x14FFFFFF))
-                        .clickable(enabled = !isRefreshing, onClick = onRefreshClick)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-                Text(
-                    text = "☰",
-                    color = Color(0xFF9FB1BA),
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onPlaylistClick)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-                Text(
-                    text = "✕",
-                    color = Color(0xFFB8C6CC),
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onCloseClick)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+            } else {
+                ChannelList(
+                    channels = channels,
+                    currentChannel = currentChannel,
+                    currentFrameRate = videoInfo.frameRate,
+                    focusedIndex = focusedIndex,
+                    onChannelClick = onChannelClick,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
-        if (channelCount > 0 && activePane == SidebarPane.CHANNELS) {
+
+        if (focusedChannel != null) {
+            ProgramTimeline(
+                channel = focusedChannel,
+                channelIndex = (focusedIndex + 1).coerceAtLeast(1),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = guideWidth + 28.dp, top = 20.dp)
+                    .widthIn(max = 470.dp)
+            )
+
+            ProgramInfoCard(
+                channel = focusedChannel,
+                channelIndex = (focusedIndex + 1).coerceAtLeast(1),
+                videoInfo = videoInfo,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 48.dp, end = 48.dp)
+                    .width(720.dp)
+                    .heightIn(min = 168.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun CategoryOverlay(
+    groups: List<Pair<String, Int>>,
+    selectedGroup: String?,
+    focusedIndex: Int,
+    onGroupClick: (String?) -> Unit,
+    onPlaylistClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xCC11151A))
+            .padding(horizontal = 44.dp, vertical = 28.dp)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                text = "Playlist 1  •  Categories",
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Select a category, then choose a channel",
+                color = Color(0xFFB5B7BB),
+                fontSize = 17.sp,
+                modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
+            )
+
+            CategoryList(
+                groups = groups,
+                selectedGroup = selectedGroup,
+                focusedIndex = focusedIndex,
+                onGroupClick = onGroupClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(4.dp))
+            )
+        }
+
+        Text(
+            text = "Playlists",
+            color = Color(0xFFD8DBDF),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color(0x26FFFFFF))
+                .clickable(onClick = onPlaylistClick)
+                .padding(horizontal = 18.dp, vertical = 10.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun CategoryList(
+    groups: List<Pair<String, Int>>,
+    selectedGroup: String?,
+    focusedIndex: Int,
+    onGroupClick: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val allGroups = listOf(null to groups.sumOf { it.second }) + groups
+    val selectedIndex = if (selectedGroup == null) 0 else groups.indexOfFirst { it.first == selectedGroup } + 1
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(focusedIndex) {
+        if (focusedIndex in allGroups.indices) {
+            listState.animateScrollToItem(maxOf(0, focusedIndex - 4))
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)
+    ) {
+        itemsIndexed(allGroups) { index, item ->
+            val name = item.first
+            val count = item.second
+            val selected = index == selectedIndex
+            val focused = index == focusedIndex
+            val bg = when {
+                focused -> Color(0xFFE6E7EA)
+                selected -> Color(0x331F252B)
+                else -> Color.Transparent
+            }
+            val textColor = if (focused) Color(0xFF101317) else Color.White
+
             Row(
-                modifier = Modifier.padding(start = 44.dp, top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(76.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(bg)
+                    .clickable { onGroupClick(name) }
+                    .padding(horizontal = 28.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "$channelCount kanal",
-                    color = Color(0xFF6F8792),
-                    fontSize = 10.sp
+                    text = name ?: "All channels",
+                    color = textColor,
+                    fontSize = 24.sp,
+                    fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                if (fromCache) {
-                    Text(
-                        text = "cache",
-                        color = Accent,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Text(
+                    text = "$count",
+                    color = if (focused) Color(0xFF33363A) else Color(0xFFB7BAC0),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
 }
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ProgramTimeline(
+    channel: Channel,
+    channelIndex: Int,
+    modifier: Modifier = Modifier
+) {
+    val times = listOf(
+        "08:00 AM" to "No information",
+        "09:00 AM" to "No information",
+        "09:08 AM" to "Program",
+        "10:05 AM" to "Program",
+        "11:02 AM" to "Program",
+        "11:58 AM" to "Program",
+        "12:51 PM" to "Program",
+        "01:51 PM" to "Program",
+        "02:50 PM" to "Program",
+        "03:57 PM" to "Program"
+    )
+
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChannelLogo(channel.logoUrl, size = 72)
+            Column(Modifier.padding(start = 18.dp)) {
+                Text(
+                    text = "$channelIndex  ${channel.name}",
+                    color = Color.White,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "Playlist 1  •  ${channel.group.ifBlank { "All channels" }}",
+                    color = Color(0xFFB9BBC0),
+                    fontSize = 19.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(Modifier.height(34.dp))
+
+        times.forEach { (time, title) ->
+            val active = time == "11:58 AM"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(75.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    time,
+                    color = if (active) Accent else Color.White,
+                    fontSize = 25.sp,
+                    modifier = Modifier.width(150.dp)
+                )
+                Text(
+                    title,
+                    color = if (active) Accent else Color.White,
+                    fontSize = 25.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ProgramInfoCard(
+    channel: Channel,
+    channelIndex: Int,
+    videoInfo: VideoInfo,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xB821252C))
+            .padding(horizontal = 32.dp, vertical = 26.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Program", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Text("11:58 - 12:51 PM", color = Color(0xFFC4C6CA), fontSize = 22.sp)
+                ProgressLine(width = 86.dp, progress = 0.36f)
+                Text("26 min", color = Color(0xFFC4C6CA), fontSize = 22.sp)
+                Text("$channelIndex  ${channel.name}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
+                val fps = videoInfo.fpsLabel.ifBlank { channel.frameRate.takeIf { it > 0f }?.let { "${it.toInt()} FPS" } ?: "" }
+                if (fps.isNotEmpty()) TechBadge(fps.uppercase())
+            }
+            Text("Program description", color = Color(0xFFB7B9BD), fontSize = 22.sp)
+        }
+    }
+}
+
+@Composable
+private fun ProgressLine(width: androidx.compose.ui.unit.Dp, progress: Float) {
+    Box(
+        modifier = Modifier
+            .width(width)
+            .height(5.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0x66FFFFFF))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .background(Color(0xFFDADDE1))
+        )
+    }
+}
+
+@Composable
+private fun MobileTapLayer(
+    onTap: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                val swipePx = 60.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startX = down.position.x
+                    var currentX = startX
+                    var moved = false
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (!change.pressed) break
+                        if ((change.position.x - startX).absoluteValue > 12f) moved = true
+                        currentX = change.position.x
+                    }
+
+                    val delta = currentX - startX
+                    when {
+                        moved && delta < -swipePx -> onNext()
+                        moved && delta > swipePx -> onPrevious()
+                        !moved -> onTap()
+                    }
+                }
+            }
+    )
+}
+
+private fun selectedGroupIndex(groupNames: List<String>, selectedGroup: String?): Int =
+    if (selectedGroup == null) 0 else (groupNames.indexOf(selectedGroup) + 1).coerceAtLeast(0)

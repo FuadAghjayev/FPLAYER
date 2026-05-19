@@ -1,11 +1,12 @@
 package az.iptv.fplayer.ui.component
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
-import az.iptv.fplayer.ui.theme.FocusBorder
 import kotlin.math.roundToInt
 
 @Composable
@@ -44,18 +43,9 @@ fun ChannelList(
 ) {
     val listState = rememberLazyListState()
 
-    LaunchedEffect(focusedIndex) {
-        if (focusedIndex < 0 || focusedIndex >= channels.size) return@LaunchedEffect
-        val layoutInfo = listState.layoutInfo
-        val viewport = layoutInfo.viewportEndOffset
-        val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == focusedIndex }
-        when {
-            itemInfo == null ->
-                listState.scrollToItem(maxOf(0, focusedIndex - 3))
-            itemInfo.offset + itemInfo.size > viewport - 8 ->
-                listState.scrollToItem(focusedIndex)
-            itemInfo.offset < 8 ->
-                listState.scrollToItem(maxOf(0, focusedIndex - 3))
+    LaunchedEffect(focusedIndex, channels.size) {
+        if (focusedIndex in channels.indices) {
+            listState.animateScrollToItem(maxOf(0, focusedIndex - 2))
         }
     }
 
@@ -87,146 +77,100 @@ fun ChannelItem(
     liveFrameRate: Float,
     onClick: () -> Unit
 ) {
-    val bg = when {
-        isPlaying && isFocused -> Color(0xCC12383D)
-        isPlaying -> Color(0x9910222B)
-        isFocused -> Color(0xAA163241)
-        index % 2 == 0 -> Color(0x3312252F)
-        else -> Color(0x22061014)
+    val background = when {
+        isFocused -> Color(0xFFE6E7EA)
+        isPlaying -> Color(0x441F252B)
+        else -> Color.Transparent
     }
-    val borderColor = when {
-        isPlaying -> Accent.copy(alpha = 0.5f)
-        isFocused -> FocusBorder.copy(alpha = 0.58f)
-        else -> Color(0x16FFFFFF)
-    }
+    val primaryText = if (isFocused) Color(0xFF111417) else Color.White
+    val secondaryText = if (isFocused) Color(0xFF2E3135) else Accent
+    val progressColor = if (isFocused) Color(0xFF202226) else Color(0xFFE4E5E8)
     val fpsLabel = formatFrameRate(liveFrameRate.takeIf { it > 0f } ?: channel.frameRate)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 3.dp)
-            .height(50.dp)
+            .padding(vertical = 6.dp)
+            .height(104.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(bg)
-            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+            .background(background)
             .focusProperties { canFocus = false }
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 28.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .fillMaxHeight()
-                .background(
-                    when {
-                        isPlaying -> Brush.verticalGradient(listOf(Accent, Accent.copy(0.4f)))
-                        isFocused -> Brush.verticalGradient(listOf(FocusBorder, FocusBorder.copy(alpha = 0.28f)))
-                        else -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
-                    }
-                )
-        )
+        ChannelLogo(channel.logoUrl, size = 72)
 
-        Box(
-            modifier = Modifier
-                .width(56.dp)
-                .fillMaxHeight()
-                .background(
-                    when {
-                        isPlaying -> Accent.copy(alpha = 0.18f)
-                        isFocused -> Color(0x18FFFFFF)
-                        else -> Color(0x08FFFFFF)
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = String.format("%d", index),
-                color = when {
-                    isPlaying -> Accent
-                    isFocused -> FocusBorder
-                    else -> Color(0xFF66757C)
-                },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Text(
-            text = channel.name,
-            color = when {
-                isPlaying -> Color.White
-                isFocused -> Color(0xFFEAF8FF)
-                else -> Color(0xFF9AABB4)
-            },
-            fontSize = 13.sp,
-            fontWeight = when {
-                isPlaying -> FontWeight.SemiBold
-                isFocused -> FontWeight.Medium
-                else -> FontWeight.Normal
-            },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 10.dp)
-        )
-
-        if (fpsLabel.isNotEmpty()) {
-            ReceiverBadge(
-                text = fpsLabel,
-                isActive = isPlaying || isFocused,
-                modifier = Modifier.padding(end = 8.dp)
+                .padding(start = 28.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$index",
+                    color = primaryText,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(32.dp)
+                )
+                Text(
+                    text = channel.name,
+                    color = primaryText,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (fpsLabel.isNotEmpty()) {
+                    Spacer(Modifier.width(12.dp))
+                    ReceiverBadge(text = fpsLabel.uppercase(), active = isFocused || isPlaying)
+                }
+            }
+            Text(
+                text = "Program",
+                color = secondaryText,
+                fontSize = 22.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp)
             )
-        }
-
-        if (isPlaying) {
             Box(
                 modifier = Modifier
-                    .padding(end = 8.dp)
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .height(3.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Accent.copy(alpha = 0.2f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .background(Color(0x66D9DCE0))
             ) {
-                Text(
-                    text = ">",
-                    color = Accent,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.52f)
+                        .background(progressColor)
                 )
             }
-        } else if (isFocused) {
-            Text(
-                text = ">",
-                color = FocusBorder,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(end = 10.dp)
-            )
+        }
+
+        if (isFocused) {
+            Text("▶", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-private fun ReceiverBadge(
-    text: String,
-    isActive: Boolean,
-    modifier: Modifier = Modifier
-) {
+private fun ReceiverBadge(text: String, active: Boolean) {
     Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(if (isActive) Accent.copy(alpha = 0.16f) else Color(0x14FFFFFF))
-            .border(
-                1.dp,
-                if (isActive) Accent.copy(alpha = 0.32f) else Color(0x22FFFFFF),
-                RoundedCornerShape(3.dp)
-            )
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        contentAlignment = Alignment.Center
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (active) Color(0x33111111) else Color(0x24FFFFFF))
+            .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
         Text(
             text = text,
-            color = if (isActive) Accent else Color(0xFF7D8E96),
-            fontSize = 9.sp,
+            color = if (active) Color(0xFF111417) else Color(0xFFCED3D8),
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
@@ -234,4 +178,4 @@ private fun ReceiverBadge(
 }
 
 private fun formatFrameRate(frameRate: Float): String =
-    if (frameRate > 0f) "${frameRate.roundToInt()}fps" else ""
+    if (frameRate > 0f) "${frameRate.roundToInt()} FPS" else ""
