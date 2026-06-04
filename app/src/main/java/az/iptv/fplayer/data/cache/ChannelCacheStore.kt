@@ -15,17 +15,33 @@ class ChannelCacheStore(context: Context) {
         if (!cacheFile.exists()) return null
 
         val root = JSONObject(cacheFile.readText())
+        root.optJSONObject(KEY_ENTRIES)?.optJSONObject(cacheKey)?.let { entry ->
+            return entry.getJSONArray(KEY_GROUPS).toChannelGroups()
+        }
+
         if (root.optString(KEY_CACHE_KEY) != cacheKey) return null
 
         root.getJSONArray(KEY_GROUPS).toChannelGroups()
     }.getOrNull()
 
     fun save(cacheKey: String, groups: List<ChannelGroup>) {
-        val root = JSONObject()
+        val root = if (cacheFile.exists()) {
+            runCatching { JSONObject(cacheFile.readText()) }.getOrDefault(JSONObject())
+        } else {
+            JSONObject()
+        }
+        val entries = root.optJSONObject(KEY_ENTRIES) ?: JSONObject()
+        entries.put(
+            cacheKey,
+            JSONObject()
+                .put(KEY_CACHED_AT, System.currentTimeMillis())
+                .put(KEY_GROUPS, groups.toGroupsJson())
+        )
+
+        root.put(KEY_ENTRIES, entries)
             .put(KEY_CACHE_KEY, cacheKey)
             .put(KEY_CACHED_AT, System.currentTimeMillis())
             .put(KEY_GROUPS, groups.toGroupsJson())
-
         cacheFile.writeText(root.toString())
     }
 
@@ -87,6 +103,7 @@ class ChannelCacheStore(context: Context) {
 
     companion object {
         private const val CACHE_FILE_NAME = "channel_cache.json"
+        private const val KEY_ENTRIES = "entries"
         private const val KEY_CACHE_KEY = "cacheKey"
         private const val KEY_CACHED_AT = "cachedAt"
         private const val KEY_GROUPS = "groups"

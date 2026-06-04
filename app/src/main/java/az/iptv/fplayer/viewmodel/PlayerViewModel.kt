@@ -7,6 +7,8 @@ import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelGroup
 import az.iptv.fplayer.data.model.XtreamConfig
 import az.iptv.fplayer.data.preferences.AppPreferences
+import az.iptv.fplayer.data.preferences.AppLanguage
+import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.data.preferences.PlaylistType
 import az.iptv.fplayer.data.repository.ChannelRepository
 import az.iptv.fplayer.player.AudioDecoderMode
@@ -29,6 +31,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = ChannelRepository(app)
     val prefs = AppPreferences(app)
+
+    val playlists: StateFlow<List<PlaylistProfile>> = prefs.playlists
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val activePlaylist: StateFlow<PlaylistProfile?> = prefs.activePlaylist
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val appLanguage: StateFlow<String> = prefs.language
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppLanguage.AZ.name)
 
     private val _groups = MutableStateFlow<List<ChannelGroup>>(emptyList())
     val groups: StateFlow<List<ChannelGroup>> = _groups
@@ -88,45 +97,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (_groups.value.isNotEmpty()) return
         playlistLoadJob?.cancel()
         playlistLoadJob = viewModelScope.launch {
-            val type = prefs.playlistType.first()
+            val profile = prefs.activePlaylist.first() ?: return@launch
             val lastChannelKey = prefs.lastChannelId.first()
-            when (type) {
-                PlaylistType.M3U.name -> {
-                    val url = prefs.m3uUrl.first()
-                    if (url.isNotEmpty()) {
-                        repo.loadCachedM3u(url)
-                            .onSuccess {
-                                onGroupsLoaded(
-                                    groups = it,
-                                    fromCache = true,
-                                    preferredChannelKey = lastChannelKey,
-                                    revealSidebar = false
-                                )
-                                return@launch
-                            }
-                        loadM3uFromNetwork(url, preferredChannelKey = lastChannelKey)
-                    }
-                }
-                PlaylistType.XTREAM.name -> {
-                    val server = prefs.xtreamServer.first()
-                    val user = prefs.xtreamUser.first()
-                    val pass = prefs.xtreamPass.first()
-                    if (server.isNotEmpty() && user.isNotEmpty()) {
-                        val config = xtreamConfig(server, user, pass)
-                        repo.loadCachedXtream(config)
-                            .onSuccess {
-                                onGroupsLoaded(
-                                    groups = it,
-                                    fromCache = true,
-                                    preferredChannelKey = lastChannelKey,
-                                    revealSidebar = false
-                                )
-                                return@launch
-                            }
-                        loadXtreamFromNetwork(config, preferredChannelKey = lastChannelKey)
-                    }
-                }
-            }
+            loadPlaylist(profile, preferredChannelKey = lastChannelKey)
         }
     }
 
@@ -139,7 +112,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         playlistLoadJob?.cancel()
         playlistLoadJob = viewModelScope.launch {
             prefs.saveM3u(url)
-            loadM3uFromNetwork(url, revealSidebar = true)
+            prefs.activePlaylist.first()?.let { loadPlaylist(it, revealSidebar = true, preferNetwork = true) }
         }
     }
 
@@ -147,7 +120,25 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         playlistLoadJob?.cancel()
         playlistLoadJob = viewModelScope.launch {
             prefs.saveXtream(server, username, password)
-            loadXtreamFromNetwork(xtreamConfig(server, username, password), revealSidebar = true)
+            prefs.activePlaylist.first()?.let { loadPlaylist(it, revealSidebar = true, preferNetwork = true) }
+        }
+    }
+
+    fun savePlaylistAndLoad(profile: PlaylistProfile) {
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
+            prefs.savePlaylist(profile)
+            loadPlaylist(profile, revealSidebar = true, preferNetwork = true)
+        }
+    }
+
+    fun switchPlaylist(profile: PlaylistProfile) {
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
+            prefs.activatePlaylist(profile.id)
+            _selectedGroup.value = null
+            _currentChannel.value = null
+            loadPlaylist(profile, revealSidebar = true)
         }
     }
 
@@ -155,25 +146,46 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         playlistLoadJob?.cancel()
         playlistLoadJob = viewModelScope.launch {
             val currentKey = _currentChannel.value?.stableKey ?: prefs.lastChannelId.first()
-            when (prefs.playlistType.first()) {
-                PlaylistType.M3U.name -> {
-                    val url = prefs.m3uUrl.first()
-                    if (url.isNotEmpty()) loadM3uFromNetwork(
-                        url = url,
-                        preferredChannelKey = currentKey,
-                        revealSidebar = _sidebarVisible.value
-                    )
+            prefs.activePlaylist.first()?.let {
+                loadPlaylist(
+                    profile = it,
+                    preferredChannelKey = currentKey,
+                    revealSidebar = _sidebarVisible.value,
+                    preferNetwork = true
+                )
+            }
+        }
+    }
+
+    private suspend fun loadPlaylist(
+        profile: PlaylistProfile,
+        preferredChannelKey: String? = null,
+        revealSidebar: Boolean = false,
+        preferNetwork: Boolean = false
+    ) {
+        when (profile.type) {
+            PlaylistType.M3U -> {
+                if (profile.m3uUrl.isBlank()) return
+                if (!preferNetwork) {
+                    repo.loadCachedM3u(profile.m3uUrl)
+                        .onSuccess {
+                            onGroupsLoaded(it, fromCache = true, preferredChannelKey, revealSidebar)
+                            return
+                        }
                 }
-                PlaylistType.XTREAM.name -> {
-                    val server = prefs.xtreamServer.first()
-                    val user = prefs.xtreamUser.first()
-                    val pass = prefs.xtreamPass.first()
-                    if (server.isNotEmpty() && user.isNotEmpty()) loadXtreamFromNetwork(
-                        config = xtreamConfig(server, user, pass),
-                        preferredChannelKey = currentKey,
-                        revealSidebar = _sidebarVisible.value
-                    )
+                loadM3uFromNetwork(profile.m3uUrl, preferredChannelKey, revealSidebar)
+            }
+            PlaylistType.XTREAM -> {
+                if (profile.xtreamServer.isBlank() || profile.xtreamUser.isBlank()) return
+                val config = xtreamConfig(profile.xtreamServer, profile.xtreamUser, profile.xtreamPass)
+                if (!preferNetwork) {
+                    repo.loadCachedXtream(config)
+                        .onSuccess {
+                            onGroupsLoaded(it, fromCache = true, preferredChannelKey, revealSidebar)
+                            return
+                        }
                 }
+                loadXtreamFromNetwork(config, preferredChannelKey, revealSidebar)
             }
         }
     }
@@ -232,6 +244,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _currentChannel.value = channels.firstOrNull { it.stableKey == currentKey }
             ?: channels.firstOrNull { it.stableKey == preferredChannelKey }
             ?: channels.firstOrNull()
+        _currentChannel.value?.group?.takeIf { it.isNotBlank() && revealSidebar }?.let { channelGroup ->
+            if (groups.any { it.name == channelGroup }) _selectedGroup.value = channelGroup
+        }
         _sidebarVisible.value = revealSidebar
     }
 
@@ -287,6 +302,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun setAudioDecoderMode(mode: AudioDecoderMode) {
         _audioDecoderMode.value = mode
         viewModelScope.launch { prefs.setAudioDecoderMode(mode.name) }
+    }
+
+    fun setLanguage(language: AppLanguage) {
+        viewModelScope.launch { prefs.setLanguage(language.name) }
     }
 
     fun nextChannel() {

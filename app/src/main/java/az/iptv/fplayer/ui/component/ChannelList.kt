@@ -38,6 +38,7 @@ fun ChannelList(
     currentChannel: Channel?,
     currentFrameRate: Float = 0f,
     focusedIndex: Int,
+    programLabel: String = "Program",
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -45,7 +46,7 @@ fun ChannelList(
 
     LaunchedEffect(focusedIndex, channels.size) {
         if (focusedIndex in channels.indices) {
-            listState.animateScrollToItem(maxOf(0, focusedIndex - 2))
+            listState.scrollToItem(maxOf(0, focusedIndex - 2))
         }
     }
 
@@ -62,6 +63,7 @@ fun ChannelList(
                 isPlaying = isPlaying,
                 isFocused = index == focusedIndex,
                 liveFrameRate = if (isPlaying) currentFrameRate else 0f,
+                programLabel = programLabel,
                 onClick = { onChannelClick(channel) }
             )
         }
@@ -75,6 +77,7 @@ fun ChannelItem(
     isPlaying: Boolean,
     isFocused: Boolean,
     liveFrameRate: Float,
+    programLabel: String = "Program",
     onClick: () -> Unit
 ) {
     val background = when {
@@ -129,7 +132,7 @@ fun ChannelItem(
                 }
             }
             Text(
-                text = "Program",
+                text = programLabel,
                 color = secondaryText,
                 fontSize = 15.sp,
                 maxLines = 1,

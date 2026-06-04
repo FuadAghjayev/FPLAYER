@@ -75,6 +75,7 @@ import az.iptv.fplayer.ui.component.ChannelInfoOsd
 import az.iptv.fplayer.ui.component.ChannelList
 import az.iptv.fplayer.ui.component.ChannelLogo
 import az.iptv.fplayer.ui.component.TechBadge
+import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
 import az.iptv.fplayer.viewmodel.LoadState
@@ -102,6 +103,8 @@ fun PlayerScreen(
     val loadState by vm.loadState.collectAsState()
     val playerType by vm.playerType.collectAsState()
     val audioDecoderMode by vm.audioDecoderMode.collectAsState()
+    val language by vm.appLanguage.collectAsState()
+    val t = appTexts(language)
 
     val engine: PlayerEngine = remember(playerType, audioDecoderMode, context) {
         when (playerType) {
@@ -122,10 +125,11 @@ fun PlayerScreen(
         if (groups.isEmpty()) vm.autoLoadSavedPlaylist()
     }
 
-    LaunchedEffect(currentChannel) {
-        currentChannel?.let {
+    val playbackUrl = currentChannel?.url
+    LaunchedEffect(engine, playbackUrl) {
+        playbackUrl?.let {
             vm.onVideoInfoChanged(VideoInfo())
-            engine.play(it.url)
+            engine.play(it)
         }
     }
 
@@ -295,7 +299,13 @@ fun PlayerScreen(
                     }
 
                     Key.Menu -> {
-                        if (selectorVisible) vm.refreshPlaylist() else vm.showOsd()
+                        if (selectorVisible && selectorPane == SelectorPane.GROUPS) {
+                            onNavigateToPlaylist()
+                        } else if (selectorVisible) {
+                            vm.refreshPlaylist()
+                        } else {
+                            vm.showOsd()
+                        }
                         true
                     }
 
@@ -328,12 +338,13 @@ fun PlayerScreen(
                     selectedGroup = selectedGroup,
                     focusedIndex = focusedGroupIndex,
                     guideWidth = guideWidth,
+                    categoriesLabel = t.categories,
+                    allChannelsLabel = t.allChannels,
                     onGroupClick = {
                         vm.selectGroup(it)
                         selectorPane = SelectorPane.CHANNELS
                         focusedChannelIndex = 0
-                    },
-                    onPlaylistClick = onNavigateToPlaylist
+                    }
                 )
             } else {
                 ChannelSelectorOverlay(
@@ -344,6 +355,8 @@ fun PlayerScreen(
                     videoInfo = videoInfo,
                     guideWidth = guideWidth,
                     isLoading = loadState is LoadState.Loading,
+                    allChannelsLabel = t.allChannels,
+                    programLabel = t.program,
                     onChannelClick = vm::selectChannel
                 )
             }
@@ -393,6 +406,7 @@ fun PlayerScreen(
 
         ExitHint(
             visible = exitHintVisible,
+            text = t.exitHint,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 36.dp)
@@ -401,6 +415,8 @@ fun PlayerScreen(
 
         ExitConfirmDialog(
             visible = exitPromptVisible,
+            title = t.exitTitle,
+            subtitle = t.exitSubtitle,
             modifier = Modifier
                 .align(Alignment.Center)
                 .zIndex(21f)
@@ -430,7 +446,7 @@ private fun VideoSurface(engine: PlayerEngine) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ExitHint(visible: Boolean, modifier: Modifier = Modifier) {
+private fun ExitHint(visible: Boolean, text: String, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Box(
             modifier = Modifier
@@ -439,7 +455,7 @@ private fun ExitHint(visible: Boolean, modifier: Modifier = Modifier) {
                 .padding(horizontal = 18.dp, vertical = 10.dp)
         ) {
             Text(
-                text = "Çıxış üçün bir daha bas",
+                text = text,
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
@@ -450,7 +466,7 @@ private fun ExitHint(visible: Boolean, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ExitConfirmDialog(visible: Boolean, modifier: Modifier = Modifier) {
+private fun ExitConfirmDialog(visible: Boolean, title: String, subtitle: String, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Column(
             modifier = Modifier
@@ -462,13 +478,13 @@ private fun ExitConfirmDialog(visible: Boolean, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Çıxmaq istəyirsən?",
+                text = title,
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "OK basanda tətbiq bağlanacaq",
+                text = subtitle,
                 color = Color(0xFFC8CCD1),
                 fontSize = 16.sp
             )
@@ -524,6 +540,8 @@ private fun ChannelSelectorOverlay(
     videoInfo: VideoInfo,
     guideWidth: androidx.compose.ui.unit.Dp,
     isLoading: Boolean,
+    allChannelsLabel: String,
+    programLabel: String,
     onChannelClick: (Channel) -> Unit
 ) {
     Box(
@@ -550,7 +568,7 @@ private fun ChannelSelectorOverlay(
                 .padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 14.dp)
         ) {
             Text(
-                text = selectedGroup ?: "All channels",
+                text = selectedGroup ?: allChannelsLabel,
                 color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -569,6 +587,7 @@ private fun ChannelSelectorOverlay(
                     currentChannel = currentChannel,
                     currentFrameRate = videoInfo.frameRate,
                     focusedIndex = focusedIndex,
+                    programLabel = programLabel,
                     onChannelClick = onChannelClick,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -584,8 +603,9 @@ private fun CategoryOverlay(
     selectedGroup: String?,
     focusedIndex: Int,
     guideWidth: androidx.compose.ui.unit.Dp,
-    onGroupClick: (String?) -> Unit,
-    onPlaylistClick: () -> Unit
+    categoriesLabel: String,
+    allChannelsLabel: String,
+    onGroupClick: (String?) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -611,7 +631,7 @@ private fun CategoryOverlay(
                 .padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 14.dp)
         ) {
             Text(
-                text = "Categories",
+                text = categoriesLabel,
                 color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -624,25 +644,11 @@ private fun CategoryOverlay(
                 groups = groups,
                 selectedGroup = selectedGroup,
                 focusedIndex = focusedIndex,
+                allChannelsLabel = allChannelsLabel,
                 onGroupClick = onGroupClick,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-            )
-
-            Text(
-                text = "Playlists",
-                color = Color(0xFFD8DBDF),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0x26FFFFFF))
-                    .clickable(onClick = onPlaylistClick)
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
             )
         }
     }
@@ -654,6 +660,7 @@ private fun CategoryList(
     groups: List<Pair<String, Int>>,
     selectedGroup: String?,
     focusedIndex: Int,
+    allChannelsLabel: String,
     onGroupClick: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -696,7 +703,7 @@ private fun CategoryList(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = name ?: "All channels",
+                    text = name ?: allChannelsLabel,
                     color = textColor,
                     fontSize = 16.sp,
                     fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
