@@ -61,8 +61,6 @@ fun ChannelInfoOsd(
             "--"
         }
         val codec = videoInfo.codec.ifBlank { "--" }.uppercase()
-        val channelPosition = if (totalChannels > 0) "$channelIndex/$totalChannels" else channelIndex.toString()
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -96,13 +94,7 @@ fun ChannelInfoOsd(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = channelPosition,
-                            color = Color(0xFF9DEB88),
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.width(96.dp)
-                        )
+                        ChannelLogo(channel.logoUrl, size = 58, modifier = Modifier.padding(end = 16.dp))
                         Text(
                             text = channel.name,
                             color = Color.White,
@@ -113,66 +105,15 @@ fun ChannelInfoOsd(
                         )
                     }
 
-                    Spacer(Modifier.height(9.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = channel.group.ifBlank { "All channels" },
-                            color = Color(0xFF6DE873),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.width(190.dp)
-                        )
-                        Text(
-                            text = "Program",
-                            color = Color(0xFFDCE5F1),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.width(82.dp)
-                        )
-                        Text(
-                            text = "No information",
-                            color = Color(0xFF94A6B7),
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "00:00",
-                            color = Color(0xFFB7C4CF),
-                            fontSize = 12.sp,
-                            modifier = Modifier.width(48.dp)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF17222C))
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.42f)
-                                    .height(5.dp)
-                                    .background(Color(0xFF58D568))
-                            )
-                        }
-                        Text(
-                            text = "24:00",
-                            color = Color(0xFFB7C4CF),
-                            fontSize = 12.sp,
-                            modifier = Modifier
-                                .padding(start = 10.dp)
-                                .width(48.dp)
-                        )
-                    }
+                    Text(
+                        text = channel.group.ifBlank { "All channels" },
+                        color = Color(0xFF6DE873),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 9.dp)
+                    )
                 }
 
                 Spacer(Modifier.width(20.dp))
@@ -191,10 +132,6 @@ fun ChannelInfoOsd(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SignalValue(label = "S", value = "--")
-                        SignalValue(label = "Q", value = "--")
-                    }
                 }
             }
         }
@@ -210,25 +147,6 @@ fun TechBadge(text: String) {
             .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
         Text(text = text, color = Color(0xFF111317), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun SignalValue(label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = label,
-            color = Color(0xFF78D7FF),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Black
-        )
-        Text(
-            text = value,
-            color = Color(0xFFEAF2FA),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 3.dp)
-        )
     }
 }
 

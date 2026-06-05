@@ -39,6 +39,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val appLanguage: StateFlow<String> = prefs.language
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppLanguage.AZ.name)
+    val favoriteChannelKeys: StateFlow<Set<String>> = prefs.favoriteChannelKeys
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     private val _groups = MutableStateFlow<List<ChannelGroup>>(emptyList())
     private val _selectedContentType = MutableStateFlow(ChannelContentType.TV)
@@ -49,11 +51,22 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         contentTypeOrder.filter { it in present }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, listOf(ChannelContentType.TV))
 
-    val groups: StateFlow<List<ChannelGroup>> = combine(_groups, _selectedContentType) { groups, contentType ->
-        groups.mapNotNull { group ->
+    val groups: StateFlow<List<ChannelGroup>> = combine(
+        _groups,
+        _selectedContentType,
+        favoriteChannelKeys
+    ) { groups, contentType, favorites ->
+        val filteredGroups = groups.mapNotNull { group ->
             val channels = group.channels.filter { it.contentType == contentType }
+                .markFavorites(favorites)
             if (channels.isEmpty()) null else group.copy(channels = channels)
         }
+        val favoriteChannels = filteredGroups
+            .flatMap { it.channels }
+            .distinctBy { it.stableKey }
+            .filter { it.stableKey in favorites }
+        if (favoriteChannels.isEmpty()) filteredGroups
+        else listOf(ChannelGroup(FAVORITE_GROUP_NAME, favoriteChannels)) + filteredGroups
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _selectedGroup = MutableStateFlow<String?>(null)
@@ -253,11 +266,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _groups.value = groups
         _loadState.value = LoadState.Success(groups.sumOf { it.channels.size }, fromCache)
 
-        val channels = groups.flatMap { it.channels }
+        val channels = groups.flatMap { it.channels }.markFavorites(favoriteChannelKeys.value)
         val currentKey = _currentChannel.value?.stableKey
         _currentChannel.value = channels.firstOrNull { it.stableKey == currentKey }
             ?: channels.firstOrNull { it.stableKey == preferredChannelKey }
-            ?: preferredContentTypeChannels(groups).firstOrNull()
+            ?: preferredContentTypeChannels(groups).markFavorites(favoriteChannelKeys.value).firstOrNull()
             ?: channels.firstOrNull()
 
         _currentChannel.value?.let { selected ->
@@ -355,6 +368,17 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { prefs.setLanguage(language.name) }
     }
 
+    fun toggleFavorite(channel: Channel) {
+        val nextFavorite = !channel.isFavorite
+        viewModelScope.launch { prefs.setFavoriteChannel(channel.stableKey, nextFavorite) }
+        if (_currentChannel.value?.stableKey == channel.stableKey) {
+            _currentChannel.value = channel.copy(isFavorite = nextFavorite)
+        }
+        _recentChannels.value = _recentChannels.value.map {
+            if (it.stableKey == channel.stableKey) it.copy(isFavorite = nextFavorite) else it
+        }
+    }
+
     fun nextChannel() {
         val channels = visibleChannels.value
         val currentKey = _currentChannel.value?.stableKey
@@ -377,13 +401,27 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun groupsForSelectedContent(
         contentType: ChannelContentType = _selectedContentType.value
-    ): List<ChannelGroup> =
-        _groups.value.mapNotNull { group ->
+    ): List<ChannelGroup> {
+        val favorites = favoriteChannelKeys.value
+        val filteredGroups = _groups.value.mapNotNull { group ->
             val channels = group.channels.filter { it.contentType == contentType }
+                .markFavorites(favorites)
             if (channels.isEmpty()) null else group.copy(channels = channels)
         }
+        val favoriteChannels = filteredGroups
+            .flatMap { it.channels }
+            .distinctBy { it.stableKey }
+            .filter { it.stableKey in favorites }
+        return if (favoriteChannels.isEmpty()) filteredGroups
+        else listOf(ChannelGroup(FAVORITE_GROUP_NAME, favoriteChannels)) + filteredGroups
+    }
+
+    private fun List<Channel>.markFavorites(favorites: Set<String>): List<Channel> =
+        map { channel -> channel.copy(isFavorite = channel.stableKey in favorites) }
 
     companion object {
+        const val FAVORITE_GROUP_NAME = "Favoriler"
+
         private val contentTypeOrder = listOf(
             ChannelContentType.TV,
             ChannelContentType.MOVIE,

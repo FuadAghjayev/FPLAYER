@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -35,7 +36,7 @@ data class PlaylistProfile(
 class AppPreferences(private val context: Context) {
 
     companion object {
-        const val MAX_PLAYLISTS = 3
+        const val MAX_PLAYLISTS = 10
 
         private val KEY_PLAYLIST_TYPE = stringPreferencesKey("playlist_type")
         private val KEY_M3U_URL = stringPreferencesKey("m3u_url")
@@ -48,6 +49,7 @@ class AppPreferences(private val context: Context) {
         private val KEY_LAST_CHANNEL_ID = stringPreferencesKey("last_channel_id")
         private val KEY_AUDIO_DECODER = stringPreferencesKey("audio_decoder")
         private val KEY_LANGUAGE = stringPreferencesKey("language")
+        private val KEY_FAVORITE_CHANNELS = stringSetPreferencesKey("favorite_channels")
     }
 
     val playlists: Flow<List<PlaylistProfile>> = context.dataStore.data.map { readProfiles(it) }
@@ -68,6 +70,9 @@ class AppPreferences(private val context: Context) {
     val lastChannelId: Flow<String> = context.dataStore.data.map { it[KEY_LAST_CHANNEL_ID] ?: "" }
     val audioDecoderMode: Flow<String> = context.dataStore.data.map { it[KEY_AUDIO_DECODER] ?: "AUTO" }
     val language: Flow<String> = context.dataStore.data.map { it[KEY_LANGUAGE] ?: AppLanguage.AZ.name }
+    val favoriteChannelKeys: Flow<Set<String>> = context.dataStore.data.map {
+        it[KEY_FAVORITE_CHANNELS] ?: emptySet()
+    }
 
     suspend fun saveM3u(url: String) = context.dataStore.edit {
         val profiles = readProfiles(it)
@@ -121,6 +126,10 @@ class AppPreferences(private val context: Context) {
     suspend fun setLastChannelId(id: String) = context.dataStore.edit { it[KEY_LAST_CHANNEL_ID] = id }
     suspend fun setAudioDecoderMode(mode: String) = context.dataStore.edit { it[KEY_AUDIO_DECODER] = mode }
     suspend fun setLanguage(language: String) = context.dataStore.edit { it[KEY_LANGUAGE] = language }
+    suspend fun setFavoriteChannel(key: String, favorite: Boolean) = context.dataStore.edit {
+        val current = it[KEY_FAVORITE_CHANNELS] ?: emptySet()
+        it[KEY_FAVORITE_CHANNELS] = if (favorite) current + key else current - key
+    }
 
     private fun readProfiles(prefs: Preferences): List<PlaylistProfile> {
         val saved = prefs[KEY_PLAYLISTS_JSON].orEmpty()

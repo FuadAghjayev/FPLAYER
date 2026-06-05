@@ -147,6 +147,9 @@ fun ChannelItem(
             }
         }
 
+        if (!isFocused && channel.isFavorite) {
+            Text("Fav", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Black)
+        }
         if (isFocused) {
             Text("▶", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }

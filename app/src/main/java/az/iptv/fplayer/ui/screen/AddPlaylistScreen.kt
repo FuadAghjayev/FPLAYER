@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -156,13 +158,13 @@ fun AddPlaylistScreen(
                 if (playlists.isNotEmpty()) {
                     SectionTitle(t.savedPlaylists)
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        playlists.forEach { profile ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(playlists, key = { it.id }) { profile ->
                             PlaylistChip(
                                 profile = profile,
                                 selected = profile.id == activePlaylist?.id,
                                 texts = t,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.width(156.dp),
                                 onClick = {
                                     editingPlaylistId = profile.id
                                     pendingPlayerReturn = true

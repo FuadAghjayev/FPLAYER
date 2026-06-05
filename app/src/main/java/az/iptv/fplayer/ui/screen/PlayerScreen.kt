@@ -31,7 +31,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +65,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelContentType
+import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.ExoPlayerEngine
 import az.iptv.fplayer.player.MediaTrackOption
@@ -89,6 +89,17 @@ import kotlinx.coroutines.delay
 import kotlin.math.absoluteValue
 
 private enum class SelectorPane { CONTENT_TYPES, GROUPS, CHANNELS }
+private enum class GuideCategoryType { PLAYLIST, ALL, GROUP }
+
+private data class GuideCategoryItem(
+    val type: GuideCategoryType,
+    val label: String,
+    val count: Int? = null,
+    val groupName: String? = null,
+    val playlist: PlaylistProfile? = null,
+    val selected: Boolean = false,
+    val active: Boolean = false
+)
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -110,9 +121,21 @@ fun PlayerScreen(
     val loadState by vm.loadState.collectAsState()
     val playerType by vm.playerType.collectAsState()
     val audioDecoderMode by vm.audioDecoderMode.collectAsState()
+    val playlists by vm.playlists.collectAsState()
+    val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
     val t = appTexts(language)
+    val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, t.allChannels) {
+        buildGuideCategories(
+            playlists = playlists,
+            activePlaylistId = activePlaylist?.id,
+            groups = groups,
+            selectedGroup = selectedGroup,
+            allChannelsLabel = t.allChannels
+        )
+    }
     var mediaTracks by remember { mutableStateOf(MediaTracks()) }
+    var recoveryChannelKey by remember { mutableStateOf<String?>(null) }
 
     val engine: PlayerEngine = remember(playerType, audioDecoderMode, context) {
         when (playerType) {
@@ -144,6 +167,20 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(playbackState, currentChannel?.stableKey) {
+        val key = currentChannel?.stableKey ?: return@LaunchedEffect
+        if (playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering) {
+            recoveryChannelKey = null
+            return@LaunchedEffect
+        }
+        if (playbackState is PlaybackState.Error || playbackState is PlaybackState.Idle) {
+            if (recoveryChannelKey == key) return@LaunchedEffect
+            delay(2500)
+            recoveryChannelKey = key
+            vm.refreshPlaylist()
+        }
+    }
+
     val currentChannelKey = currentChannel?.stableKey
     val currentChannelIndex = remember(visibleChannels, currentChannelKey) {
         visibleChannels.indexOfFirst { it.stableKey == currentChannelKey }
@@ -159,11 +196,13 @@ fun PlayerScreen(
     var exitPromptVisible by remember { mutableStateOf(false) }
     var exitHintVisible by remember { mutableStateOf(false) }
     var lastExitBackAt by remember { mutableStateOf(0L) }
+    var leftPressCount by remember { mutableIntStateOf(0) }
+    var lastLeftPressAt by remember { mutableStateOf(0L) }
 
     LaunchedEffect(selectorVisible) {
         if (selectorVisible) {
             focusedChannelIndex = currentChannelIndex.coerceAtLeast(0)
-            focusedGroupIndex = selectedGroupIndex(groups.map { it.name }, selectedGroup)
+            focusedGroupIndex = selectedGuideCategoryIndex(guideCategories)
             focusedContentTypeIndex = selectedContentTypeIndex(availableContentTypes, selectedContentType)
             selectorPane = SelectorPane.CHANNELS
         }
@@ -175,6 +214,10 @@ fun PlayerScreen(
 
     LaunchedEffect(availableContentTypes, selectedContentType) {
         focusedContentTypeIndex = selectedContentTypeIndex(availableContentTypes, selectedContentType)
+    }
+
+    LaunchedEffect(guideCategories.size) {
+        focusedGroupIndex = focusedGroupIndex.coerceAtMost((guideCategories.size - 1).coerceAtLeast(0))
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -269,6 +312,15 @@ fun PlayerScreen(
                 } else {
                     when (event.key) {
                         Key.DirectionLeft -> {
+                            val now = System.currentTimeMillis()
+                            leftPressCount = if (now - lastLeftPressAt <= 1400L) leftPressCount + 1 else 1
+                            lastLeftPressAt = now
+                            if (leftPressCount >= 3) {
+                                leftPressCount = 0
+                                vm.hideSidebar()
+                                onNavigateToPlaylist()
+                                return@onKeyEvent true
+                            }
                             if (selectorVisible) {
                                 selectorPane = when (selectorPane) {
                                     SelectorPane.CHANNELS -> SelectorPane.GROUPS
@@ -324,7 +376,8 @@ fun PlayerScreen(
                                             .coerceAtMost((availableContentTypes.size - 1).coerceAtLeast(0))
                                     }
                                     SelectorPane.GROUPS -> {
-                                        focusedGroupIndex = (focusedGroupIndex + 1).coerceAtMost(groups.size)
+                                        focusedGroupIndex = (focusedGroupIndex + 1)
+                                            .coerceAtMost((guideCategories.size - 1).coerceAtLeast(0))
                                     }
                                     SelectorPane.CHANNELS -> {
                                         focusedChannelIndex = (focusedChannelIndex + 1)
@@ -364,9 +417,13 @@ fun PlayerScreen(
                                         }
                                     }
                                     SelectorPane.GROUPS -> {
-                                        val groupName = if (focusedGroupIndex == 0) null
-                                        else groups.getOrNull(focusedGroupIndex - 1)?.name
-                                        vm.selectGroup(groupName)
+                                        guideCategories.getOrNull(focusedGroupIndex)?.let { item ->
+                                            when (item.type) {
+                                                GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
+                                                GuideCategoryType.ALL -> vm.selectGroup(null)
+                                                GuideCategoryType.GROUP -> vm.selectGroup(item.groupName)
+                                            }
+                                        }
                                         selectorPane = SelectorPane.CHANNELS
                                         focusedChannelIndex = 0
                                     }
@@ -389,7 +446,9 @@ fun PlayerScreen(
                         }
 
                         Key.Info -> {
-                            if (hasSelectableMediaTracks(mediaTracks)) {
+                            if (selectorVisible && selectorPane == SelectorPane.CHANNELS) {
+                                visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
+                            } else if (hasSelectableMediaTracks(mediaTracks)) {
                                 focusedMediaOption = if (mediaTracks.audioTracks.isNotEmpty()) 0 else 1
                                 mediaOptionsVisible = true
                                 vm.hideOsd()
@@ -422,7 +481,7 @@ fun PlayerScreen(
                 contentTypes = guideContentTypes,
                 selectedContentType = selectedContentType,
                 focusedContentTypeIndex = focusedContentTypeIndex,
-                groups = groups.map { it.name to it.channels.size },
+                categories = guideCategories,
                 selectedGroup = selectedGroup,
                 focusedGroupIndex = focusedGroupIndex,
                 channels = visibleChannels,
@@ -440,24 +499,17 @@ fun PlayerScreen(
                     focusedChannelIndex = 0
                     selectorPane = SelectorPane.GROUPS
                 },
-                onGroupClick = {
-                    vm.selectGroup(it)
+                onCategoryClick = { item ->
+                    when (item.type) {
+                        GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
+                        GuideCategoryType.ALL -> vm.selectGroup(null)
+                        GuideCategoryType.GROUP -> vm.selectGroup(item.groupName)
+                    }
                     selectorPane = SelectorPane.CHANNELS
                     focusedChannelIndex = 0
                 },
                 onChannelClick = vm::selectChannel
             )
-        }
-
-        AnimatedVisibility(
-            visible = playbackState is PlaybackState.Buffering,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.Center)
-                .zIndex(3f)
-        ) {
-            CircularProgressIndicator(color = Accent, modifier = Modifier.size(48.dp))
         }
 
         AnimatedVisibility(
@@ -632,7 +684,7 @@ private fun ReceiverGuideOverlay(
     contentTypes: List<ChannelContentType>,
     selectedContentType: ChannelContentType,
     focusedContentTypeIndex: Int,
-    groups: List<Pair<String, Int>>,
+    categories: List<GuideCategoryItem>,
     selectedGroup: String?,
     focusedGroupIndex: Int,
     channels: List<Channel>,
@@ -645,7 +697,7 @@ private fun ReceiverGuideOverlay(
     allChannelsLabel: String,
     emptyLabel: String,
     onContentTypeClick: (ChannelContentType) -> Unit,
-    onGroupClick: (String?) -> Unit,
+    onCategoryClick: (GuideCategoryItem) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
     val panelShape = RoundedCornerShape(3.dp)
@@ -687,13 +739,13 @@ private fun ReceiverGuideOverlay(
                 ReceiverGuideDivider()
 
                 ReceiverCategoryColumn(
-                    groups = groups,
+                    categories = categories,
                     selectedGroup = selectedGroup,
                     focusedIndex = focusedGroupIndex,
                     focused = focusedPane == SelectorPane.GROUPS,
                     categoriesLabel = categoriesLabel,
                     allChannelsLabel = allChannelsLabel,
-                    onGroupClick = onGroupClick,
+                    onCategoryClick = onCategoryClick,
                     modifier = Modifier
                         .width(groupWidth)
                         .fillMaxHeight()
@@ -784,21 +836,20 @@ private fun ReceiverGuideDivider() {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun ReceiverCategoryColumn(
-    groups: List<Pair<String, Int>>,
+    categories: List<GuideCategoryItem>,
     selectedGroup: String?,
     focusedIndex: Int,
     focused: Boolean,
     categoriesLabel: String,
     allChannelsLabel: String,
-    onGroupClick: (String?) -> Unit,
+    onCategoryClick: (GuideCategoryItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val allGroups = listOf(null to groups.sumOf { it.second }) + groups
-    val selectedIndex = if (selectedGroup == null) 0 else groups.indexOfFirst { it.first == selectedGroup } + 1
+    val selectedIndex = categories.indexOfFirst { it.selected }.takeIf { it >= 0 } ?: 0
     val listState = rememberLazyListState()
 
-    LaunchedEffect(focusedIndex, allGroups.size) {
-        if (focusedIndex in allGroups.indices) {
+    LaunchedEffect(focusedIndex, categories.size) {
+        if (focusedIndex in categories.indices) {
             listState.scrollToItem(maxOf(0, focusedIndex - 4))
         }
     }
@@ -818,9 +869,9 @@ private fun ReceiverCategoryColumn(
             contentPadding = PaddingValues(vertical = 2.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            itemsIndexed(allGroups) { index, item ->
+            itemsIndexed(categories) { index, item ->
                 val activeFocus = focused && index == focusedIndex
-                val selected = index == selectedIndex
+                val selected = item.selected || index == selectedIndex
                 val textColor = when {
                     activeFocus -> Color(0xFF101317)
                     selected -> Accent
@@ -832,19 +883,23 @@ private fun ReceiverCategoryColumn(
                         .height(42.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(if (activeFocus) Color(0xFFE6E7EA) else Color.Transparent)
-                        .clickable { onGroupClick(item.first) }
+                        .clickable { onCategoryClick(item) }
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (index == 0) "" else index.toString().padStart(2, '0'),
+                        text = when (item.type) {
+                            GuideCategoryType.PLAYLIST -> "PL"
+                            GuideCategoryType.ALL -> ""
+                            GuideCategoryType.GROUP -> index.toString().padStart(2, '0')
+                        },
                         color = if (activeFocus) Color(0xFF101317) else Accent,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(42.dp)
                     )
                     Text(
-                        text = item.first ?: allChannelsLabel,
+                        text = item.label,
                         color = textColor,
                         fontSize = 18.sp,
                         fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
@@ -852,12 +907,16 @@ private fun ReceiverCategoryColumn(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = item.second.toString(),
-                        color = if (activeFocus) Color(0xFF2E3135) else Color(0xFFCED3D8),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    val meta = if (item.active && item.type == GuideCategoryType.PLAYLIST) "Aktiv"
+                    else item.count?.toString().orEmpty()
+                    if (meta.isNotEmpty()) {
+                        Text(
+                            text = meta,
+                            color = if (activeFocus) Color(0xFF2E3135) else Color(0xFFCED3D8),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -887,8 +946,10 @@ private fun ReceiverChannelColumn(
     Box(modifier) {
         when {
             isLoading && channels.isEmpty() -> {
-                CircularProgressIndicator(
-                    color = Accent,
+                Text(
+                    text = emptyLabel,
+                    color = Color(0xFFCED3D8),
+                    fontSize = 18.sp,
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -980,6 +1041,13 @@ private fun ReceiverChannelRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            if (channel.isFavorite) {
+                ReceiverHdBadge(
+                    text = "Fav",
+                    active = isFocused || isPlaying
+                )
+                Spacer(Modifier.width(6.dp))
             }
             ReceiverHdBadge(
                 text = if (channel.name.contains("HD", ignoreCase = true)) "HD" else "SD",
@@ -1125,7 +1193,7 @@ private fun ChannelSelectorOverlay(
 
             if (isLoading && channels.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Accent)
+                    Text(emptyLabel, color = Color(0xFFB9C0C8), fontSize = 16.sp)
                 }
             } else if (channels.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1568,8 +1636,46 @@ private fun MobileTapLayer(
     )
 }
 
-private fun selectedGroupIndex(groupNames: List<String>, selectedGroup: String?): Int =
-    if (selectedGroup == null) 0 else (groupNames.indexOf(selectedGroup) + 1).coerceAtLeast(0)
+private fun buildGuideCategories(
+    playlists: List<PlaylistProfile>,
+    activePlaylistId: String?,
+    groups: List<az.iptv.fplayer.data.model.ChannelGroup>,
+    selectedGroup: String?,
+    allChannelsLabel: String
+): List<GuideCategoryItem> {
+    val realGroups = groups.filterNot { it.name == PlayerViewModel.FAVORITE_GROUP_NAME }
+    val playlistItems = if (playlists.size > 1) {
+        playlists.map { profile ->
+            GuideCategoryItem(
+                type = GuideCategoryType.PLAYLIST,
+                label = profile.name,
+                playlist = profile,
+                active = profile.id == activePlaylistId
+            )
+        }
+    } else {
+        emptyList()
+    }
+    val allItem = GuideCategoryItem(
+        type = GuideCategoryType.ALL,
+        label = allChannelsLabel,
+        count = realGroups.sumOf { it.channels.size },
+        selected = selectedGroup == null
+    )
+    val groupItems = groups.map { group ->
+        GuideCategoryItem(
+            type = GuideCategoryType.GROUP,
+            label = group.name,
+            count = group.channels.size,
+            groupName = group.name,
+            selected = selectedGroup == group.name
+        )
+    }
+    return playlistItems + allItem + groupItems
+}
+
+private fun selectedGuideCategoryIndex(categories: List<GuideCategoryItem>): Int =
+    categories.indexOfFirst { it.selected }.takeIf { it >= 0 } ?: 0
 
 private fun selectedContentTypeIndex(
     contentTypes: List<ChannelContentType>,
