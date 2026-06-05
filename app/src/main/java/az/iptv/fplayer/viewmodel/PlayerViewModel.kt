@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import az.iptv.fplayer.data.model.Channel
+import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
 import az.iptv.fplayer.data.model.XtreamConfig
 import az.iptv.fplayer.data.preferences.AppPreferences
@@ -40,13 +41,29 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppLanguage.AZ.name)
 
     private val _groups = MutableStateFlow<List<ChannelGroup>>(emptyList())
-    val groups: StateFlow<List<ChannelGroup>> = _groups
+    private val _selectedContentType = MutableStateFlow(ChannelContentType.TV)
+    val selectedContentType: StateFlow<ChannelContentType> = _selectedContentType
+
+    val availableContentTypes: StateFlow<List<ChannelContentType>> = _groups.map { groups ->
+        val present = groups.flatMap { group -> group.channels.map { it.contentType } }.toSet()
+        contentTypeOrder.filter { it in present }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, listOf(ChannelContentType.TV))
+
+    val groups: StateFlow<List<ChannelGroup>> = combine(_groups, _selectedContentType) { groups, contentType ->
+        groups.mapNotNull { group ->
+            val channels = group.channels.filter { it.contentType == contentType }
+            if (channels.isEmpty()) null else group.copy(channels = channels)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _selectedGroup = MutableStateFlow<String?>(null)
     val selectedGroup: StateFlow<String?> = _selectedGroup
 
     private val _currentChannel = MutableStateFlow<Channel?>(null)
     val currentChannel: StateFlow<Channel?> = _currentChannel
+
+    private val _recentChannels = MutableStateFlow<List<Channel>>(emptyList())
+    val recentChannels: StateFlow<List<Channel>> = _recentChannels
 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     val playbackState: StateFlow<PlaybackState> = _playbackState
@@ -70,8 +87,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val audioDecoderMode: StateFlow<AudioDecoderMode> = _audioDecoderMode
 
     private var playlistLoadJob: Job? = null
+    private val maxRecentChannels = 10
 
-    val visibleChannels: StateFlow<List<Channel>> = combine(_groups, _selectedGroup) { groups, group ->
+    val visibleChannels: StateFlow<List<Channel>> = combine(groups, _selectedGroup) { groups, group ->
         if (group == null) groups.flatMap { it.channels }
         else groups.find { it.name == group }?.channels ?: emptyList()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -235,15 +253,25 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _groups.value = groups
         _loadState.value = LoadState.Success(groups.sumOf { it.channels.size }, fromCache)
 
-        if (_selectedGroup.value != null && groups.none { it.name == _selectedGroup.value }) {
-            _selectedGroup.value = null
-        }
-
         val channels = groups.flatMap { it.channels }
         val currentKey = _currentChannel.value?.stableKey
         _currentChannel.value = channels.firstOrNull { it.stableKey == currentKey }
             ?: channels.firstOrNull { it.stableKey == preferredChannelKey }
+            ?: preferredContentTypeChannels(groups).firstOrNull()
             ?: channels.firstOrNull()
+
+        _currentChannel.value?.let { selected ->
+            _selectedContentType.value = selected.contentType
+        }
+
+        val filteredGroups = groupsForSelectedContent()
+        if (_selectedGroup.value != null && filteredGroups.none { it.name == _selectedGroup.value }) {
+            _selectedGroup.value = null
+        }
+
+        val channelsByKey = channels.associateBy { it.stableKey }
+        _recentChannels.value = _recentChannels.value.mapNotNull { channelsByKey[it.stableKey] }
+        _currentChannel.value?.let(::rememberRecentChannel)
         _currentChannel.value?.group?.takeIf { it.isNotBlank() && revealSidebar }?.let { channelGroup ->
             if (groups.any { it.name == channelGroup }) _selectedGroup.value = channelGroup
         }
@@ -261,7 +289,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var osdJob: Job? = null
 
     fun selectChannel(channel: Channel) {
+        _selectedContentType.value = channel.contentType
         _currentChannel.value = channel
+        rememberRecentChannel(channel)
         _sidebarVisible.value = false
         _osdVisible.value = true
         viewModelScope.launch { prefs.setLastChannelId(channel.stableKey) }
@@ -273,6 +303,17 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectGroup(group: String?) { _selectedGroup.value = group }
+    fun selectContentType(contentType: ChannelContentType) {
+        if (_selectedContentType.value == contentType) return
+        _selectedContentType.value = contentType
+        _selectedGroup.value = null
+        val channels = groupsForSelectedContent(contentType).flatMap { it.channels }
+        channels.firstOrNull()?.let { channel ->
+            _currentChannel.value = channel
+            rememberRecentChannel(channel)
+            viewModelScope.launch { prefs.setLastChannelId(channel.stableKey) }
+        }
+    }
     fun toggleSidebar() { _sidebarVisible.value = !_sidebarVisible.value }
     fun showSidebar() { _sidebarVisible.value = true }
     fun hideSidebar() { _sidebarVisible.value = false }
@@ -289,6 +330,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun hideOsd() {
         osdJob?.cancel()
         _osdVisible.value = false
+    }
+
+    private fun rememberRecentChannel(channel: Channel) {
+        _recentChannels.value = (listOf(channel) + _recentChannels.value.filterNot {
+            it.stableKey == channel.stableKey
+        }).take(maxRecentChannels)
     }
 
     fun onPlaybackStateChanged(state: PlaybackState) { _playbackState.value = state }
@@ -320,5 +367,27 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         val currentKey = _currentChannel.value?.stableKey
         val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx - 1) ?: channels.lastOrNull())?.let { selectChannel(it) }
+    }
+
+    private fun preferredContentTypeChannels(groups: List<ChannelGroup>): List<Channel> =
+        contentTypeOrder.firstNotNullOfOrNull { type ->
+            groups.flatMap { group -> group.channels.filter { it.contentType == type } }
+                .takeIf { it.isNotEmpty() }
+        } ?: emptyList()
+
+    private fun groupsForSelectedContent(
+        contentType: ChannelContentType = _selectedContentType.value
+    ): List<ChannelGroup> =
+        _groups.value.mapNotNull { group ->
+            val channels = group.channels.filter { it.contentType == contentType }
+            if (channels.isEmpty()) null else group.copy(channels = channels)
+        }
+
+    companion object {
+        private val contentTypeOrder = listOf(
+            ChannelContentType.TV,
+            ChannelContentType.MOVIE,
+            ChannelContentType.SERIES
+        )
     }
 }

@@ -87,13 +87,17 @@ fun AddPlaylistScreen(
     var xtreamServer by remember { mutableStateOf("") }
     var xtreamUser by remember { mutableStateOf("") }
     var xtreamPass by remember { mutableStateOf("") }
+    var pendingPlayerReturn by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         vm.resetForPlaylistEdit()
     }
 
-    LaunchedEffect(loadState) {
-        if (loadState is LoadState.Success) onPlaylistLoaded()
+    LaunchedEffect(loadState, pendingPlayerReturn) {
+        if (pendingPlayerReturn && loadState is LoadState.Success) {
+            pendingPlayerReturn = false
+            onPlaylistLoaded()
+        }
     }
 
     LaunchedEffect(activePlaylist?.id) {
@@ -161,6 +165,7 @@ fun AddPlaylistScreen(
                                 modifier = Modifier.weight(1f),
                                 onClick = {
                                     editingPlaylistId = profile.id
+                                    pendingPlayerReturn = true
                                     vm.switchPlaylist(profile)
                                 }
                             )
@@ -234,6 +239,7 @@ fun AddPlaylistScreen(
                         onClick = {
                             val type = if (selectedTab == SourceTab.XTREAM) PlaylistType.XTREAM else PlaylistType.M3U
                             val fallbackName = if (type == PlaylistType.XTREAM) t.sourceXtream else t.sourceM3u
+                            pendingPlayerReturn = true
                             vm.savePlaylistAndLoad(
                                 PlaylistProfile(
                                     id = editingPlaylistId ?: "playlist_${System.currentTimeMillis()}",

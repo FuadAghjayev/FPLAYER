@@ -9,6 +9,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -26,6 +29,7 @@ class ExoPlayerEngine(
     private var player: ExoPlayer? = null
     private var listener: PlayerEventListener? = null
     private var surface: SurfaceView? = null
+    private val trackRefs = mutableMapOf<String, TrackRef>()
 
     override fun init(surfaceView: SurfaceView) {
         surface = surfaceView
@@ -70,6 +74,8 @@ class ExoPlayerEngine(
     override fun play(url: String) {
         val exo = player ?: return
         listener?.onStateChanged(PlaybackState.Buffering)
+        listener?.onMediaTracksChanged(MediaTracks())
+        trackRefs.clear()
         exo.stop()
         exo.setMediaItem(MediaItem.fromUri(url))
         exo.prepare()
@@ -87,6 +93,38 @@ class ExoPlayerEngine(
 
     override fun setEventListener(listener: PlayerEventListener) {
         this.listener = listener
+    }
+
+    override fun selectAudioTrack(trackId: String) {
+        val exo = player ?: return
+        val ref = trackRefs[trackId] ?: return
+        if (ref.type != C.TRACK_TYPE_AUDIO) return
+        exo.trackSelectionParameters = exo.trackSelectionParameters
+            .buildUpon()
+            .setOverrideForType(TrackSelectionOverride(ref.group, ref.trackIndex))
+            .build()
+        emitMediaTracks()
+    }
+
+    override fun selectSubtitleTrack(trackId: String?) {
+        val exo = player ?: return
+        val builder = exo.trackSelectionParameters.buildUpon()
+        if (trackId == null) {
+            exo.trackSelectionParameters = builder
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build()
+            emitMediaTracks()
+            return
+        }
+
+        val ref = trackRefs[trackId] ?: return
+        if (ref.type != C.TRACK_TYPE_TEXT) return
+        exo.trackSelectionParameters = builder
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .setOverrideForType(TrackSelectionOverride(ref.group, ref.trackIndex))
+            .build()
+        emitMediaTracks()
     }
 
     private val exoListener = object : Player.Listener {
@@ -114,6 +152,7 @@ class ExoPlayerEngine(
                 events.contains(Player.EVENT_VIDEO_SIZE_CHANGED)
             ) {
                 emitVideoInfo()
+                emitMediaTracks()
             }
         }
     }
@@ -132,4 +171,61 @@ class ExoPlayerEngine(
             )
         )
     }
+
+    private fun emitMediaTracks() {
+        val exo = player ?: return
+        val tracks = exo.currentTracks
+        trackRefs.clear()
+        val audio = mutableListOf<MediaTrackOption>()
+        val subtitles = mutableListOf<MediaTrackOption>()
+        var selectedSubtitle = false
+
+        tracks.groups.forEachIndexed { groupIndex, group ->
+            if (group.type != C.TRACK_TYPE_AUDIO && group.type != C.TRACK_TYPE_TEXT) return@forEachIndexed
+            for (trackIndex in 0 until group.length) {
+                if (!group.isTrackSupported(trackIndex)) continue
+                val id = "${group.type}:$groupIndex:$trackIndex"
+                trackRefs[id] = TrackRef(group.mediaTrackGroup, trackIndex, group.type)
+                val selected = group.isTrackSelected(trackIndex)
+                val option = MediaTrackOption(
+                    id = id,
+                    label = formatTrackLabel(group, trackIndex),
+                    selected = selected
+                )
+                if (group.type == C.TRACK_TYPE_AUDIO) {
+                    audio += option
+                } else {
+                    subtitles += option
+                    selectedSubtitle = selectedSubtitle || selected
+                }
+            }
+        }
+
+        listener?.onMediaTracksChanged(
+            MediaTracks(
+                audioTracks = audio,
+                subtitleTracks = subtitles,
+                subtitlesEnabled = selectedSubtitle && !exo.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+            )
+        )
+    }
+
+    private fun formatTrackLabel(group: Tracks.Group, trackIndex: Int): String {
+        val format = group.getTrackFormat(trackIndex)
+        val language = format.language?.takeIf { it.isNotBlank() && it != "und" }?.uppercase()
+        val label = format.label?.takeIf { it.isNotBlank() }
+        val role = when (group.type) {
+            C.TRACK_TYPE_AUDIO -> "Audio"
+            C.TRACK_TYPE_TEXT -> "Sub"
+            else -> "Track"
+        }
+        return listOfNotNull(label, language).firstOrNull()
+            ?: "$role ${trackIndex + 1}"
+    }
+
+    private data class TrackRef(
+        val group: TrackGroup,
+        val trackIndex: Int,
+        val type: Int
+    )
 }

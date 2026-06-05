@@ -2,6 +2,7 @@ package az.iptv.fplayer.data.cache
 
 import android.content.Context
 import az.iptv.fplayer.data.model.Channel
+import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
 import org.json.JSONArray
 import org.json.JSONObject
@@ -67,6 +68,7 @@ class ChannelCacheStore(context: Context) {
                     .put(KEY_EPG_ID, channel.epgId)
                     .put(KEY_IS_FAVORITE, channel.isFavorite)
                     .put(KEY_FRAME_RATE, channel.frameRate.toDouble())
+                    .put(KEY_CONTENT_TYPE, channel.contentType.name)
             )
         }
     }
@@ -95,11 +97,16 @@ class ChannelCacheStore(context: Context) {
                     group = obj.optString(KEY_GROUP),
                     epgId = obj.optString(KEY_EPG_ID),
                     isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
-                    frameRate = obj.optDouble(KEY_FRAME_RATE, 0.0).toFloat()
+                    frameRate = obj.optDouble(KEY_FRAME_RATE, 0.0).toFloat(),
+                    contentType = obj.optString(KEY_CONTENT_TYPE, ChannelContentType.TV.name)
+                        .toChannelContentType()
                 )
             )
         }
     }
+
+    private fun String.toChannelContentType(): ChannelContentType =
+        runCatching { ChannelContentType.valueOf(this) }.getOrDefault(ChannelContentType.TV)
 
     companion object {
         private const val CACHE_FILE_NAME = "channel_cache.json"
@@ -116,5 +123,6 @@ class ChannelCacheStore(context: Context) {
         private const val KEY_EPG_ID = "epgId"
         private const val KEY_IS_FAVORITE = "isFavorite"
         private const val KEY_FRAME_RATE = "frameRate"
+        private const val KEY_CONTENT_TYPE = "contentType"
     }
 }

@@ -1,6 +1,7 @@
 package az.iptv.fplayer.data.parser
 
 import az.iptv.fplayer.data.model.Channel
+import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
 
 object M3uParser {
@@ -38,7 +39,8 @@ object M3uParser {
             logoUrl = attrs["tvg-logo"] ?: "",
             group = attrs["group-title"] ?: "",
             epgId = attrs["tvg-id"] ?: "",
-            frameRate = parseFrameRate(attrs)
+            frameRate = parseFrameRate(attrs),
+            contentType = classifyContentType(name, url, attrs)
         )
     }
 
@@ -57,6 +59,37 @@ object M3uParser {
         return keys.firstNotNullOfOrNull { key ->
             attrs[key]?.toPositiveFrameRate()
         } ?: 0f
+    }
+
+    private fun classifyContentType(
+        name: String,
+        url: String,
+        attrs: Map<String, String>
+    ): ChannelContentType {
+        val haystack = buildString {
+            append(name)
+            append(' ')
+            append(url)
+            append(' ')
+            append(attrs["group-title"] ?: "")
+            append(' ')
+            append(attrs["tvg-name"] ?: "")
+        }.lowercase()
+
+        val seriesWords = listOf(
+            "series", "serial", "serials", "dizi", "diziler", "dizilər", "show", "shows",
+            "season", "sezon", "saison", "s01", "s02", "episode", "epizod"
+        )
+        val movieWords = listOf(
+            "movie", "movies", "film", "films", "kino", "sinema", "cinema", "vod",
+            "video club", "videoclub", "pelicula", "peliculas"
+        )
+
+        return when {
+            seriesWords.any { haystack.contains(it) } -> ChannelContentType.SERIES
+            movieWords.any { haystack.contains(it) } -> ChannelContentType.MOVIE
+            else -> ChannelContentType.TV
+        }
     }
 
     private fun String.toPositiveFrameRate(): Float? {

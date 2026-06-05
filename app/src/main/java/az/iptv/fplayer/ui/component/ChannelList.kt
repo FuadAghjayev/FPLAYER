@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
-import kotlin.math.roundToInt
 
 @Composable
 fun ChannelList(
@@ -62,7 +60,6 @@ fun ChannelList(
                 index = index + 1,
                 isPlaying = isPlaying,
                 isFocused = index == focusedIndex,
-                liveFrameRate = if (isPlaying) currentFrameRate else 0f,
                 programLabel = programLabel,
                 onClick = { onChannelClick(channel) }
             )
@@ -76,7 +73,6 @@ fun ChannelItem(
     index: Int,
     isPlaying: Boolean,
     isFocused: Boolean,
-    liveFrameRate: Float,
     programLabel: String = "Program",
     onClick: () -> Unit
 ) {
@@ -88,7 +84,6 @@ fun ChannelItem(
     val primaryText = if (isFocused) Color(0xFF111417) else Color.White
     val secondaryText = if (isFocused) Color(0xFF2E3135) else Accent
     val progressColor = if (isFocused) Color(0xFF202226) else Color(0xFFE4E5E8)
-    val fpsLabel = formatFrameRate(liveFrameRate.takeIf { it > 0f } ?: channel.frameRate)
 
     Row(
         modifier = Modifier
@@ -126,10 +121,6 @@ fun ChannelItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (fpsLabel.isNotEmpty()) {
-                    Spacer(Modifier.width(8.dp))
-                    ReceiverBadge(text = fpsLabel.uppercase(), active = isFocused || isPlaying)
-                }
             }
             Text(
                 text = programLabel,
@@ -162,23 +153,3 @@ fun ChannelItem(
     }
 }
 
-@Composable
-private fun ReceiverBadge(text: String, active: Boolean) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (active) Color(0x33111111) else Color(0x24FFFFFF))
-            .padding(horizontal = 5.dp, vertical = 2.dp)
-    ) {
-        Text(
-            text = text,
-            color = if (active) Color(0xFF111417) else Color(0xFFCED3D8),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-    }
-}
-
-private fun formatFrameRate(frameRate: Float): String =
-    if (frameRate > 0f) "${frameRate.roundToInt()} FPS" else ""

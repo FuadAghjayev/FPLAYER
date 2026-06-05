@@ -23,6 +23,18 @@ data class VideoInfo(
     val fpsLabel: String get() = if (frameRate > 0) "${frameRate.roundToInt()}fps" else ""
 }
 
+data class MediaTrackOption(
+    val id: String,
+    val label: String,
+    val selected: Boolean = false
+)
+
+data class MediaTracks(
+    val audioTracks: List<MediaTrackOption> = emptyList(),
+    val subtitleTracks: List<MediaTrackOption> = emptyList(),
+    val subtitlesEnabled: Boolean = false
+)
+
 sealed class PlaybackState {
     data object Idle : PlaybackState()
     data object Buffering : PlaybackState()
@@ -34,6 +46,7 @@ sealed class PlaybackState {
 interface PlayerEventListener {
     fun onStateChanged(state: PlaybackState)
     fun onVideoInfoChanged(info: VideoInfo)
+    fun onMediaTracksChanged(tracks: MediaTracks) = Unit
 }
 
 interface PlayerEngine {
@@ -45,4 +58,6 @@ interface PlayerEngine {
     fun stop()
     fun release()
     fun setEventListener(listener: PlayerEventListener)
+    fun selectAudioTrack(trackId: String) = Unit
+    fun selectSubtitleTrack(trackId: String?) = Unit
 }

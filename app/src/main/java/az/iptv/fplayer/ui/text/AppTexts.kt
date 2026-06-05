@@ -4,6 +4,7 @@ import az.iptv.fplayer.data.preferences.AppLanguage
 
 data class AppTexts(
     val allChannels: String,
+    val recentChannels: String,
     val categories: String,
     val exitHint: String,
     val exitTitle: String,
@@ -56,6 +57,7 @@ fun appTexts(language: String): AppTexts =
 
 private val azTexts = AppTexts(
     allChannels = "Bütün kanallar",
+    recentChannels = "Son kanallar",
     categories = "Kateqoriyalar",
     exitHint = "Çıxış üçün bir daha bas",
     exitTitle = "Çıxmaq istəyirsən?",
@@ -105,6 +107,7 @@ private val azTexts = AppTexts(
 
 private val enTexts = AppTexts(
     allChannels = "All channels",
+    recentChannels = "Recent channels",
     categories = "Categories",
     exitHint = "Press once more to exit",
     exitTitle = "Exit app?",
