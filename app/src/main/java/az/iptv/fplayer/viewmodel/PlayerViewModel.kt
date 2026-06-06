@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
+import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.model.XtreamConfig
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
@@ -39,8 +40,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val appLanguage: StateFlow<String> = prefs.language
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppLanguage.AZ.name)
+    val adultPin: StateFlow<String> = prefs.adultPin
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_ADULT_PIN)
     val favoriteChannelKeys: StateFlow<Set<String>> = prefs.favoriteChannelKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    private val _adultUnlocked = MutableStateFlow(false)
+    val adultUnlocked: StateFlow<Boolean> = _adultUnlocked
 
     private val _groups = MutableStateFlow<List<ChannelGroup>>(emptyList())
     private val _selectedContentType = MutableStateFlow(ChannelContentType.TV)
@@ -84,6 +90,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _videoInfo = MutableStateFlow(VideoInfo())
     val videoInfo: StateFlow<VideoInfo> = _videoInfo
 
+    private val _currentProgram = MutableStateFlow<ProgramInfo?>(null)
+    val currentProgram: StateFlow<ProgramInfo?> = _currentProgram
+
     private val _sidebarVisible = MutableStateFlow(false)
     val sidebarVisible: StateFlow<Boolean> = _sidebarVisible
 
@@ -100,6 +109,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val audioDecoderMode: StateFlow<AudioDecoderMode> = _audioDecoderMode
 
     private var playlistLoadJob: Job? = null
+    private var epgJob: Job? = null
     private val maxRecentChannels = 10
 
     val visibleChannels: StateFlow<List<Channel>> = combine(groups, _selectedGroup) { groups, group ->
@@ -169,6 +179,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             prefs.activatePlaylist(profile.id)
             _selectedGroup.value = null
             _currentChannel.value = null
+            _currentProgram.value = null
             loadPlaylist(profile, revealSidebar = true)
         }
     }
@@ -183,6 +194,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             _groups.value = emptyList()
             _selectedGroup.value = null
             _currentChannel.value = null
+            _currentProgram.value = null
             _recentChannels.value = emptyList()
             _selectedContentType.value = ChannelContentType.TV
             val nextProfile = prefs.activePlaylist.first()
@@ -291,13 +303,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
         val channels = groups.flatMap { it.channels }.markFavorites(favoriteChannelKeys.value)
         val currentKey = _currentChannel.value?.stableKey
-        _currentChannel.value = channels.firstOrNull { it.stableKey == currentKey }
-            ?: channels.firstOrNull { it.stableKey == preferredChannelKey }
-            ?: preferredContentTypeChannels(groups).markFavorites(favoriteChannelKeys.value).firstOrNull()
-            ?: channels.firstOrNull()
+        _currentChannel.value = channels.firstOrNull { it.stableKey == currentKey && it.isPlayable() }
+            ?: channels.firstOrNull { it.stableKey == preferredChannelKey && it.isPlayable() }
+            ?: preferredContentTypeChannels(groups).markFavorites(favoriteChannelKeys.value).firstOrNull { it.isPlayable() }
+            ?: channels.firstOrNull { it.isPlayable() }
 
         _currentChannel.value?.let { selected ->
             _selectedContentType.value = selected.contentType
+            loadCurrentProgram(selected)
         }
 
         val filteredGroups = groupsForSelectedContent()
@@ -325,8 +338,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var osdJob: Job? = null
 
     fun selectChannel(channel: Channel) {
+        if (!channel.isPlayable()) return
         _selectedContentType.value = channel.contentType
         _currentChannel.value = channel
+        loadCurrentProgram(channel)
         rememberRecentChannel(channel)
         _sidebarVisible.value = false
         _osdVisible.value = true
@@ -344,8 +359,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _selectedContentType.value = contentType
         _selectedGroup.value = null
         val channels = groupsForSelectedContent(contentType).flatMap { it.channels }
-        channels.firstOrNull()?.let { channel ->
+        channels.firstOrNull { it.isPlayable() }?.let { channel ->
             _currentChannel.value = channel
+            loadCurrentProgram(channel)
             rememberRecentChannel(channel)
             viewModelScope.launch { prefs.setLastChannelId(channel.stableKey) }
         }
@@ -366,6 +382,26 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun hideOsd() {
         osdJob?.cancel()
         _osdVisible.value = false
+    }
+
+    private fun loadCurrentProgram(channel: Channel) {
+        epgJob?.cancel()
+        _currentProgram.value = null
+
+        val profile = activePlaylist.value ?: return
+        if (profile.type != PlaylistType.XTREAM || channel.contentType != ChannelContentType.TV) return
+        val streamId = channel.id.toIntOrNull() ?: return
+        val config = xtreamConfig(profile.xtreamServer, profile.xtreamUser, profile.xtreamPass)
+        val channelKey = channel.stableKey
+
+        epgJob = viewModelScope.launch {
+            repo.loadXtreamProgram(config, streamId)
+                .onSuccess { program ->
+                    if (_currentChannel.value?.stableKey == channelKey) {
+                        _currentProgram.value = program
+                    }
+                }
+        }
     }
 
     private fun rememberRecentChannel(channel: Channel) {
@@ -391,6 +427,21 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { prefs.setLanguage(language.name) }
     }
 
+    fun setAdultPin(pin: String) {
+        _adultUnlocked.value = false
+        viewModelScope.launch { prefs.setAdultPin(pin) }
+    }
+
+    fun unlockAdult(pin: String): Boolean {
+        val unlocked = pin == adultPin.value
+        if (unlocked) _adultUnlocked.value = true
+        return unlocked
+    }
+
+    fun lockAdult() {
+        _adultUnlocked.value = false
+    }
+
     fun toggleFavorite(channel: Channel) {
         val nextFavorite = !channel.isFavorite
         viewModelScope.launch { prefs.setFavoriteChannel(channel.stableKey, nextFavorite) }
@@ -403,14 +454,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun nextChannel() {
-        val channels = visibleChannels.value
+        val channels = visibleChannels.value.filter { it.isPlayable() }
         val currentKey = _currentChannel.value?.stableKey
         val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx + 1) ?: channels.firstOrNull())?.let { selectChannel(it) }
     }
 
     fun prevChannel() {
-        val channels = visibleChannels.value
+        val channels = visibleChannels.value.filter { it.isPlayable() }
         val currentKey = _currentChannel.value?.stableKey
         val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx - 1) ?: channels.lastOrNull())?.let { selectChannel(it) }
@@ -441,6 +492,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun List<Channel>.markFavorites(favorites: Set<String>): List<Channel> =
         map { channel -> channel.copy(isFavorite = channel.stableKey in favorites) }
+
+    private fun Channel.isPlayable(): Boolean =
+        !isAdult || _adultUnlocked.value
 
     companion object {
         const val FAVORITE_GROUP_NAME = "Favoriler"

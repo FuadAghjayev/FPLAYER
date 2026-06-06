@@ -111,6 +111,7 @@ fun PlayerScreen(
     val currentChannel by vm.currentChannel.collectAsState()
     val playbackState by vm.playbackState.collectAsState()
     val videoInfo by vm.videoInfo.collectAsState()
+    val currentProgram by vm.currentProgram.collectAsState()
     val selectorVisible by vm.sidebarVisible.collectAsState()
     val osdVisible by vm.osdVisible.collectAsState()
     val visibleChannels by vm.visibleChannels.collectAsState()
@@ -124,6 +125,7 @@ fun PlayerScreen(
     val activePlaylist by vm.activePlaylist.collectAsState()
     val recentChannels by vm.recentChannels.collectAsState()
     val language by vm.appLanguage.collectAsState()
+    val adultUnlocked by vm.adultUnlocked.collectAsState()
     val t = appTexts(language)
     val guideContentTypes = availableContentTypes.ifEmpty { listOf(selectedContentType) }
     val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, t.allChannels) {
@@ -194,9 +196,16 @@ fun PlayerScreen(
     var focusedMediaOption by remember { mutableIntStateOf(0) }
     var selectorPane by remember { mutableStateOf(SelectorPane.CHANNELS) }
     var mediaOptionsVisible by remember { mutableStateOf(false) }
+    var audioTrackPanelVisible by remember { mutableStateOf(false) }
     var recentOverlayVisible by remember { mutableStateOf(false) }
     var channelOnlyGuideVisible by remember { mutableStateOf(false) }
     var focusedRecentIndex by remember { mutableIntStateOf(0) }
+    var focusedAudioTrackIndex by remember { mutableIntStateOf(0) }
+    var adultPinPromptVisible by remember { mutableStateOf(false) }
+    var adultPinInput by remember { mutableStateOf("") }
+    var adultPinError by remember { mutableStateOf(false) }
+    var focusedPinDigit by remember { mutableIntStateOf(0) }
+    var pendingAdultChannel by remember { mutableStateOf<Channel?>(null) }
     var exitPromptVisible by remember { mutableStateOf(false) }
     var exitHintVisible by remember { mutableStateOf(false) }
     var lastExitBackAt by remember { mutableStateOf(0L) }
@@ -210,6 +219,52 @@ fun PlayerScreen(
         mediaOptionsVisible = false
         vm.hideSidebar()
         onNavigateToPlaylist()
+    }
+
+    fun selectOrRequestAdultPin(channel: Channel) {
+        if (channel.isAdult && !adultUnlocked) {
+            pendingAdultChannel = channel
+            adultPinInput = ""
+            adultPinError = false
+            focusedPinDigit = 0
+            adultPinPromptVisible = true
+            recentOverlayVisible = false
+            mediaOptionsVisible = false
+            audioTrackPanelVisible = false
+            vm.hideSidebar()
+            vm.hideOsd()
+            return
+        }
+        vm.selectChannel(channel)
+    }
+
+    fun submitAdultPin() {
+        if (vm.unlockAdult(adultPinInput)) {
+            adultPinPromptVisible = false
+            adultPinError = false
+            pendingAdultChannel?.let(vm::selectChannel)
+            pendingAdultChannel = null
+        } else {
+            adultPinError = true
+            adultPinInput = ""
+        }
+    }
+
+    fun appendAdultPinDigit() {
+        if (adultPinInput.length >= 4) return
+        val next = adultPinInput + focusedPinDigit.toString()
+        adultPinInput = next
+        adultPinError = false
+        if (next.length == 4) {
+            if (vm.unlockAdult(next)) {
+                adultPinPromptVisible = false
+                pendingAdultChannel?.let(vm::selectChannel)
+                pendingAdultChannel = null
+            } else {
+                adultPinError = true
+                adultPinInput = ""
+            }
+        }
     }
 
     LaunchedEffect(selectorVisible) {
@@ -247,6 +302,15 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(audioTrackPanelVisible, mediaTracks.audioTracks) {
+        if (audioTrackPanelVisible) {
+            focusedAudioTrackIndex = mediaTracks.audioTracks
+                .indexOfFirst { it.selected }
+                .takeIf { it >= 0 }
+                ?: 0
+        }
+    }
+
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     LaunchedEffect(exitHintVisible) {
@@ -268,7 +332,71 @@ fun PlayerScreen(
                 val isSelectKey = event.key == Key.Enter ||
                     event.key == Key.NumPadEnter ||
                     event.key == Key.DirectionCenter
-                if (exitPromptVisible) {
+                if (adultPinPromptVisible) {
+                    when {
+                        isExitKey -> {
+                            adultPinPromptVisible = false
+                            pendingAdultChannel = null
+                            adultPinInput = ""
+                            adultPinError = false
+                            true
+                        }
+                        isSelectKey -> {
+                            appendAdultPinDigit()
+                            true
+                        }
+                        event.key == Key.DirectionLeft -> {
+                            focusedPinDigit = (focusedPinDigit + 9) % 10
+                            adultPinError = false
+                            true
+                        }
+                        event.key == Key.DirectionRight -> {
+                            focusedPinDigit = (focusedPinDigit + 1) % 10
+                            adultPinError = false
+                            true
+                        }
+                        event.key == Key.DirectionUp -> {
+                            focusedPinDigit = (focusedPinDigit + 9) % 10
+                            adultPinError = false
+                            true
+                        }
+                        event.key == Key.DirectionDown -> {
+                            focusedPinDigit = (focusedPinDigit + 1) % 10
+                            adultPinError = false
+                            true
+                        }
+                        else -> true
+                    }
+                } else if (audioTrackPanelVisible) {
+                    when (event.key) {
+                        Key.Back -> {
+                            audioTrackPanelVisible = false
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            focusedAudioTrackIndex = (focusedAudioTrackIndex - 1).coerceAtLeast(0)
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            focusedAudioTrackIndex = (focusedAudioTrackIndex + 1)
+                                .coerceAtMost((mediaTracks.audioTracks.size - 1).coerceAtLeast(0))
+                            true
+                        }
+                        Key.DirectionRight, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                            mediaTracks.audioTracks.getOrNull(focusedAudioTrackIndex)?.let {
+                                engine.selectAudioTrack(it.id)
+                            }
+                            audioTrackPanelVisible = false
+                            vm.showOsd()
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            audioTrackPanelVisible = false
+                            true
+                        }
+                        else -> true
+                    }
+                } else if (exitPromptVisible) {
                     when {
                         isSelectKey -> {
                             (context as? Activity)?.finish()
@@ -311,7 +439,7 @@ fun PlayerScreen(
                         Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
                             recentList.getOrNull(focusedRecentIndex)?.let {
                                 recentOverlayVisible = false
-                                vm.selectChannel(it)
+                                selectOrRequestAdultPin(it)
                             }
                             true
                         }
@@ -340,13 +468,22 @@ fun PlayerScreen(
                             true
                         }
                         Key.DirectionRight -> {
-                            changeSelectedMediaTrack(
-                                mediaTracks = mediaTracks,
-                                focusedMediaOption = focusedMediaOption,
-                                delta = 1,
-                                onAudioTrack = engine::selectAudioTrack,
-                                onSubtitleTrack = engine::selectSubtitleTrack
-                            )
+                            if (focusedMediaOption == 0 && mediaTracks.audioTracks.size > 2) {
+                                focusedAudioTrackIndex = mediaTracks.audioTracks
+                                    .indexOfFirst { it.selected }
+                                    .takeIf { it >= 0 }
+                                    ?: 0
+                                mediaOptionsVisible = false
+                                audioTrackPanelVisible = true
+                            } else {
+                                changeSelectedMediaTrack(
+                                    mediaTracks = mediaTracks,
+                                    focusedMediaOption = focusedMediaOption,
+                                    delta = 1,
+                                    onAudioTrack = engine::selectAudioTrack,
+                                    onSubtitleTrack = engine::selectSubtitleTrack
+                                )
+                            }
                             true
                         }
                         else -> true
@@ -420,6 +557,7 @@ fun PlayerScreen(
                                         if (hasSelectableMediaTracks(mediaTracks)) {
                                             focusedMediaOption = if (mediaTracks.audioTracks.isNotEmpty()) 0 else 1
                                             mediaOptionsVisible = true
+                                            audioTrackPanelVisible = false
                                             vm.hideSidebar()
                                             vm.hideOsd()
                                         } else {
@@ -427,13 +565,33 @@ fun PlayerScreen(
                                         }
                                     }
                                 }
+                            } else if (osdVisible && mediaTracks.audioTracks.size > 1) {
+                                recentOverlayVisible = false
+                                mediaOptionsVisible = false
+                                focusedMediaOption = 0
+                                if (mediaTracks.audioTracks.size > 2) {
+                                    focusedAudioTrackIndex = mediaTracks.audioTracks
+                                        .indexOfFirst { it.selected }
+                                        .takeIf { it >= 0 }
+                                        ?: 0
+                                    audioTrackPanelVisible = true
+                                } else {
+                                    changeSelectedMediaTrack(
+                                        mediaTracks = mediaTracks,
+                                        focusedMediaOption = 0,
+                                        delta = 1,
+                                        onAudioTrack = engine::selectAudioTrack,
+                                        onSubtitleTrack = engine::selectSubtitleTrack
+                                    )
+                                    vm.showOsd()
+                                }
                             } else {
                                 val recentList = recentChannels.take(5)
-                                if (recentList.isNotEmpty()) {
+                                if (!osdVisible && recentList.isNotEmpty()) {
                                     focusedRecentIndex = 0
                                     recentOverlayVisible = true
                                     vm.hideSidebar()
-                                } else {
+                                } else if (!osdVisible) {
                                     vm.showOsd()
                                 }
                             }
@@ -526,7 +684,8 @@ fun PlayerScreen(
                                     SelectorPane.CHANNELS -> {
                                         visibleChannels.getOrNull(focusedChannelIndex)?.let {
                                             mediaOptionsVisible = false
-                                            vm.selectChannel(it)
+                                            audioTrackPanelVisible = false
+                                            selectOrRequestAdultPin(it)
                                         }
                                     }
                                 }
@@ -552,6 +711,7 @@ fun PlayerScreen(
                             } else if (hasSelectableMediaTracks(mediaTracks)) {
                                 focusedMediaOption = if (mediaTracks.audioTracks.isNotEmpty()) 0 else 1
                                 mediaOptionsVisible = true
+                                audioTrackPanelVisible = false
                                 vm.hideOsd()
                             } else {
                                 vm.showOsd()
@@ -593,6 +753,10 @@ fun PlayerScreen(
                 categoriesLabel = t.categories,
                 allChannelsLabel = t.allChannels,
                 emptyLabel = t.noInfo,
+                activeLabel = t.active,
+                favoriteLabel = t.favorite,
+                lockedLabel = t.locked,
+                adultUnlocked = adultUnlocked,
                 onContentTypeClick = {
                     vm.selectContentType(it)
                     focusedGroupIndex = 0
@@ -609,7 +773,7 @@ fun PlayerScreen(
                     selectorPane = SelectorPane.CHANNELS
                     focusedChannelIndex = 0
                 },
-                onChannelClick = vm::selectChannel
+                onChannelClick = ::selectOrRequestAdultPin
             )
         }
 
@@ -637,9 +801,14 @@ fun PlayerScreen(
             visible = osdVisible && !selectorVisible,
             channel = currentChannel,
             videoInfo = videoInfo,
+            mediaTracks = mediaTracks,
+            programInfo = currentProgram,
             playbackState = playbackState,
             channelIndex = channelIndex,
             totalChannels = visibleChannels.size,
+            allChannelsLabel = t.allChannels,
+            programLabel = t.program,
+            audioLabel = t.audio,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .zIndex(5f)
@@ -651,9 +820,13 @@ fun PlayerScreen(
             currentChannel = currentChannel,
             focusedIndex = focusedRecentIndex,
             title = t.recentChannels,
+            emptyLabel = t.noInfo,
+            favoriteLabel = t.favorite,
+            lockedLabel = t.locked,
+            adultUnlocked = adultUnlocked,
             onChannelClick = {
                 recentOverlayVisible = false
-                vm.selectChannel(it)
+                selectOrRequestAdultPin(it)
             },
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -683,9 +856,35 @@ fun PlayerScreen(
             visible = mediaOptionsVisible,
             tracks = mediaTracks,
             focusedOption = focusedMediaOption,
+            title = t.mediaOptions,
+            audioLabel = t.audio,
+            subtitlesLabel = t.subtitles,
+            subtitlesOffLabel = t.off,
             modifier = Modifier
                 .align(Alignment.Center)
                 .zIndex(22f)
+        )
+
+        AudioTrackPickerOverlay(
+            visible = audioTrackPanelVisible,
+            tracks = mediaTracks.audioTracks,
+            focusedIndex = focusedAudioTrackIndex,
+            title = t.audio,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 42.dp, bottom = 158.dp)
+                .zIndex(23f)
+        )
+
+        AdultPinDialog(
+            visible = adultPinPromptVisible,
+            title = t.enterPin,
+            error = if (adultPinError) t.wrongPin else "",
+            pinLength = adultPinInput.length,
+            focusedDigit = focusedPinDigit,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(24f)
         )
 
         if (!isWide && !selectorVisible) {
@@ -805,6 +1004,10 @@ private fun RecentChannelsOverlay(
     currentChannel: Channel?,
     focusedIndex: Int,
     title: String,
+    emptyLabel: String,
+    favoriteLabel: String,
+    lockedLabel: String,
+    adultUnlocked: Boolean,
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -852,6 +1055,10 @@ private fun RecentChannelsOverlay(
                         index = index + 1,
                         isPlaying = currentChannel?.stableKey == channel.stableKey,
                         isFocused = index == focusedIndex,
+                        groupFallbackLabel = emptyLabel,
+                        favoriteLabel = favoriteLabel,
+                        lockedLabel = lockedLabel,
+                        isAdultLocked = channel.isAdult && !adultUnlocked,
                         onClick = { onChannelClick(channel) }
                     )
                 }
@@ -879,6 +1086,10 @@ private fun ReceiverGuideOverlay(
     categoriesLabel: String,
     allChannelsLabel: String,
     emptyLabel: String,
+    activeLabel: String,
+    favoriteLabel: String,
+    lockedLabel: String,
+    adultUnlocked: Boolean,
     onContentTypeClick: (ChannelContentType) -> Unit,
     onMenuClick: () -> Unit,
     onCategoryClick: (GuideCategoryItem) -> Unit,
@@ -942,6 +1153,7 @@ private fun ReceiverGuideOverlay(
                         focused = focusedPane == SelectorPane.GROUPS,
                         categoriesLabel = categoriesLabel,
                         allChannelsLabel = allChannelsLabel,
+                        activeLabel = activeLabel,
                         onCategoryClick = onCategoryClick,
                         modifier = Modifier
                             .width(groupWidth)
@@ -958,6 +1170,9 @@ private fun ReceiverGuideOverlay(
                     focused = focusedPane == SelectorPane.CHANNELS,
                     isLoading = isLoading,
                     emptyLabel = emptyLabel,
+                    favoriteLabel = favoriteLabel,
+                    lockedLabel = lockedLabel,
+                    adultUnlocked = adultUnlocked,
                     onChannelClick = onChannelClick,
                     modifier = Modifier
                         .weight(1f)
@@ -1069,6 +1284,7 @@ private fun ReceiverCategoryColumn(
     focused: Boolean,
     categoriesLabel: String,
     allChannelsLabel: String,
+    activeLabel: String,
     onCategoryClick: (GuideCategoryItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1158,7 +1374,7 @@ private fun ReceiverCategoryColumn(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    val meta = if (item.active && item.type == GuideCategoryType.PLAYLIST) "Aktiv"
+                    val meta = if (item.active && item.type == GuideCategoryType.PLAYLIST) activeLabel
                     else item.count?.toString().orEmpty()
                     if (meta.isNotEmpty()) {
                         Spacer(Modifier.width(8.dp))
@@ -1192,6 +1408,9 @@ private fun ReceiverChannelColumn(
     focused: Boolean,
     isLoading: Boolean,
     emptyLabel: String,
+    favoriteLabel: String,
+    lockedLabel: String,
+    adultUnlocked: Boolean,
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1233,6 +1452,10 @@ private fun ReceiverChannelColumn(
                             index = index + 1,
                             isPlaying = currentChannel?.stableKey == channel.stableKey,
                             isFocused = focused && index == focusedIndex,
+                            groupFallbackLabel = emptyLabel,
+                            favoriteLabel = favoriteLabel,
+                            lockedLabel = lockedLabel,
+                            isAdultLocked = channel.isAdult && !adultUnlocked,
                             onClick = { onChannelClick(channel) }
                         )
                     }
@@ -1249,6 +1472,10 @@ private fun ReceiverChannelRow(
     index: Int,
     isPlaying: Boolean,
     isFocused: Boolean,
+    groupFallbackLabel: String,
+    favoriteLabel: String,
+    lockedLabel: String,
+    isAdultLocked: Boolean,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(2.dp)
@@ -1294,7 +1521,7 @@ private fun ReceiverChannelRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = channel.group.ifBlank { "No information" },
+                    text = channel.group.ifBlank { groupFallbackLabel },
                     color = if (isFocused) Color(0xFFD8E4EE) else Color(0xFF8EA3B4),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1304,7 +1531,14 @@ private fun ReceiverChannelRow(
             }
             if (channel.isFavorite) {
                 ReceiverHdBadge(
-                    text = "Fav",
+                    text = favoriteLabel,
+                    active = isFocused || isPlaying
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            if (isAdultLocked) {
+                ReceiverHdBadge(
+                    text = lockedLabel,
                     active = isFocused || isPlaying
                 )
                 Spacer(Modifier.width(6.dp))
@@ -1467,6 +1701,10 @@ private fun MediaOptionsOverlay(
     visible: Boolean,
     tracks: MediaTracks,
     focusedOption: Int,
+    title: String,
+    audioLabel: String,
+    subtitlesLabel: String,
+    subtitlesOffLabel: String,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
@@ -1480,25 +1718,193 @@ private fun MediaOptionsOverlay(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Audio / Subtitles",
+                text = title,
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
             if (tracks.audioTracks.isNotEmpty()) {
                 MediaOptionRow(
-                    label = "Audio",
+                    label = audioLabel,
                     value = selectedTrackLabel(tracks.audioTracks),
                     focused = focusedOption == 0
                 )
             }
             if (tracks.subtitleTracks.isNotEmpty()) {
                 MediaOptionRow(
-                    label = "Subtitles",
-                    value = selectedSubtitleLabel(tracks),
+                    label = subtitlesLabel,
+                    value = selectedSubtitleLabel(tracks, subtitlesOffLabel),
                     focused = focusedOption == 1 || tracks.audioTracks.isEmpty()
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun AudioTrackPickerOverlay(
+    visible: Boolean,
+    tracks: List<MediaTrackOption>,
+    focusedIndex: Int,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = visible && tracks.isNotEmpty(), enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 270.dp, max = 360.dp)
+                .heightIn(max = 360.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(Color(0xEA10151B))
+                .border(1.dp, Color(0x3DFFFFFF), RoundedCornerShape(7.dp))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "${tracks.size}",
+                    color = Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                    val focused = index == focusedIndex
+                    val selected = track.selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(
+                                when {
+                                    focused -> Color(0xFFE9EDF1)
+                                    selected -> Color(0x331AADB1)
+                                    else -> Color(0x16FFFFFF)
+                                }
+                            )
+                            .border(
+                                width = if (focused) 2.dp else 1.dp,
+                                color = if (focused) Color(0xFFFFC247) else Color(0x18FFFFFF),
+                                shape = RoundedCornerShape(5.dp)
+                            )
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = (index + 1).toString().padStart(2, '0'),
+                            color = if (focused) Color(0xFF101317) else Accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.width(32.dp)
+                        )
+                        Text(
+                            text = track.label,
+                            color = if (focused) Color(0xFF101317) else Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = if (selected || focused) FontWeight.Bold else FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (selected) {
+                            Text(
+                                text = "OK",
+                                color = if (focused) Color(0xFF101317) else Accent,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun AdultPinDialog(
+    visible: Boolean,
+    title: String,
+    error: String,
+    pinLength: Int,
+    focusedDigit: Int,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .width(360.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xF0181D24))
+                .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(8.dp))
+                .padding(horizontal = 26.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(4) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = 42.dp, height = 48.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (index < pinLength) Accent.copy(alpha = 0.75f) else Color(0x22FFFFFF))
+                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(6.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (index < pinLength) "*" else "",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                repeat(10) { digit ->
+                    val focused = digit == focusedDigit
+                    Box(
+                        modifier = Modifier
+                            .size(width = 26.dp, height = 30.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(if (focused) Color(0xFFFFC247) else Color(0x18FFFFFF))
+                            .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(5.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = digit.toString(),
+                            color = if (focused) Color(0xFF101317) else Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+            Text(
+                text = error,
+                color = Color(0xFFFF8A8A),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                minLines = 1
+            )
         }
     }
 }
@@ -1870,8 +2276,8 @@ private fun hasSelectableMediaTracks(tracks: MediaTracks): Boolean =
 private fun selectedTrackLabel(options: List<MediaTrackOption>): String =
     options.firstOrNull { it.selected }?.label ?: options.firstOrNull()?.label ?: "--"
 
-private fun selectedSubtitleLabel(tracks: MediaTracks): String =
-    if (!tracks.subtitlesEnabled) "Off"
+private fun selectedSubtitleLabel(tracks: MediaTracks, offLabel: String): String =
+    if (!tracks.subtitlesEnabled) offLabel
     else selectedTrackLabel(tracks.subtitleTracks)
 
 private fun changeSelectedMediaTrack(

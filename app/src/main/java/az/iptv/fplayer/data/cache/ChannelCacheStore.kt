@@ -67,6 +67,7 @@ class ChannelCacheStore(context: Context) {
                     .put(KEY_GROUP, channel.group)
                     .put(KEY_EPG_ID, channel.epgId)
                     .put(KEY_IS_FAVORITE, channel.isFavorite)
+                    .put(KEY_IS_ADULT, channel.isAdult)
                     .put(KEY_FRAME_RATE, channel.frameRate.toDouble())
                     .put(KEY_CONTENT_TYPE, channel.contentType.name)
             )
@@ -97,6 +98,7 @@ class ChannelCacheStore(context: Context) {
                     group = obj.optString(KEY_GROUP),
                     epgId = obj.optString(KEY_EPG_ID),
                     isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
+                    isAdult = obj.optBoolean(KEY_IS_ADULT, false),
                     frameRate = obj.optDouble(KEY_FRAME_RATE, 0.0).toFloat(),
                     contentType = obj.optString(KEY_CONTENT_TYPE, ChannelContentType.TV.name)
                         .toChannelContentType()
@@ -122,6 +124,7 @@ class ChannelCacheStore(context: Context) {
         private const val KEY_GROUP = "group"
         private const val KEY_EPG_ID = "epgId"
         private const val KEY_IS_FAVORITE = "isFavorite"
+        private const val KEY_IS_ADULT = "isAdult"
         private const val KEY_FRAME_RATE = "frameRate"
         private const val KEY_CONTENT_TYPE = "contentType"
     }

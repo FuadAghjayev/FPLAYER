@@ -4,6 +4,7 @@ import android.content.Context
 import az.iptv.fplayer.data.api.XtreamApi
 import az.iptv.fplayer.data.cache.ChannelCacheStore
 import az.iptv.fplayer.data.model.ChannelGroup
+import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.model.XtreamConfig
 import az.iptv.fplayer.data.parser.M3uParser
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,13 @@ class ChannelRepository(context: Context) {
         withContext(Dispatchers.IO) {
             runCatching {
                 cache.load(xtreamCacheKey(config)) ?: error("Cache yoxdur")
+            }
+        }
+
+    suspend fun loadXtreamProgram(config: XtreamConfig, streamId: Int): Result<ProgramInfo?> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                XtreamApi.fetchCurrentProgram(config, streamId, client)
             }
         }
 

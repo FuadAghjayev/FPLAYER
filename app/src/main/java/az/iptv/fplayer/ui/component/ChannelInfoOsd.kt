@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
+import az.iptv.fplayer.data.model.ProgramInfo
+import az.iptv.fplayer.player.MediaTracks
 import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.theme.BadgeBg
@@ -41,9 +49,14 @@ fun ChannelInfoOsd(
     visible: Boolean,
     channel: Channel?,
     videoInfo: VideoInfo,
+    mediaTracks: MediaTracks = MediaTracks(),
+    programInfo: ProgramInfo? = null,
     playbackState: PlaybackState,
     channelIndex: Int,
     totalChannels: Int,
+    allChannelsLabel: String = "All channels",
+    programLabel: String = "Program",
+    audioLabel: String = "Audio",
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -68,13 +81,18 @@ fun ChannelInfoOsd(
             else -> "FPS --"
         }
         val isLive = playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering
+        val selectedAudioLabel = mediaTracks.audioTracks
+            .firstOrNull { it.selected }
+            ?.label
+            ?: mediaTracks.audioTracks.firstOrNull()?.label
+        val hasMultipleAudioTracks = mediaTracks.audioTracks.size > 1
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 40.dp, end = 40.dp, bottom = 26.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xB6080B10))
-                .border(1.dp, Color(0x30FFFFFF), RoundedCornerShape(4.dp))
+                .background(Color(0x96080B10))
+                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(4.dp))
         ) {
             Box(
                 modifier = Modifier
@@ -141,7 +159,7 @@ fun ChannelInfoOsd(
                     ) {
                         LiveStatusBadge(isLive = isLive)
                         Text(
-                            text = channel.group.ifBlank { "All channels" },
+                            text = channel.group.ifBlank { allChannelsLabel },
                             color = Color(0xFFD2D8DE),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
@@ -150,18 +168,10 @@ fun ChannelInfoOsd(
                             modifier = Modifier.weight(1f, fill = false)
                         )
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OsdProgressLine(progress = if (isLive) 0.62f else 0f, modifier = Modifier.width(150.dp))
-                        Text(
-                            text = if (isLive) "Canli yayin" else "No signal",
-                            color = Color(0xFFB9C1CA),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                    if (programInfo != null) {
+                        ProgramInfoLine(
+                            program = programInfo,
+                            programLabel = programLabel
                         )
                     }
                 }
@@ -178,13 +188,12 @@ fun ChannelInfoOsd(
                         OsdInfoPill(codec)
                         OsdInfoPill(resolution)
                     }
-                    Text(
-                        text = if (isLive) "LIVE" else "OFF",
-                        color = if (isLive) Color(0xFF6DFF9D) else Color(0xFFFF8585),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1
-                    )
+                    if (hasMultipleAudioTracks && selectedAudioLabel != null) {
+                        AudioTrackPill(
+                            label = audioLabel,
+                            value = selectedAudioLabel
+                        )
+                    }
                 }
             }
         }
@@ -206,6 +215,95 @@ private fun LiveStatusBadge(isLive: Boolean) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
+    val progress = program.progress()
+    val programText = listOf(program.timeRange, program.title)
+        .filter { it.isNotBlank() }
+        .joinToString("  ")
+        .ifBlank { programLabel }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (progress != null) {
+            OsdProgressLine(progress = progress, modifier = Modifier.width(150.dp))
+        }
+        Text(
+            text = programText,
+            color = Color(0xFFB9C1CA),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun AudioTrackPill(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color(0x32FFFFFF))
+            .border(1.dp, Color(0x40FFFFFF), RoundedCornerShape(3.dp))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        SpeakerIcon(color = Color(0xFFEAF2FA))
+        Column(horizontalAlignment = Alignment.Start) {
+            Text(
+                text = label.uppercase(),
+                color = Color(0xFFBFC8D0),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            Text(
+                text = value,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Text(
+            text = ">",
+            color = Color(0xFFFFD0C8),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun SpeakerIcon(color: Color) {
+    Canvas(modifier = Modifier.size(18.dp)) {
+        val body = Path().apply {
+            moveTo(size.width * 0.10f, size.height * 0.40f)
+            lineTo(size.width * 0.33f, size.height * 0.40f)
+            lineTo(size.width * 0.58f, size.height * 0.22f)
+            lineTo(size.width * 0.58f, size.height * 0.78f)
+            lineTo(size.width * 0.33f, size.height * 0.60f)
+            lineTo(size.width * 0.10f, size.height * 0.60f)
+            close()
+        }
+        drawPath(body, color)
+        drawArc(
+            color = color,
+            startAngle = -38f,
+            sweepAngle = 76f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.54f, size.height * 0.28f),
+            size = Size(size.width * 0.34f, size.height * 0.44f),
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
         )
     }
 }

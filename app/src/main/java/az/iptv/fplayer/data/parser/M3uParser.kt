@@ -59,6 +59,7 @@ object M3uParser {
             logoUrl = attrs["tvg-logo"] ?: "",
             group = attrs["group-title"] ?: "",
             epgId = attrs["tvg-id"] ?: "",
+            isAdult = isAdultContent(name, url, attrs["group-title"].orEmpty(), attrs["tvg-name"].orEmpty()),
             frameRate = parseFrameRate(attrs),
             contentType = classifyContentType(name, url, attrs)
         )
@@ -161,6 +162,16 @@ object M3uParser {
             movieWords.any { haystack.contains(it) } -> ChannelContentType.MOVIE
             else -> ChannelContentType.TV
         }
+    }
+
+    private fun isAdultContent(vararg values: String): Boolean {
+        val haystack = values.joinToString(" ").lowercase()
+        val words = listOf(
+            "adult", "adults", "xxx", "x-x-x", "18+", "+18", "18 plus", "porno", "porn",
+            "erotic", "erotica", "erotik", "sex", "sexy", "playboy", "penthouse", "hustler",
+            "venus", "redlight", "brazzers"
+        )
+        return words.any { haystack.contains(it) }
     }
 
     private fun String.toPositiveFrameRate(): Float? {

@@ -88,6 +88,7 @@ fun AddPlaylistScreen(
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
+    val adultPin by vm.adultPin.collectAsState()
     val t = appTexts(language)
 
     var selectedTab by remember { mutableStateOf(SourceTab.M3U) }
@@ -97,6 +98,7 @@ fun AddPlaylistScreen(
     var xtreamServer by remember { mutableStateOf("") }
     var xtreamUser by remember { mutableStateOf("") }
     var xtreamPass by remember { mutableStateOf("") }
+    var adultPinInput by remember { mutableStateOf(adultPin) }
     var pendingPlayerReturn by remember { mutableStateOf(false) }
 
     fun clearForm() {
@@ -144,6 +146,10 @@ fun AddPlaylistScreen(
 
     LaunchedEffect(activePlaylist?.id) {
         activePlaylist?.let(::editProfile)
+    }
+
+    LaunchedEffect(adultPin) {
+        adultPinInput = adultPin
     }
 
     BoxWithConstraints(
@@ -333,6 +339,16 @@ fun AddPlaylistScreen(
                         onClick = { vm.setLanguage(AppLanguage.EN) }
                     )
                 }
+
+                Spacer(Modifier.height(22.dp))
+                SectionTitle(t.adultPin)
+                Spacer(Modifier.height(10.dp))
+                AdultPinSettings(
+                    texts = t,
+                    pin = adultPinInput,
+                    onPinChange = { adultPinInput = it.filter(Char::isDigit).take(4) },
+                    onSave = { vm.setAdultPin(adultPinInput) }
+                )
 
                 Spacer(Modifier.height(40.dp))
             }
@@ -659,6 +675,44 @@ private fun PlaylistChip(
                 color = secondaryText,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdultPinSettings(
+    texts: AppTexts,
+    pin: String,
+    onPinChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0x7012252F))
+            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(text = texts.adultPinHint, color = TextSecondary, fontSize = 12.sp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(modifier = Modifier.width(180.dp)) {
+                FormField(
+                    value = pin,
+                    onValueChange = onPinChange,
+                    placeholder = AppPreferences.DEFAULT_ADULT_PIN,
+                    keyboardType = KeyboardType.Number
+                )
+            }
+            SmallActionButton(
+                label = texts.savePin,
+                enabled = pin.isNotBlank(),
+                onClick = onSave
             )
         }
     }
