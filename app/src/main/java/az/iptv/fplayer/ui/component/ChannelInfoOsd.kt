@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,65 +62,128 @@ fun ChannelInfoOsd(
             "--"
         }
         val codec = videoInfo.codec.ifBlank { "--" }.uppercase()
+        val fps = when {
+            videoInfo.frameRate > 0f -> "${videoInfo.frameRate.toInt()}fps"
+            channel.frameRate > 0f -> "${channel.frameRate.toInt()}fps"
+            else -> "FPS --"
+        }
         val isLive = playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 46.dp, vertical = 20.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0x94070A0E))
-                .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(6.dp))
+                .padding(start = 40.dp, end = 40.dp, bottom = 26.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color(0xB6080B10))
+                .border(1.dp, Color(0x30FFFFFF), RoundedCornerShape(4.dp))
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(Color(0xFFFF6C58))
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 18.dp, top = 15.dp, bottom = 15.dp),
+                    .height(116.dp)
+                    .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ChannelLogo(channel.logoUrl, size = 54, modifier = Modifier.padding(end = 15.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                LiveStatusBadge(isLive = isLive)
-                            }
-                            Text(
-                                text = channel.name,
-                                color = Color.White,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 5.dp)
-                            )
-                            Text(
-                                text = channel.group.ifBlank { "All channels" },
-                                color = Color(0xFFC5CBD1),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 5.dp)
-                            )
-                        }
+                ChannelLogo(channel.logoUrl, size = 70)
+
+                Column(
+                    modifier = Modifier
+                        .padding(start = 16.dp)
+                        .width(92.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = channelIndex.toString().padStart(4, '0'),
+                        color = Color(0xFFFF6C58),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "/ ${totalChannels.coerceAtLeast(0)}",
+                        color = Color(0xFFC9CED4),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(1.dp)
+                        .background(Color(0x26FFFFFF))
+                )
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 18.dp, end = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Text(
+                        text = channel.name,
+                        color = Color.White,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        LiveStatusBadge(isLive = isLive)
+                        Text(
+                            text = channel.group.ifBlank { "All channels" },
+                            color = Color(0xFFD2D8DE),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OsdProgressLine(progress = if (isLive) 0.62f else 0f, modifier = Modifier.width(150.dp))
+                        Text(
+                            text = if (isLive) "Canli yayin" else "No signal",
+                            color = Color(0xFFB9C1CA),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
-                Spacer(Modifier.width(20.dp))
-
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        TechBadge(qualityLabel)
-                        TechBadge(codec)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OsdInfoPill(qualityLabel)
+                        OsdInfoPill(fps)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OsdInfoPill(codec)
+                        OsdInfoPill(resolution)
                     }
                     Text(
-                        text = resolution,
-                        color = Color(0xFFEAF2FA),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        text = if (isLive) "LIVE" else "OFF",
+                        color = if (isLive) Color(0xFF6DFF9D) else Color(0xFFFF8585),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
                     )
                 }
             }
@@ -130,19 +193,55 @@ fun ChannelInfoOsd(
 
 @Composable
 private fun LiveStatusBadge(isLive: Boolean) {
-    val bg = if (isLive) Color(0xD018A957) else Color(0xD0C52F34)
+    val bg = if (isLive) Color(0xE018A957) else Color(0xE0C52F34)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(3.dp))
+            .clip(RoundedCornerShape(2.dp))
             .background(bg)
-            .padding(horizontal = 8.dp, vertical = 3.dp)
+            .padding(horizontal = 9.dp, vertical = 3.dp)
     ) {
         Text(
             text = if (isLive) "LIVE" else "OFF",
             color = Color.White,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun OsdInfoPill(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(2.dp))
+            .background(Color(0x26FFFFFF))
+            .border(1.dp, Color(0x30FFFFFF), RoundedCornerShape(2.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFFEAF2FA),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun OsdProgressLine(progress: Float, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .height(4.dp)
+            .clip(RoundedCornerShape(1.dp))
+            .background(Color(0x40FFFFFF))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .background(Color(0xFFFF6C58))
         )
     }
 }

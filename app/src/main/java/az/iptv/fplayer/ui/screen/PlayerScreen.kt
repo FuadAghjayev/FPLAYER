@@ -195,6 +195,7 @@ fun PlayerScreen(
     var selectorPane by remember { mutableStateOf(SelectorPane.CHANNELS) }
     var mediaOptionsVisible by remember { mutableStateOf(false) }
     var recentOverlayVisible by remember { mutableStateOf(false) }
+    var channelOnlyGuideVisible by remember { mutableStateOf(false) }
     var focusedRecentIndex by remember { mutableIntStateOf(0) }
     var exitPromptVisible by remember { mutableStateOf(false) }
     var exitHintVisible by remember { mutableStateOf(false) }
@@ -207,7 +208,6 @@ fun PlayerScreen(
             focusedChannelIndex = currentChannelIndex.coerceAtLeast(0)
             focusedGroupIndex = selectedGuideCategoryIndex(guideCategories)
             focusedContentTypeIndex = selectedContentTypeIndex(availableContentTypes, selectedContentType)
-            selectorPane = SelectorPane.CHANNELS
         }
     }
 
@@ -283,6 +283,7 @@ fun PlayerScreen(
                         }
                         Key.DirectionLeft -> {
                             recentOverlayVisible = false
+                            channelOnlyGuideVisible = false
                             focusedGroupIndex = selectedPlaylistCategoryIndex(guideCategories, activePlaylist?.id)
                             selectorPane = SelectorPane.GROUPS
                             vm.showSidebar()
@@ -365,17 +366,25 @@ fun PlayerScreen(
                             lastLeftPressAt = now
                             if (leftPressCount >= 3) {
                                 leftPressCount = 0
+                                channelOnlyGuideVisible = false
                                 vm.hideSidebar()
                                 onNavigateToPlaylist()
                                 return@onKeyEvent true
                             }
                             if (selectorVisible) {
-                                selectorPane = when (selectorPane) {
-                                    SelectorPane.CHANNELS -> SelectorPane.GROUPS
-                                    SelectorPane.GROUPS -> SelectorPane.CONTENT_TYPES
-                                    SelectorPane.CONTENT_TYPES -> SelectorPane.CONTENT_TYPES
+                                if (channelOnlyGuideVisible) {
+                                    channelOnlyGuideVisible = false
+                                    focusedGroupIndex = selectedGuideCategoryIndex(guideCategories)
+                                    selectorPane = SelectorPane.GROUPS
+                                } else {
+                                    selectorPane = when (selectorPane) {
+                                        SelectorPane.CHANNELS -> SelectorPane.GROUPS
+                                        SelectorPane.GROUPS -> SelectorPane.CONTENT_TYPES
+                                        SelectorPane.CONTENT_TYPES -> SelectorPane.CONTENT_TYPES
+                                    }
                                 }
                             } else {
+                                channelOnlyGuideVisible = false
                                 focusedGroupIndex = selectedPlaylistCategoryIndex(guideCategories, activePlaylist?.id)
                                 selectorPane = SelectorPane.GROUPS
                                 vm.showSidebar()
@@ -502,6 +511,7 @@ fun PlayerScreen(
                             } else {
                                 recentOverlayVisible = false
                                 mediaOptionsVisible = false
+                                channelOnlyGuideVisible = true
                                 selectorPane = SelectorPane.CHANNELS
                                 vm.showSidebar()
                                 true
@@ -509,6 +519,7 @@ fun PlayerScreen(
                         }
 
                         Key.Menu -> {
+                            channelOnlyGuideVisible = false
                             vm.hideSidebar()
                             onNavigateToPlaylist()
                             true
@@ -546,39 +557,55 @@ fun PlayerScreen(
                 .fillMaxSize()
                 .zIndex(10f)
         ) {
-            ReceiverGuideOverlay(
-                contentTypes = guideContentTypes,
-                selectedContentType = selectedContentType,
-                focusedContentTypeIndex = focusedContentTypeIndex,
-                categories = guideCategories,
-                selectedGroup = selectedGroup,
-                focusedGroupIndex = focusedGroupIndex,
-                channels = visibleChannels,
-                currentChannel = currentChannel,
-                focusedChannelIndex = focusedChannelIndex,
-                focusedPane = selectorPane,
-                guideWidth = guideWidth,
-                isLoading = loadState is LoadState.Loading,
-                categoriesLabel = t.categories,
-                allChannelsLabel = t.allChannels,
-                emptyLabel = t.noInfo,
-                onContentTypeClick = {
-                    vm.selectContentType(it)
-                    focusedGroupIndex = 0
-                    focusedChannelIndex = 0
-                    selectorPane = SelectorPane.GROUPS
-                },
-                onCategoryClick = { item ->
-                    when (item.type) {
-                        GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
-                        GuideCategoryType.ALL -> vm.selectGroup(null)
-                        GuideCategoryType.GROUP -> vm.selectGroup(item.groupName)
-                    }
-                    selectorPane = SelectorPane.CHANNELS
-                    focusedChannelIndex = 0
-                },
-                onChannelClick = vm::selectChannel
-            )
+            if (channelOnlyGuideVisible) {
+                ChannelSelectorOverlay(
+                    channels = visibleChannels,
+                    currentChannel = currentChannel,
+                    selectedGroup = selectedGroup,
+                    focusedIndex = focusedChannelIndex,
+                    videoInfo = videoInfo,
+                    guideWidth = guideWidth,
+                    isLoading = loadState is LoadState.Loading,
+                    emptyLabel = t.noInfo,
+                    allChannelsLabel = t.allChannels,
+                    programLabel = t.program,
+                    onChannelClick = vm::selectChannel
+                )
+            } else {
+                ReceiverGuideOverlay(
+                    contentTypes = guideContentTypes,
+                    selectedContentType = selectedContentType,
+                    focusedContentTypeIndex = focusedContentTypeIndex,
+                    categories = guideCategories,
+                    selectedGroup = selectedGroup,
+                    focusedGroupIndex = focusedGroupIndex,
+                    channels = visibleChannels,
+                    currentChannel = currentChannel,
+                    focusedChannelIndex = focusedChannelIndex,
+                    focusedPane = selectorPane,
+                    guideWidth = guideWidth,
+                    isLoading = loadState is LoadState.Loading,
+                    categoriesLabel = t.categories,
+                    allChannelsLabel = t.allChannels,
+                    emptyLabel = t.noInfo,
+                    onContentTypeClick = {
+                        vm.selectContentType(it)
+                        focusedGroupIndex = 0
+                        focusedChannelIndex = 0
+                        selectorPane = SelectorPane.GROUPS
+                    },
+                    onCategoryClick = { item ->
+                        when (item.type) {
+                            GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
+                            GuideCategoryType.ALL -> vm.selectGroup(null)
+                            GuideCategoryType.GROUP -> vm.selectGroup(item.groupName)
+                        }
+                        selectorPane = SelectorPane.CHANNELS
+                        focusedChannelIndex = 0
+                    },
+                    onChannelClick = vm::selectChannel
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -659,6 +686,7 @@ fun PlayerScreen(
         if (!isWide && !selectorVisible) {
             MobileTapLayer(
                 onTap = {
+                    channelOnlyGuideVisible = true
                     vm.showSidebar()
                     selectorPane = SelectorPane.CHANNELS
                 },
@@ -1329,33 +1357,32 @@ private fun ChannelSelectorOverlay(
     guideWidth: androidx.compose.ui.unit.Dp,
     isLoading: Boolean,
     emptyLabel: String,
-    availableContentTypes: List<ChannelContentType>,
-    selectedContentType: ChannelContentType,
     allChannelsLabel: String,
     programLabel: String,
-    onContentTypeClick: (ChannelContentType) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
     val panelShape = RoundedCornerShape(8.dp)
+    val channelPanelWidth = (guideWidth * 0.55f).coerceIn(470.dp, 680.dp)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x4D000000)),
-        contentAlignment = Alignment.Center
+            .background(Color(0x38000000)),
+        contentAlignment = Alignment.CenterStart
     ) {
         Column(
             modifier = Modifier
-                .width(guideWidth)
+                .padding(start = 38.dp)
+                .width(channelPanelWidth)
                 .fillMaxHeight(0.82f)
                 .clip(panelShape)
-                .background(Color(0xD8171D24))
-                .border(1.dp, Color(0x24FFFFFF), panelShape)
-                .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 14.dp)
+                .background(Color(0xC710141A))
+                .border(1.dp, Accent.copy(alpha = 0.42f), panelShape)
+                .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 6.dp, end = 6.dp, bottom = 10.dp),
+                    .padding(start = 6.dp, end = 6.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -1374,12 +1401,6 @@ private fun ChannelSelectorOverlay(
                     fontWeight = FontWeight.SemiBold
                 )
             }
-            ContentTypeTabs(
-                contentTypes = availableContentTypes,
-                selectedContentType = selectedContentType,
-                onContentTypeClick = onContentTypeClick,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp)
-            )
 
             if (isLoading && channels.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
