@@ -23,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
+import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.theme.BadgeBg
 import coil.compose.AsyncImage
@@ -41,6 +41,7 @@ fun ChannelInfoOsd(
     visible: Boolean,
     channel: Channel?,
     videoInfo: VideoInfo,
+    playbackState: PlaybackState,
     channelIndex: Int,
     totalChannels: Int,
     modifier: Modifier = Modifier
@@ -61,59 +62,55 @@ fun ChannelInfoOsd(
             "--"
         }
         val codec = videoInfo.codec.ifBlank { "--" }.uppercase()
+        val isLive = playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 42.dp, vertical = 18.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color(0xE2070A0E),
-                        0.72f to Color(0xF1121821),
-                        1f to Color(0xF607090C)
-                    )
-                )
-                .border(1.dp, Color(0x991AADB1), RoundedCornerShape(2.dp))
+                .padding(horizontal = 46.dp, vertical = 20.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0x94070A0E))
+                .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(6.dp))
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color.Transparent, Color(0xFF49BFFF), Color.Transparent)
-                        )
-                    )
-            )
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 22.dp, end = 18.dp, top = 14.dp, bottom = 12.dp),
+                    .padding(start = 20.dp, end = 18.dp, top = 15.dp, bottom = 15.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ChannelLogo(channel.logoUrl, size = 58, modifier = Modifier.padding(end = 16.dp))
-                        Text(
-                            text = channel.name,
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Black,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        ChannelLogo(channel.logoUrl, size = 54, modifier = Modifier.padding(end = 15.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "$channelIndex/$totalChannels",
+                                    color = Color(0xFFD6DADE),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(end = 12.dp)
+                                )
+                                LiveStatusBadge(isLive = isLive)
+                            }
+                            Text(
+                                text = channel.name,
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
+                            Text(
+                                text = channel.group.ifBlank { "All channels" },
+                                color = Color(0xFFC5CBD1),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
+                        }
                     }
-
-                    Text(
-                        text = channel.group.ifBlank { "All channels" },
-                        color = Color(0xFF6DE873),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 9.dp)
-                    )
                 }
 
                 Spacer(Modifier.width(20.dp))
@@ -135,6 +132,25 @@ fun ChannelInfoOsd(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LiveStatusBadge(isLive: Boolean) {
+    val bg = if (isLive) Color(0xD018A957) else Color(0xD0C52F34)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = if (isLive) "LIVE" else "OFF",
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1
+        )
     }
 }
 

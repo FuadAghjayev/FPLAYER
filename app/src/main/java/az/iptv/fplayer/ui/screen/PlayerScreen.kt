@@ -123,6 +123,7 @@ fun PlayerScreen(
     val audioDecoderMode by vm.audioDecoderMode.collectAsState()
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
+    val recentChannels by vm.recentChannels.collectAsState()
     val language by vm.appLanguage.collectAsState()
     val t = appTexts(language)
     val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, t.allChannels) {
@@ -193,6 +194,8 @@ fun PlayerScreen(
     var focusedMediaOption by remember { mutableIntStateOf(0) }
     var selectorPane by remember { mutableStateOf(SelectorPane.CHANNELS) }
     var mediaOptionsVisible by remember { mutableStateOf(false) }
+    var recentOverlayVisible by remember { mutableStateOf(false) }
+    var focusedRecentIndex by remember { mutableIntStateOf(0) }
     var exitPromptVisible by remember { mutableStateOf(false) }
     var exitHintVisible by remember { mutableStateOf(false) }
     var lastExitBackAt by remember { mutableStateOf(0L) }
@@ -218,6 +221,15 @@ fun PlayerScreen(
 
     LaunchedEffect(guideCategories.size) {
         focusedGroupIndex = focusedGroupIndex.coerceAtMost((guideCategories.size - 1).coerceAtLeast(0))
+    }
+
+    LaunchedEffect(recentOverlayVisible, recentChannels.size) {
+        if (recentOverlayVisible) {
+            focusedRecentIndex = focusedRecentIndex.coerceIn(
+                0,
+                (recentChannels.take(5).size - 1).coerceAtLeast(0)
+            )
+        }
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -249,6 +261,42 @@ fun PlayerScreen(
                         }
                         isExitKey -> {
                             exitPromptVisible = false
+                            true
+                        }
+                        else -> true
+                    }
+                } else if (recentOverlayVisible) {
+                    val recentList = recentChannels.take(5)
+                    when (event.key) {
+                        Key.Back -> {
+                            recentOverlayVisible = false
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            focusedRecentIndex = (focusedRecentIndex - 1).coerceAtLeast(0)
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            focusedRecentIndex = (focusedRecentIndex + 1)
+                                .coerceAtMost((recentList.size - 1).coerceAtLeast(0))
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            recentOverlayVisible = false
+                            focusedGroupIndex = selectedPlaylistCategoryIndex(guideCategories, activePlaylist?.id)
+                            selectorPane = SelectorPane.GROUPS
+                            vm.showSidebar()
+                            true
+                        }
+                        Key.DirectionRight, Key.Info -> {
+                            recentList.getOrNull(focusedRecentIndex)?.let(vm::toggleFavorite)
+                            true
+                        }
+                        Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                            recentList.getOrNull(focusedRecentIndex)?.let {
+                                recentOverlayVisible = false
+                                vm.selectChannel(it)
+                            }
                             true
                         }
                         else -> true
@@ -328,7 +376,8 @@ fun PlayerScreen(
                                     SelectorPane.CONTENT_TYPES -> SelectorPane.CONTENT_TYPES
                                 }
                             } else {
-                                selectorPane = SelectorPane.CHANNELS
+                                focusedGroupIndex = selectedPlaylistCategoryIndex(guideCategories, activePlaylist?.id)
+                                selectorPane = SelectorPane.GROUPS
                                 vm.showSidebar()
                             }
                             true
@@ -336,14 +385,22 @@ fun PlayerScreen(
 
                         Key.DirectionRight -> {
                             if (selectorVisible) {
-                                selectorPane = when (selectorPane) {
-                                    SelectorPane.CONTENT_TYPES -> SelectorPane.GROUPS
-                                    SelectorPane.GROUPS -> SelectorPane.CHANNELS
-                                    SelectorPane.CHANNELS -> SelectorPane.CHANNELS
+                                when (selectorPane) {
+                                    SelectorPane.CONTENT_TYPES -> selectorPane = SelectorPane.GROUPS
+                                    SelectorPane.GROUPS -> selectorPane = SelectorPane.CHANNELS
+                                    SelectorPane.CHANNELS -> {
+                                        visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
+                                    }
                                 }
                             } else {
-                                selectorPane = SelectorPane.CHANNELS
-                                vm.showSidebar()
+                                val recentList = recentChannels.take(5)
+                                if (recentList.isNotEmpty()) {
+                                    focusedRecentIndex = 0
+                                    recentOverlayVisible = true
+                                    vm.hideSidebar()
+                                } else {
+                                    vm.showOsd()
+                                }
                             }
                             true
                         }
@@ -536,11 +593,28 @@ fun PlayerScreen(
             visible = osdVisible && !selectorVisible,
             channel = currentChannel,
             videoInfo = videoInfo,
+            playbackState = playbackState,
             channelIndex = channelIndex,
             totalChannels = visibleChannels.size,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .zIndex(5f)
+        )
+
+        RecentChannelsOverlay(
+            visible = recentOverlayVisible && !selectorVisible,
+            channels = recentChannels.take(5),
+            currentChannel = currentChannel,
+            focusedIndex = focusedRecentIndex,
+            title = t.recentChannels,
+            onChannelClick = {
+                recentOverlayVisible = false
+                vm.selectChannel(it)
+            },
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 34.dp)
+                .zIndex(18f)
         )
 
         ExitHint(
@@ -674,6 +748,69 @@ private fun PlaybackScrim(playlist: String, group: String, visible: Boolean) {
                     .align(Alignment.TopEnd)
                     .padding(end = 32.dp, top = 24.dp)
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun RecentChannelsOverlay(
+    visible: Boolean,
+    channels: List<Channel>,
+    currentChannel: Channel?,
+    focusedIndex: Int,
+    title: String,
+    onChannelClick: (Channel) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 360.dp, max = 430.dp)
+                .fillMaxHeight(0.58f)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xA60A0D12))
+                .border(1.dp, Color(0x30FFFFFF), RoundedCornerShape(6.dp))
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = channels.size.toString(),
+                    color = Accent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                itemsIndexed(channels, key = { _, channel -> channel.stableKey }) { index, channel ->
+                    ReceiverChannelRow(
+                        channel = channel,
+                        index = index + 1,
+                        isPlaying = currentChannel?.stableKey == channel.stableKey,
+                        isFocused = index == focusedIndex,
+                        onClick = { onChannelClick(channel) }
+                    )
+                }
+            }
         }
     }
 }
@@ -1676,6 +1813,14 @@ private fun buildGuideCategories(
 
 private fun selectedGuideCategoryIndex(categories: List<GuideCategoryItem>): Int =
     categories.indexOfFirst { it.selected }.takeIf { it >= 0 } ?: 0
+
+private fun selectedPlaylistCategoryIndex(
+    categories: List<GuideCategoryItem>,
+    activePlaylistId: String?
+): Int =
+    categories.indexOfFirst {
+        it.type == GuideCategoryType.PLAYLIST && it.playlist?.id == activePlaylistId
+    }.takeIf { it >= 0 } ?: selectedGuideCategoryIndex(categories)
 
 private fun selectedContentTypeIndex(
     contentTypes: List<ChannelContentType>,
