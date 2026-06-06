@@ -521,7 +521,7 @@ fun PlayerScreen(
             }
     ) {
         val isWide = maxWidth > 700.dp
-        val guideWidth = if (isWide) (maxWidth * 0.88f).coerceIn(760.dp, 1120.dp) else maxWidth * 0.98f
+        val guideWidth = if (isWide) (maxWidth * 0.92f).coerceIn(820.dp, 1240.dp) else maxWidth * 0.98f
         val guideContentTypes = availableContentTypes.ifEmpty { listOf(selectedContentType) }
 
         VideoSurface(engine = engine)
@@ -837,15 +837,15 @@ private fun ReceiverGuideOverlay(
     onCategoryClick: (GuideCategoryItem) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
-    val panelShape = RoundedCornerShape(3.dp)
-    val railWidth = if (guideWidth >= 900.dp) 142.dp else 104.dp
-    val groupWidth = if (guideWidth >= 900.dp) 304.dp else 218.dp
+    val panelShape = RoundedCornerShape(10.dp)
+    val railWidth = if (guideWidth >= 900.dp) 132.dp else 102.dp
+    val groupWidth = if (guideWidth >= 1000.dp) 370.dp else 286.dp
     val footerChannel = channels.getOrNull(focusedChannelIndex) ?: currentChannel
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x59000000)),
+            .background(Color(0x38000000)),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -853,14 +853,22 @@ private fun ReceiverGuideOverlay(
                 .width(guideWidth)
                 .fillMaxHeight(0.82f)
                 .clip(panelShape)
-                .background(Color(0xC914171C))
-                .border(1.dp, Accent.copy(alpha = 0.72f), panelShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0xB015191F),
+                            Color(0x9210141A),
+                            Color(0xA01B2A2F)
+                        )
+                    )
+                )
+                .border(1.dp, Accent.copy(alpha = 0.46f), panelShape)
         ) {
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 14.dp)
+                    .padding(horizontal = 14.dp, vertical = 14.dp)
             ) {
                 ContentTypeColumn(
                     contentTypes = contentTypes,
@@ -963,10 +971,10 @@ private fun ContentTypeColumn(
 private fun ReceiverGuideDivider() {
     Box(
         modifier = Modifier
-            .padding(horizontal = 10.dp)
+            .padding(horizontal = 8.dp)
             .fillMaxHeight()
             .width(1.dp)
-            .background(Color(0xA8D7DCE0))
+            .background(Color(0x45D7DCE0))
     )
 }
 
@@ -1009,6 +1017,12 @@ private fun ReceiverCategoryColumn(
             itemsIndexed(categories) { index, item ->
                 val activeFocus = focused && index == focusedIndex
                 val selected = item.selected || index == selectedIndex
+                val rowShape = RoundedCornerShape(6.dp)
+                val rowBg = when {
+                    activeFocus -> Color(0xEAF2F4F6)
+                    selected -> Color(0x331AADB1)
+                    else -> Color(0x08FFFFFF)
+                }
                 val textColor = when {
                     activeFocus -> Color(0xFF101317)
                     selected -> Accent
@@ -1017,42 +1031,69 @@ private fun ReceiverCategoryColumn(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(if (activeFocus) Color(0xFFE6E7EA) else Color.Transparent)
+                        .padding(vertical = 3.dp)
+                        .height(58.dp)
+                        .clip(rowShape)
+                        .background(rowBg)
+                        .border(
+                            width = if (activeFocus) 2.dp else 1.dp,
+                            color = if (activeFocus) Color(0xFFFF744A) else Color(0x18FFFFFF),
+                            shape = rowShape
+                        )
                         .clickable { onCategoryClick(item) }
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = when (item.type) {
-                            GuideCategoryType.PLAYLIST -> "PL"
-                            GuideCategoryType.ALL -> ""
-                            GuideCategoryType.GROUP -> index.toString().padStart(2, '0')
-                        },
-                        color = if (activeFocus) Color(0xFF101317) else Accent,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(42.dp)
-                    )
+                    val prefix = when (item.type) {
+                        GuideCategoryType.PLAYLIST -> "PL"
+                        GuideCategoryType.ALL -> "ALL"
+                        GuideCategoryType.GROUP -> index.toString().padStart(2, '0')
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(42.dp)
+                            .height(26.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (activeFocus) Color(0x1A101317) else Accent.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = prefix,
+                            color = if (activeFocus) Color(0xFF101317) else Accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 1
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
                     Text(
                         text = item.label,
                         color = textColor,
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
+                        lineHeight = 18.sp,
                         fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     val meta = if (item.active && item.type == GuideCategoryType.PLAYLIST) "Aktiv"
                     else item.count?.toString().orEmpty()
                     if (meta.isNotEmpty()) {
-                        Text(
-                            text = meta,
-                            color = if (activeFocus) Color(0xFF2E3135) else Color(0xFFCED3D8),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (activeFocus) Color(0x1A101317) else Color(0x1FFFFFFF))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = meta,
+                                color = if (activeFocus) Color(0xFF2E3135) else Color(0xFFCED3D8),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -1232,8 +1273,8 @@ private fun ReceiverFooter(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp)
-            .background(Color(0xE513171D))
-            .border(1.dp, Accent.copy(alpha = 0.58f))
+            .background(Color(0x8F13171D))
+            .border(1.dp, Accent.copy(alpha = 0.28f))
             .padding(horizontal = 22.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

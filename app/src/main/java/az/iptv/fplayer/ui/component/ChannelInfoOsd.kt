@@ -82,13 +82,6 @@ fun ChannelInfoOsd(
                         ChannelLogo(channel.logoUrl, size = 54, modifier = Modifier.padding(end = 15.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "$channelIndex/$totalChannels",
-                                    color = Color(0xFFD6DADE),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Black,
-                                    modifier = Modifier.padding(end = 12.dp)
-                                )
                                 LiveStatusBadge(isLive = isLive)
                             }
                             Text(

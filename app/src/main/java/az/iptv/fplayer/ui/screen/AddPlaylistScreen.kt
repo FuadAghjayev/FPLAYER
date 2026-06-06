@@ -40,6 +40,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -551,15 +557,32 @@ private fun FormField(
     placeholder: String,
     keyboardType: KeyboardType = KeyboardType.Text
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
         cursorBrush = SolidColor(Accent),
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboardType,
+            imeAction = ImeAction.Done,
+            showKeyboardOnFocus = false
+        ),
         modifier = Modifier
             .fillMaxWidth()
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter)
+                ) {
+                    keyboardController?.show()
+                    true
+                } else {
+                    false
+                }
+            }
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0x6612252F))
             .border(1.dp, Color(0x2FFFFFFF), RoundedCornerShape(8.dp))
