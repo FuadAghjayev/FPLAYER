@@ -102,6 +102,11 @@ private fun AppNavigation() {
                     navController.navigate("player") {
                         popUpTo("add_playlist") { inclusive = true }
                     }
+                },
+                onBackToPlayer = {
+                    navController.navigate("player") {
+                        popUpTo("add_playlist") { inclusive = true }
+                    }
                 }
             )
         }

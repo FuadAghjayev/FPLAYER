@@ -53,7 +53,7 @@ fun ChannelList(
         modifier = modifier,
         contentPadding = PaddingValues(vertical = 6.dp)
     ) {
-        itemsIndexed(channels, key = { _, ch -> ch.stableKey }) { index, channel ->
+        itemsIndexed(channels, key = { index, ch -> "${ch.stableKey}#$index" }) { index, channel ->
             val isPlaying = currentChannel?.stableKey == channel.stableKey
             ChannelItem(
                 channel = channel,

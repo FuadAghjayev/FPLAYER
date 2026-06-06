@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -79,6 +80,7 @@ private enum class SourceTab { M3U, XTREAM }
 @Composable
 fun AddPlaylistScreen(
     onPlaylistLoaded: () -> Unit,
+    onBackToPlayer: (() -> Unit)? = null,
     vm: PlayerViewModel = viewModel()
 ) {
     val loadState by vm.loadState.collectAsState()
@@ -97,6 +99,38 @@ fun AddPlaylistScreen(
     var xtreamPass by remember { mutableStateOf("") }
     var pendingPlayerReturn by remember { mutableStateOf(false) }
 
+    fun clearForm() {
+        editingPlaylistId = null
+        playlistName = ""
+        selectedTab = SourceTab.M3U
+        m3uUrl = ""
+        xtreamServer = ""
+        xtreamUser = ""
+        xtreamPass = ""
+    }
+
+    fun editProfile(profile: PlaylistProfile) {
+        editingPlaylistId = profile.id
+        playlistName = profile.name
+        selectedTab = if (profile.type == PlaylistType.XTREAM) SourceTab.XTREAM else SourceTab.M3U
+        m3uUrl = profile.m3uUrl
+        xtreamServer = profile.xtreamServer
+        xtreamUser = profile.xtreamUser
+        xtreamPass = profile.xtreamPass
+    }
+
+    fun switchProfile(profile: PlaylistProfile) {
+        editProfile(profile)
+        pendingPlayerReturn = true
+        vm.switchPlaylist(profile)
+    }
+
+    fun deleteProfile(profile: PlaylistProfile) {
+        if (editingPlaylistId == profile.id) clearForm()
+        pendingPlayerReturn = false
+        vm.deletePlaylist(profile)
+    }
+
     LaunchedEffect(Unit) {
         vm.resetForPlaylistEdit()
     }
@@ -109,15 +143,7 @@ fun AddPlaylistScreen(
     }
 
     LaunchedEffect(activePlaylist?.id) {
-        activePlaylist?.let { profile ->
-            editingPlaylistId = profile.id
-            playlistName = profile.name
-            selectedTab = if (profile.type == PlaylistType.XTREAM) SourceTab.XTREAM else SourceTab.M3U
-            m3uUrl = profile.m3uUrl
-            xtreamServer = profile.xtreamServer
-            xtreamUser = profile.xtreamUser
-            xtreamPass = profile.xtreamPass
-        }
+        activePlaylist?.let(::editProfile)
     }
 
     BoxWithConstraints(
@@ -134,7 +160,18 @@ fun AddPlaylistScreen(
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWide) {
-                BrandPanel(t)
+                PlaylistLibraryPanel(
+                    texts = t,
+                    playlists = playlists,
+                    activePlaylist = activePlaylist,
+                    language = language,
+                    canAddPlaylist = playlists.size < AppPreferences.MAX_PLAYLISTS,
+                    canReturnToPlayer = onBackToPlayer != null && playlists.isNotEmpty(),
+                    onBackToPlayer = { onBackToPlayer?.invoke() },
+                    onAddPlaylist = { clearForm() },
+                    onPlaylistClick = ::switchProfile,
+                    onDeletePlaylist = ::deleteProfile
+                )
                 Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x22FFFFFF)))
             }
 
@@ -161,7 +198,7 @@ fun AddPlaylistScreen(
                 Text(text = t.playlistSubtitle, color = TextSecondary, fontSize = 13.sp)
                 Spacer(Modifier.height(24.dp))
 
-                if (playlists.isNotEmpty()) {
+                if (!isWide && playlists.isNotEmpty()) {
                     SectionTitle(t.savedPlaylists)
                     Spacer(Modifier.height(10.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -172,50 +209,31 @@ fun AddPlaylistScreen(
                                 texts = t,
                                 deleteLabel = if (language == AppLanguage.EN.name) "Delete" else "Sil",
                                 modifier = Modifier.width(156.dp),
-                                onClick = {
-                                    editingPlaylistId = profile.id
-                                    pendingPlayerReturn = true
-                                    vm.switchPlaylist(profile)
-                                },
-                                onDelete = {
-                                    if (editingPlaylistId == profile.id) {
-                                        editingPlaylistId = null
-                                        playlistName = ""
-                                        m3uUrl = ""
-                                        xtreamServer = ""
-                                        xtreamUser = ""
-                                        xtreamPass = ""
-                                    }
-                                    pendingPlayerReturn = false
-                                    vm.deletePlaylist(profile)
-                                }
+                                onClick = { switchProfile(profile) },
+                                onDelete = { deleteProfile(profile) }
                             )
                         }
                     }
                     Spacer(Modifier.height(12.dp))
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    SmallActionButton(
-                        label = t.addPlaylist,
-                        enabled = playlists.size < AppPreferences.MAX_PLAYLISTS,
-                        onClick = {
-                            editingPlaylistId = null
-                            playlistName = ""
-                            selectedTab = SourceTab.M3U
-                            m3uUrl = ""
-                            xtreamServer = ""
-                            xtreamUser = ""
-                            xtreamPass = ""
-                        }
-                    )
-                    Text(t.playlistLimit, color = TextSecondary, fontSize = 12.sp)
+                if (!isWide) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SmallActionButton(
+                            label = t.addPlaylist,
+                            enabled = playlists.size < AppPreferences.MAX_PLAYLISTS,
+                            onClick = { clearForm() }
+                        )
+                        Text(t.playlistLimit, color = TextSecondary, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(22.dp))
+                } else {
+                    Spacer(Modifier.height(8.dp))
                 }
 
-                Spacer(Modifier.height(22.dp))
                 SourceTabs(selectedTab = selectedTab, texts = t, onSelect = { selectedTab = it })
                 Spacer(Modifier.height(24.dp))
 
@@ -352,6 +370,123 @@ private fun BrandPanel(texts: AppTexts) {
             color = TextSecondary,
             fontSize = 13.sp,
             lineHeight = 20.sp
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun PlaylistLibraryPanel(
+    texts: AppTexts,
+    playlists: List<PlaylistProfile>,
+    activePlaylist: PlaylistProfile?,
+    language: String,
+    canAddPlaylist: Boolean,
+    canReturnToPlayer: Boolean,
+    onBackToPlayer: () -> Unit,
+    onAddPlaylist: () -> Unit,
+    onPlaylistClick: (PlaylistProfile) -> Unit,
+    onDeletePlaylist: (PlaylistProfile) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(330.dp)
+            .fillMaxHeight()
+            .background(PanelBg)
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.Top
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FPlayerLogo(size = 58)
+            Column {
+                Text(
+                    text = "FPLAYER",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1
+                )
+                Text(text = "LIVE TV", color = WarmAccent.copy(alpha = 0.82f), fontSize = 12.sp)
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SmallActionButton(label = texts.player, enabled = canReturnToPlayer, onClick = onBackToPlayer)
+            SmallActionButton(label = texts.addPlaylist, enabled = canAddPlaylist, onClick = onAddPlaylist)
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SectionTitle(texts.active)
+        Spacer(Modifier.height(10.dp))
+        ActivePlaylistCard(profile = activePlaylist, emptyLabel = texts.noInfo)
+
+        Spacer(Modifier.height(24.dp))
+        SectionTitle(texts.savedPlaylists)
+        Spacer(Modifier.height(10.dp))
+        if (playlists.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(74.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0x3012252F))
+                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = texts.noInfo, color = TextSecondary, fontSize = 13.sp)
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(playlists, key = { it.id }) { profile ->
+                    PlaylistChip(
+                        profile = profile,
+                        selected = profile.id == activePlaylist?.id,
+                        texts = texts,
+                        deleteLabel = if (language == AppLanguage.EN.name) "Delete" else "Sil",
+                        onClick = { onPlaylistClick(profile) },
+                        onDelete = { onDeletePlaylist(profile) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ActivePlaylistCard(profile: PlaylistProfile?, emptyLabel: String) {
+    val typeLabel = when (profile?.type) {
+        PlaylistType.XTREAM -> "Xtream"
+        PlaylistType.M3U -> "M3U"
+        null -> "--"
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xD714505A))
+            .border(1.dp, Accent.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = profile?.name ?: emptyLabel,
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = typeLabel,
+            color = Accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
