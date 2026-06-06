@@ -115,6 +115,29 @@ class AppPreferences(private val context: Context) {
         writeLegacyActive(it, profile)
     }
 
+    suspend fun deletePlaylist(id: String) = context.dataStore.edit {
+        val profiles = readProfiles(it)
+        val nextProfiles = profiles.filterNot { profile -> profile.id == id }
+        if (nextProfiles.size == profiles.size) return@edit
+
+        writeProfiles(it, nextProfiles)
+        val activeId = it[KEY_ACTIVE_PLAYLIST_ID]
+        if (activeId != id && nextProfiles.any { profile -> profile.id == activeId }) return@edit
+
+        val nextActive = nextProfiles.firstOrNull()
+        if (nextActive != null) {
+            it[KEY_ACTIVE_PLAYLIST_ID] = nextActive.id
+            writeLegacyActive(it, nextActive)
+        } else {
+            it.remove(KEY_ACTIVE_PLAYLIST_ID)
+            it.remove(KEY_PLAYLIST_TYPE)
+            it.remove(KEY_M3U_URL)
+            it.remove(KEY_XTREAM_SERVER)
+            it.remove(KEY_XTREAM_USER)
+            it.remove(KEY_XTREAM_PASS)
+        }
+    }
+
     suspend fun activatePlaylist(id: String) = context.dataStore.edit {
         val profiles = readProfiles(it)
         val profile = profiles.firstOrNull { profile -> profile.id == id } ?: return@edit

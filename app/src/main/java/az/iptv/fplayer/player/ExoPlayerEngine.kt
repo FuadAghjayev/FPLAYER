@@ -13,10 +13,14 @@ import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 @OptIn(UnstableApi::class)
 class ExoPlayerEngine(
@@ -30,6 +34,10 @@ class ExoPlayerEngine(
     private var listener: PlayerEventListener? = null
     private var surface: SurfaceView? = null
     private val trackRefs = mutableMapOf<String, TrackRef>()
+    private val defaultHeaders = mapOf(
+        "User-Agent" to DEFAULT_USER_AGENT,
+        "Accept" to "*/*"
+    )
 
     override fun init(surfaceView: SurfaceView) {
         surface = surfaceView
@@ -59,7 +67,7 @@ class ExoPlayerEngine(
             context,
             DefaultRenderersFactory(context).setExtensionRendererMode(rendererMode)
         )
-            .setMediaSourceFactory(DefaultMediaSourceFactory(context))
+            .setMediaSourceFactory(mediaSourceFactory())
             .setLoadControl(loadControl)
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
             .setHandleAudioBecomingNoisy(true)
@@ -73,11 +81,15 @@ class ExoPlayerEngine(
 
     override fun play(url: String) {
         val exo = player ?: return
+        val stream = StreamRequest.from(url)
         listener?.onStateChanged(PlaybackState.Buffering)
         listener?.onMediaTracksChanged(MediaTracks())
         trackRefs.clear()
         exo.stop()
-        exo.setMediaItem(MediaItem.fromUri(url))
+        exo.setMediaSource(
+            mediaSourceFactory(stream.headers)
+                .createMediaSource(MediaItem.fromUri(stream.url))
+        )
         exo.prepare()
     }
 
@@ -228,4 +240,58 @@ class ExoPlayerEngine(
         val trackIndex: Int,
         val type: Int
     )
+
+    private fun mediaSourceFactory(extraHeaders: Map<String, String> = emptyMap()): DefaultMediaSourceFactory {
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent(DEFAULT_USER_AGENT)
+            .setDefaultRequestProperties(defaultHeaders + extraHeaders)
+        return DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpFactory))
+    }
+
+    private data class StreamRequest(
+        val url: String,
+        val headers: Map<String, String>
+    ) {
+        companion object {
+            fun from(rawUrl: String): StreamRequest {
+                val trimmed = rawUrl.trim()
+                val separator = trimmed.indexOf('|')
+                if (separator <= 0) return StreamRequest(trimmed, emptyMap())
+
+                val cleanUrl = trimmed.substring(0, separator).trim()
+                val headerText = trimmed.substring(separator + 1)
+                val headers = headerText
+                    .split('&', '|')
+                    .mapNotNull { part ->
+                        val key = part.substringBefore("=", missingDelimiterValue = "").trim()
+                        if (key.isBlank()) return@mapNotNull null
+                        val value = part.substringAfter("=", missingDelimiterValue = "").trim()
+                        canonicalHeaderName(key)?.let { name -> name to decodeHeaderValue(value) }
+                    }
+                    .toMap()
+
+                return StreamRequest(cleanUrl, headers)
+            }
+
+            private fun canonicalHeaderName(key: String): String? =
+                when (key.lowercase()) {
+                    "user-agent", "useragent", "ua", "http-user-agent" -> "User-Agent"
+                    "referer", "referrer", "http-referrer", "http-referer" -> "Referer"
+                    "origin", "http-origin" -> "Origin"
+                    "cookie", "http-cookie" -> "Cookie"
+                    "authorization" -> "Authorization"
+                    else -> null
+                }
+
+            private fun decodeHeaderValue(value: String): String =
+                runCatching {
+                    URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+                }.getOrDefault(value)
+        }
+    }
+
+    companion object {
+        private const val DEFAULT_USER_AGENT = "FPLAYER/1.0 AndroidTV"
+    }
 }

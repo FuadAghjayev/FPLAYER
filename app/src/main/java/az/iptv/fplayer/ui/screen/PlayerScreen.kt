@@ -389,7 +389,14 @@ fun PlayerScreen(
                                     SelectorPane.CONTENT_TYPES -> selectorPane = SelectorPane.GROUPS
                                     SelectorPane.GROUPS -> selectorPane = SelectorPane.CHANNELS
                                     SelectorPane.CHANNELS -> {
-                                        visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
+                                        if (hasSelectableMediaTracks(mediaTracks)) {
+                                            focusedMediaOption = if (mediaTracks.audioTracks.isNotEmpty()) 0 else 1
+                                            mediaOptionsVisible = true
+                                            vm.hideSidebar()
+                                            vm.hideOsd()
+                                        } else {
+                                            visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
+                                        }
                                     }
                                 }
                             } else {
@@ -485,11 +492,16 @@ fun PlayerScreen(
                                         focusedChannelIndex = 0
                                     }
                                     SelectorPane.CHANNELS -> {
-                                        visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::selectChannel)
+                                        visibleChannels.getOrNull(focusedChannelIndex)?.let {
+                                            mediaOptionsVisible = false
+                                            vm.selectChannel(it)
+                                        }
                                     }
                                 }
                                 true
                             } else {
+                                recentOverlayVisible = false
+                                mediaOptionsVisible = false
                                 selectorPane = SelectorPane.CHANNELS
                                 vm.showSidebar()
                                 true

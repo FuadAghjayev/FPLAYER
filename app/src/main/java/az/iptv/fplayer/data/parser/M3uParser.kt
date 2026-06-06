@@ -3,6 +3,8 @@ package az.iptv.fplayer.data.parser
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 object M3uParser {
 
@@ -14,11 +16,29 @@ object M3uParser {
         while (i < lines.size) {
             val line = lines[i].trim()
             if (line.startsWith("#EXTINF:")) {
-                val url = lines.getOrNull(i + 1)?.trim()
+                var j = i + 1
+                val headers = linkedMapOf<String, String>()
+                while (j < lines.size) {
+                    val nextLine = lines[j].trim()
+                    when {
+                        nextLine.isBlank() -> j++
+                        nextLine.startsWith("#EXTVLCOPT:", ignoreCase = true) -> {
+                            parseVlcOption(nextLine)?.let { (key, value) -> headers[key] = value }
+                            j++
+                        }
+                        nextLine.startsWith("#KODIPROP:", ignoreCase = true) -> {
+                            headers.putAll(parseKodiProperty(nextLine))
+                            j++
+                        }
+                        nextLine.startsWith("#") -> j++
+                        else -> break
+                    }
+                }
+                val url = lines.getOrNull(j)?.trim()
                 if (!url.isNullOrEmpty() && !url.startsWith("#")) {
-                    val channel = parseExtInf(line, url)
+                    val channel = parseExtInf(line, appendHeaders(url, headers))
                     channels.add(channel)
-                    i += 2
+                    i = j + 1
                     continue
                 }
             }
@@ -53,6 +73,57 @@ object M3uParser {
         }
         return result
     }
+
+    private fun parseVlcOption(line: String): Pair<String, String>? {
+        val option = line.substringAfter("#EXTVLCOPT:", "").trim()
+        val key = option.substringBefore("=", "").trim()
+        val value = option.substringAfter("=", "").trim()
+        if (key.isBlank() || value.isBlank()) return null
+        val header = when (key.lowercase()) {
+            "http-user-agent" -> "User-Agent"
+            "http-referrer", "http-referer" -> "Referer"
+            "http-origin" -> "Origin"
+            "http-cookie" -> "Cookie"
+            else -> return null
+        }
+        return header to value
+    }
+
+    private fun parseKodiProperty(line: String): Map<String, String> {
+        val property = line.substringAfter("#KODIPROP:", "").trim()
+        if (!property.startsWith("inputstream.adaptive.stream_headers=", ignoreCase = true)) return emptyMap()
+        val headers = property.substringAfter("=", "").trim()
+        return headers
+            .split('&')
+            .mapNotNull { part ->
+                val key = part.substringBefore("=", "").trim()
+                val value = part.substringAfter("=", "").trim()
+                canonicalHeaderName(key)?.takeIf { value.isNotBlank() }?.let { it to value }
+            }
+            .toMap()
+    }
+
+    private fun appendHeaders(url: String, headers: Map<String, String>): String {
+        if (headers.isEmpty()) return url
+        val separator = if (url.contains('|')) "&" else "|"
+        val suffix = headers.entries.joinToString("&") { (key, value) ->
+            "$key=${encodeHeaderValue(value)}"
+        }
+        return "$url$separator$suffix"
+    }
+
+    private fun canonicalHeaderName(key: String): String? =
+        when (key.lowercase()) {
+            "user-agent", "useragent", "ua", "http-user-agent" -> "User-Agent"
+            "referer", "referrer", "http-referrer", "http-referer" -> "Referer"
+            "origin", "http-origin" -> "Origin"
+            "cookie", "http-cookie" -> "Cookie"
+            "authorization" -> "Authorization"
+            else -> null
+        }
+
+    private fun encodeHeaderValue(value: String): String =
+        URLEncoder.encode(value, StandardCharsets.UTF_8.name())
 
     private fun parseFrameRate(attrs: Map<String, String>): Float {
         val keys = listOf("fps", "frame-rate", "frame_rate", "framerate", "tvg-fps")

@@ -173,6 +173,29 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun deletePlaylist(profile: PlaylistProfile) {
+        playlistLoadJob?.cancel()
+        playlistLoadJob = viewModelScope.launch {
+            val wasActive = activePlaylist.value?.id == profile.id
+            prefs.deletePlaylist(profile.id)
+            if (!wasActive) return@launch
+
+            _groups.value = emptyList()
+            _selectedGroup.value = null
+            _currentChannel.value = null
+            _recentChannels.value = emptyList()
+            _selectedContentType.value = ChannelContentType.TV
+            val nextProfile = prefs.activePlaylist.first()
+            if (nextProfile != null) {
+                loadPlaylist(nextProfile, revealSidebar = true)
+            } else {
+                _loadState.value = LoadState.Idle
+                _sidebarVisible.value = false
+                _osdVisible.value = false
+            }
+        }
+    }
+
     fun refreshPlaylist() {
         playlistLoadJob?.cancel()
         playlistLoadJob = viewModelScope.launch {

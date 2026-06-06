@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -65,7 +66,6 @@ import az.iptv.fplayer.ui.text.AppTexts
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
-import az.iptv.fplayer.ui.theme.CardBg
 import az.iptv.fplayer.ui.theme.FocusBorder
 import az.iptv.fplayer.ui.theme.PanelBg
 import az.iptv.fplayer.ui.theme.TextSecondary
@@ -170,11 +170,24 @@ fun AddPlaylistScreen(
                                 profile = profile,
                                 selected = profile.id == activePlaylist?.id,
                                 texts = t,
+                                deleteLabel = if (language == AppLanguage.EN.name) "Delete" else "Sil",
                                 modifier = Modifier.width(156.dp),
                                 onClick = {
                                     editingPlaylistId = profile.id
                                     pendingPlayerReturn = true
                                     vm.switchPlaylist(profile)
+                                },
+                                onDelete = {
+                                    if (editingPlaylistId == profile.id) {
+                                        editingPlaylistId = null
+                                        playlistName = ""
+                                        m3uUrl = ""
+                                        xtreamServer = ""
+                                        xtreamUser = ""
+                                        xtreamPass = ""
+                                    }
+                                    pendingPlayerReturn = false
+                                    vm.deletePlaylist(profile)
                                 }
                             )
                         }
@@ -450,32 +463,65 @@ private fun PlaylistChip(
     profile: PlaylistProfile,
     selected: Boolean,
     texts: AppTexts,
+    deleteLabel: String,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bg = if (selected) Color(0xAA12383D) else CardBg
-    val border = if (selected) Accent.copy(alpha = 0.72f) else Color(0x2EFFFFFF)
+    var focused by remember { mutableStateOf(false) }
+    val bg = when {
+        focused -> Color(0xFFEAF7FF)
+        selected -> Color(0xDD14505A)
+        else -> Color(0xD72B323A)
+    }
+    val border = when {
+        focused -> Color(0xFFFFC247)
+        selected -> Accent
+        else -> Color(0x66FFFFFF)
+    }
+    val primaryText = if (focused) Color(0xFF071116) else Color.White
+    val secondaryText = if (focused) Color(0xFF24333A) else if (selected) Accent else Color(0xFFDCE2E7)
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(8.dp))
+            .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(8.dp))
+            .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .padding(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = profile.name,
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = profile.name,
+                    color = primaryText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (focused) Color(0xFFE43939) else Color(0xFF7E2525))
+                        .clickable(onClick = onDelete)
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = deleteLabel,
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                }
+            }
             Text(
                 text = if (selected) texts.active else texts.switchTo,
-                color = if (selected) Accent else TextSecondary,
+                color = secondaryText,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -511,14 +557,26 @@ private fun SourceCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = if (selected) FocusBorder else Color(0x2EFFFFFF)
-    val bgColor = if (selected) Color(0xAA12383D) else CardBg
+    var focused by remember { mutableStateOf(false) }
+    val borderColor = when {
+        focused -> Color(0xFFFFC247)
+        selected -> FocusBorder
+        else -> Color(0x66FFFFFF)
+    }
+    val bgColor = when {
+        focused -> Color(0xFFEAF7FF)
+        selected -> Color(0xDD14505A)
+        else -> Color(0xD72B323A)
+    }
+    val titleColor = if (focused) Color(0xFF071116) else if (selected) Color.White else Color(0xFFF2F5F7)
+    val subColor = if (focused) Color(0xFF2D3A42) else Color(0xFFD4DBE0)
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(bgColor)
-            .border(width = if (selected) 1.5.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
+            .border(width = if (focused) 2.dp else 1.5.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
+            .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .padding(14.dp)
     ) {
@@ -529,17 +587,22 @@ private fun SourceCard(
                     .background(if (selected) Accent.copy(alpha = 0.18f) else Color(0x18FFFFFF))
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
-                Text(icon, color = if (selected) Accent else TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                Text(
+                    icon,
+                    color = if (focused) Color(0xFF0C5E65) else if (selected) Accent else Color(0xFFD4DBE0),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black
+                )
             }
             Text(
                 text = title,
-                color = if (selected) Color.White else Color(0xFFCCCCCC),
+                color = titleColor,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(text = subtitle, color = TextSecondary, fontSize = 11.sp, lineHeight = 15.sp)
+            Text(text = subtitle, color = subColor, fontSize = 11.sp, lineHeight = 15.sp)
         }
     }
 }
@@ -558,11 +621,12 @@ private fun FormField(
     keyboardType: KeyboardType = KeyboardType.Text
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
+    var focused by remember { mutableStateOf(false) }
 
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+        textStyle = TextStyle(color = if (focused) Color.White else Color(0xFFF0F3F5), fontSize = 14.sp),
         cursorBrush = SolidColor(Accent),
         singleLine = true,
         keyboardOptions = KeyboardOptions(
@@ -584,12 +648,21 @@ private fun FormField(
                 }
             }
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x6612252F))
-            .border(1.dp, Color(0x2FFFFFFF), RoundedCornerShape(8.dp))
+            .background(if (focused) Color(0x99304A55) else Color(0x8012252F))
+            .border(
+                if (focused) 2.dp else 1.dp,
+                if (focused) Color(0xFFFFC247) else Color(0x66FFFFFF),
+                RoundedCornerShape(8.dp)
+            )
+            .onFocusChanged { focused = it.isFocused }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         decorationBox = { inner ->
             if (value.isEmpty()) {
-                androidx.compose.material3.Text(text = placeholder, color = Color(0x55FFFFFF), fontSize = 14.sp)
+                androidx.compose.material3.Text(
+                    text = placeholder,
+                    color = if (focused) Color(0xBFFFFFFF) else Color(0x80FFFFFF),
+                    fontSize = 14.sp
+                )
             }
             inner()
         }
@@ -599,30 +672,61 @@ private fun FormField(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun LoadButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (enabled) Accent else Accent.copy(alpha = 0.22f))
+            .background(
+                when {
+                    focused && enabled -> Color(0xFFFFC247)
+                    enabled -> Accent
+                    else -> Accent.copy(alpha = 0.22f)
+                }
+            )
+            .border(
+                if (focused) 2.dp else 0.dp,
+                if (focused) Color.White else Color.Transparent,
+                RoundedCornerShape(8.dp)
+            )
+            .onFocusChanged { focused = it.isFocused }
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 30.dp, vertical = 13.dp)
     ) {
-        Text(text = label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = label,
+            color = if (focused && enabled) Color(0xFF081116) else Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun SmallActionButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (enabled) Color(0x331CC8B8) else Color(0x18FFFFFF))
+            .background(
+                when {
+                    focused && enabled -> Color(0xFFFFC247)
+                    enabled -> Color(0x6620D8C6)
+                    else -> Color(0x18FFFFFF)
+                }
+            )
+            .border(
+                if (focused) 2.dp else 1.dp,
+                if (focused) Color.White else Color(0x44FFFFFF),
+                RoundedCornerShape(8.dp)
+            )
+            .onFocusChanged { focused = it.isFocused }
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Text(
             text = label,
-            color = if (enabled) Color.White else TextSecondary,
+            color = if (focused && enabled) Color(0xFF081116) else if (enabled) Color.White else TextSecondary,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -661,26 +765,37 @@ private fun SectionTitle(text: String) {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun PlayerChip(label: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val bg = when {
+        focused -> Color(0xFFEAF7FF)
+        selected -> Color(0xDD14505A)
+        else -> Color(0xD72B323A)
+    }
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Color(0xAA12383D) else CardBg)
+            .background(bg)
             .border(
-                width = if (selected) 1.dp else 0.dp,
-                color = if (selected) Accent.copy(alpha = 0.62f) else Color.Transparent,
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) Color(0xFFFFC247) else if (selected) Accent.copy(alpha = 0.82f) else Color(0x44FFFFFF),
                 shape = RoundedCornerShape(8.dp)
             )
+            .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = label,
-                color = if (selected) Accent else Color.White,
+                color = if (focused) Color(0xFF071116) else if (selected) Accent else Color.White,
                 fontSize = 13.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
             )
-            Text(text = subtitle, color = TextSecondary, fontSize = 10.sp)
+            Text(
+                text = subtitle,
+                color = if (focused) Color(0xFF2D3A42) else Color(0xFFD4DBE0),
+                fontSize = 10.sp
+            )
         }
     }
 }
