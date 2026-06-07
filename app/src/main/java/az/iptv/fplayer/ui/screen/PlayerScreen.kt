@@ -50,7 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -339,8 +339,8 @@ fun PlayerScreen(
             .background(AppBg)
             .focusRequester(focusRequester)
             .focusable()
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 val isExitKey = event.key == Key.Back
                 val isSelectKey = event.key == Key.Enter ||
                     event.key == Key.NumPadEnter ||
@@ -533,10 +533,26 @@ fun PlayerScreen(
                                     focusedGroupIndex = selectedGuideCategoryIndex(guideCategories)
                                     selectorPane = SelectorPane.GROUPS
                                 } else {
-                                    selectorPane = when (selectorPane) {
-                                        SelectorPane.CHANNELS -> SelectorPane.GROUPS
-                                        SelectorPane.GROUPS -> SelectorPane.CONTENT_TYPES
-                                        SelectorPane.CONTENT_TYPES -> SelectorPane.CONTENT_TYPES
+                                    when (selectorPane) {
+                                        SelectorPane.CHANNELS -> {
+                                            focusedGroupIndex = selectedGuideCategoryIndex(guideCategories)
+                                            selectorPane = SelectorPane.GROUPS
+                                        }
+                                        SelectorPane.GROUPS -> {
+                                            val playlistIndex = selectedPlaylistCategoryIndex(
+                                                guideCategories,
+                                                activePlaylist?.id
+                                            )
+                                            if (
+                                                guideCategories.any { it.type == GuideCategoryType.PLAYLIST } &&
+                                                focusedGroupIndex != playlistIndex
+                                            ) {
+                                                focusedGroupIndex = playlistIndex
+                                            } else {
+                                                selectorPane = SelectorPane.CONTENT_TYPES
+                                            }
+                                        }
+                                        SelectorPane.CONTENT_TYPES -> Unit
                                     }
                                 }
                             } else {
@@ -545,7 +561,7 @@ fun PlayerScreen(
                                 lastLeftPressAt = now
                                 if (leftPressCount >= 3) {
                                     openPlaylistMenu()
-                                    return@onKeyEvent true
+                                    return@onPreviewKeyEvent true
                                 }
                                 channelOnlyGuideVisible = false
                                 focusedGroupIndex = selectedPlaylistCategoryIndex(guideCategories, activePlaylist?.id)
@@ -1030,8 +1046,12 @@ private fun RecentChannelsOverlay(
                 .widthIn(min = 360.dp, max = 430.dp)
                 .fillMaxHeight(0.58f)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xA60A0D12))
-                .border(1.dp, Color(0x30FFFFFF), RoundedCornerShape(6.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xB0090B0F), Color(0x82161B20), Color(0x34FFFFFF))
+                    )
+                )
+                .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
                 .padding(horizontal = 12.dp, vertical = 12.dp)
         ) {
             Row(
@@ -1129,13 +1149,13 @@ private fun ReceiverGuideOverlay(
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            Color(0xB015191F),
-                            Color(0x9210141A),
-                            Color(0xA01B2A2F)
+                            Color(0xB80B0D10),
+                            Color(0x86161A20),
+                            Color(0x4DFFFFFF)
                         )
                     )
                 )
-                .border(1.dp, Accent.copy(alpha = 0.46f), panelShape)
+                .border(1.dp, Color(0x68FFFFFF), panelShape)
         ) {
             Row(
                 modifier = Modifier
@@ -1491,23 +1511,29 @@ private fun ReceiverChannelRow(
     isAdultLocked: Boolean,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(2.dp)
-    val textColor = if (isFocused) Accent else Color.White
+    val shape = RoundedCornerShape(4.dp)
+    val rowBrush = when {
+        isFocused -> Brush.linearGradient(listOf(Color(0xF2FFFFFF), Color(0xDCE7ECF2), Color(0xC7FFFFFF)))
+        isPlaying -> Brush.linearGradient(listOf(Color(0x78343B43), Color(0x5212161B), Color(0x3AFFFFFF)))
+        else -> Brush.linearGradient(listOf(Color(0x12FFFFFF), Color(0x04000000)))
+    }
+    val rowBorder = when {
+        isFocused -> Color.White
+        isPlaying -> Color(0x78FFFFFF)
+        else -> Color(0x18FFFFFF)
+    }
+    val textColor = if (isFocused) Color(0xFF0A0D10) else Color.White
+    val numberColor = if (isFocused) Color.Black else Color(0xFFEFF5FA)
+    val groupColor = if (isFocused) Color(0xFF283039) else Color(0xFFC7D2DA)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(58.dp)
             .clip(shape)
-            .background(
-                when {
-                    isFocused -> Color(0x33111111)
-                    isPlaying -> Color(0x241AADB1)
-                    else -> Color.Transparent
-                }
-            )
+            .background(rowBrush)
             .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = Color(0xFFFF744A),
+                width = if (isFocused) 2.dp else 1.dp,
+                color = rowBorder,
                 shape = shape
             )
             .clickable(onClick = onClick)
@@ -1519,7 +1545,7 @@ private fun ReceiverChannelRow(
         ) {
             Text(
                 text = index.toString().padStart(4, '0'),
-                color = Color(0xFFFF6C58),
+                color = numberColor,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.width(74.dp)
@@ -1535,7 +1561,7 @@ private fun ReceiverChannelRow(
                 )
                 Text(
                     text = channel.group.ifBlank { groupFallbackLabel },
-                    color = if (isFocused) Color(0xFFD8E4EE) else Color(0xFF8EA3B4),
+                    color = groupColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -1565,7 +1591,7 @@ private fun ReceiverChannelRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(if (isFocused || isPlaying) Color(0xFF49BFFF) else Color(0x3349BFFF))
+                .background(if (isFocused) Color(0xFF111417) else Color(0x66FFFFFF))
         )
     }
 }
@@ -1576,13 +1602,13 @@ private fun ReceiverHdBadge(text: String, active: Boolean) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(3.dp))
-            .border(1.dp, Accent, RoundedCornerShape(3.dp))
-            .background(if (active) Color(0x331AADB1) else Color.Transparent)
+            .border(1.dp, if (active) Color.White else Color(0x70FFFFFF), RoundedCornerShape(3.dp))
+            .background(if (active) Color(0xE8FFFFFF) else Color(0x18FFFFFF))
             .padding(horizontal = 4.dp, vertical = 1.dp)
     ) {
         Text(
             text = text,
-            color = Accent,
+            color = if (active) Color.Black else Color.White,
             fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
@@ -1661,8 +1687,12 @@ private fun CategoryOverlay(
                 .width(guideWidth)
                 .fillMaxHeight(0.82f)
                 .clip(panelShape)
-                .background(Color(0xD8171D24))
-                .border(1.dp, Color(0x24FFFFFF), panelShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xD00B0D10), Color(0xA0161A20), Color(0x36FFFFFF))
+                    )
+                )
+                .border(1.dp, Color(0x58FFFFFF), panelShape)
                 .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 14.dp)
         ) {
             Row(

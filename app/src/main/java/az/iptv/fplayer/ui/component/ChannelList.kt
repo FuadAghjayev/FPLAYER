@@ -1,6 +1,7 @@
 package az.iptv.fplayer.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,13 +79,18 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val background = when {
-        isFocused -> Color(0xFFE6E7EA)
-        isPlaying -> Color(0x441F252B)
-        else -> Color.Transparent
+        isFocused -> Brush.linearGradient(listOf(Color(0xF2FFFFFF), Color(0xDDE8EEF4), Color(0xC9FFFFFF)))
+        isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x4428D7E8)))
+        else -> Brush.linearGradient(listOf(Color(0x14FFFFFF), Color(0x06000000)))
     }
     val primaryText = if (isFocused) Color(0xFF111417) else Color.White
-    val secondaryText = if (isFocused) Color(0xFF2E3135) else Accent
-    val progressColor = if (isFocused) Color(0xFF202226) else Color(0xFFE4E5E8)
+    val secondaryText = if (isFocused) Color(0xFF2E3135) else Color(0xDDEAF7FF)
+    val progressColor = if (isFocused) Color(0xFF202226) else Color(0xF2FFFFFF)
+    val borderColor = when {
+        isFocused -> Color.White
+        isPlaying -> Color(0x8AFFFFFF)
+        else -> Color(0x20FFFFFF)
+    }
 
     Row(
         modifier = Modifier
@@ -92,6 +99,7 @@ fun ChannelItem(
             .height(72.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(background)
+            .border(if (isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(6.dp))
             .focusProperties { canFocus = false }
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp),
@@ -136,7 +144,7 @@ fun ChannelItem(
                     .fillMaxWidth()
                     .height(2.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0x66D9DCE0))
+                    .background(Color(0x52FFFFFF))
             ) {
                 Box(
                     modifier = Modifier

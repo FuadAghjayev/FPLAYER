@@ -6,6 +6,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -19,6 +20,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.MediaSession
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -31,6 +33,7 @@ class ExoPlayerEngine(
     override val type = PlayerType.EXOPLAYER
 
     private var player: ExoPlayer? = null
+    private var mediaSession: MediaSession? = null
     private var listener: PlayerEventListener? = null
     private var surface: SurfaceView? = null
     private val trackRefs = mutableMapOf<String, TrackRef>()
@@ -55,11 +58,12 @@ class ExoPlayerEngine(
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                15_000,
-                50_000,
-                1_500,
-                3_000
+                LIVE_MIN_BUFFER_MS,
+                LIVE_MAX_BUFFER_MS,
+                PLAYBACK_START_BUFFER_MS,
+                REBUFFER_START_BUFFER_MS
             )
+            .setBackBuffer(0, false)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -76,6 +80,9 @@ class ExoPlayerEngine(
                 exo.setVideoSurfaceView(surfaceView)
                 exo.addListener(exoListener)
                 exo.playWhenReady = true
+                mediaSession = MediaSession.Builder(context, exo)
+                    .setId(MEDIA_SESSION_ID)
+                    .build()
             }
     }
 
@@ -88,7 +95,7 @@ class ExoPlayerEngine(
         exo.stop()
         exo.setMediaSource(
             mediaSourceFactory(stream.headers)
-                .createMediaSource(MediaItem.fromUri(stream.url))
+                .createMediaSource(stream.toMediaItem())
         )
         exo.prepare()
     }
@@ -98,6 +105,8 @@ class ExoPlayerEngine(
     override fun stop() { player?.stop() }
 
     override fun release() {
+        mediaSession?.release()
+        mediaSession = null
         player?.removeListener(exoListener)
         player?.release()
         player = null
@@ -244,9 +253,31 @@ class ExoPlayerEngine(
     private fun mediaSourceFactory(extraHeaders: Map<String, String> = emptyMap()): DefaultMediaSourceFactory {
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(HTTP_CONNECT_TIMEOUT_MS)
+            .setReadTimeoutMs(HTTP_READ_TIMEOUT_MS)
             .setUserAgent(DEFAULT_USER_AGENT)
             .setDefaultRequestProperties(defaultHeaders + extraHeaders)
         return DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpFactory))
+    }
+
+    private fun StreamRequest.toMediaItem(): MediaItem {
+        val liveConfiguration = MediaItem.LiveConfiguration.Builder()
+            .setTargetOffsetMs(LIVE_TARGET_OFFSET_MS)
+            .setMinOffsetMs(LIVE_MIN_OFFSET_MS)
+            .setMaxOffsetMs(LIVE_MAX_OFFSET_MS)
+            .setMinPlaybackSpeed(LIVE_MIN_PLAYBACK_SPEED)
+            .setMaxPlaybackSpeed(LIVE_MAX_PLAYBACK_SPEED)
+            .build()
+
+        return MediaItem.Builder()
+            .setUri(url)
+            .setLiveConfiguration(liveConfiguration)
+            .apply {
+                if (url.substringBefore('?').endsWith(".m3u8", ignoreCase = true)) {
+                    setMimeType(MimeTypes.APPLICATION_M3U8)
+                }
+            }
+            .build()
     }
 
     private data class StreamRequest(
@@ -293,5 +324,17 @@ class ExoPlayerEngine(
 
     companion object {
         private const val DEFAULT_USER_AGENT = "FPLAYER/1.0 AndroidTV"
+        private const val MEDIA_SESSION_ID = "FPLAYER_EXOPLAYER_SESSION"
+        private const val LIVE_MIN_BUFFER_MS = 20_000
+        private const val LIVE_MAX_BUFFER_MS = 70_000
+        private const val PLAYBACK_START_BUFFER_MS = 2_500
+        private const val REBUFFER_START_BUFFER_MS = 5_000
+        private const val LIVE_TARGET_OFFSET_MS = 12_000L
+        private const val LIVE_MIN_OFFSET_MS = 8_000L
+        private const val LIVE_MAX_OFFSET_MS = 30_000L
+        private const val LIVE_MIN_PLAYBACK_SPEED = 0.97f
+        private const val LIVE_MAX_PLAYBACK_SPEED = 1.04f
+        private const val HTTP_CONNECT_TIMEOUT_MS = 10_000
+        private const val HTTP_READ_TIMEOUT_MS = 18_000
     }
 }

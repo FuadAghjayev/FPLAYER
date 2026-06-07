@@ -342,20 +342,15 @@ fun AddPlaylistScreen(
                     )
                 }
 
-                Spacer(Modifier.height(22.dp))
-                SectionTitle(t.adultPin)
-                Spacer(Modifier.height(10.dp))
-                AdultPinSettings(
+                Spacer(Modifier.height(34.dp))
+                AdditionalOptionsPanel(
+                    title = if (language == AppLanguage.EN.name) "Additional options" else "Elave secimler",
                     texts = t,
                     pin = adultPinInput,
-                    onPinChange = { adultPinInput = it.filter(Char::isDigit).take(4) },
-                    onSave = { vm.setAdultPin(adultPinInput) }
-                )
-                Spacer(Modifier.height(12.dp))
-                AdultAccessModeSettings(
-                    texts = t,
                     selectedMode = adultAccessMode,
                     isWide = isWide,
+                    onPinChange = { adultPinInput = it.filter(Char::isDigit).take(4) },
+                    onSavePin = { vm.setAdultPin(adultPinInput) },
                     onModeSelect = vm::setAdultAccessMode
                 )
 
@@ -690,6 +685,62 @@ private fun PlaylistChip(
 }
 
 @Composable
+private fun AdditionalOptionsPanel(
+    title: String,
+    texts: AppTexts,
+    pin: String,
+    selectedMode: String,
+    isWide: Boolean,
+    onPinChange: (String) -> Unit,
+    onSavePin: () -> Unit,
+    onModeSelect: (AdultAccessMode) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0x361C2228), Color(0x24101418), Color(0x2AFFFFFF))
+                )
+            )
+            .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(8.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title.uppercase(),
+                color = Color(0x99FFFFFF),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.4.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = texts.adultMode,
+                color = Color(0x66FFFFFF),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
+        AdultPinSettings(
+            texts = texts,
+            pin = pin,
+            onPinChange = onPinChange,
+            onSave = onSavePin
+        )
+        AdultAccessModeSettings(
+            texts = texts,
+            selectedMode = selectedMode,
+            isWide = isWide,
+            onModeSelect = onModeSelect
+        )
+    }
+}
+
+@Composable
 private fun AdultPinSettings(
     texts: AppTexts,
     pin: String,
@@ -700,12 +751,12 @@ private fun AdultPinSettings(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x7012252F))
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+            .background(Color(0x3412252F))
+            .border(1.dp, Color(0x20FFFFFF), RoundedCornerShape(8.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(text = texts.adultPinHint, color = TextSecondary, fontSize = 12.sp)
+        Text(text = texts.adultPinHint, color = Color(0xA8FFFFFF), fontSize = 12.sp)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -738,12 +789,12 @@ private fun AdultAccessModeSettings(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x7012252F))
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+            .background(Color(0x3412252F))
+            .border(1.dp, Color(0x20FFFFFF), RoundedCornerShape(8.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(text = texts.adultMode, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = texts.adultMode, color = Color(0xA8FFFFFF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         if (isWide) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AdultModeChip(texts.adultModePerChannel, texts.adultModePerChannelHint, selectedMode == AdultAccessMode.PER_CHANNEL.name, Modifier.weight(1f)) {
