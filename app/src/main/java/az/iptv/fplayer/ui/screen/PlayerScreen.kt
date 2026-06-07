@@ -65,6 +65,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelContentType
+import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.ExoPlayerEngine
@@ -126,7 +127,17 @@ fun PlayerScreen(
     val recentChannels by vm.recentChannels.collectAsState()
     val language by vm.appLanguage.collectAsState()
     val adultUnlocked by vm.adultUnlocked.collectAsState()
+    val adultAccessMode by vm.adultAccessMode.collectAsState()
+    val adultUnlockedChannelKeys by vm.adultUnlockedChannelKeys.collectAsState()
     val t = appTexts(language)
+    fun isAdultLocked(channel: Channel): Boolean {
+        if (!channel.isAdult) return false
+        return when (adultAccessMode) {
+            AdultAccessMode.SESSION.name -> !adultUnlocked
+            AdultAccessMode.PER_CHANNEL.name -> channel.stableKey !in adultUnlockedChannelKeys
+            else -> true
+        }
+    }
     val guideContentTypes = availableContentTypes.ifEmpty { listOf(selectedContentType) }
     val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, t.allChannels) {
         buildGuideCategories(
@@ -222,7 +233,7 @@ fun PlayerScreen(
     }
 
     fun selectOrRequestAdultPin(channel: Channel) {
-        if (channel.isAdult && !adultUnlocked) {
+        if (isAdultLocked(channel)) {
             pendingAdultChannel = channel
             adultPinInput = ""
             adultPinError = false
@@ -239,10 +250,11 @@ fun PlayerScreen(
     }
 
     fun submitAdultPin() {
-        if (vm.unlockAdult(adultPinInput)) {
+        val channel = pendingAdultChannel
+        if (channel != null && vm.unlockAdult(channel, adultPinInput)) {
             adultPinPromptVisible = false
             adultPinError = false
-            pendingAdultChannel?.let(vm::selectChannel)
+            vm.selectChannel(channel)
             pendingAdultChannel = null
         } else {
             adultPinError = true
@@ -256,9 +268,10 @@ fun PlayerScreen(
         adultPinInput = next
         adultPinError = false
         if (next.length == 4) {
-            if (vm.unlockAdult(next)) {
+            val channel = pendingAdultChannel
+            if (channel != null && vm.unlockAdult(channel, next)) {
                 adultPinPromptVisible = false
-                pendingAdultChannel?.let(vm::selectChannel)
+                vm.selectChannel(channel)
                 pendingAdultChannel = null
             } else {
                 adultPinError = true
@@ -756,7 +769,7 @@ fun PlayerScreen(
                 activeLabel = t.active,
                 favoriteLabel = t.favorite,
                 lockedLabel = t.locked,
-                adultUnlocked = adultUnlocked,
+                isAdultLocked = ::isAdultLocked,
                 onContentTypeClick = {
                     vm.selectContentType(it)
                     focusedGroupIndex = 0
@@ -823,7 +836,7 @@ fun PlayerScreen(
             emptyLabel = t.noInfo,
             favoriteLabel = t.favorite,
             lockedLabel = t.locked,
-            adultUnlocked = adultUnlocked,
+            isAdultLocked = ::isAdultLocked,
             onChannelClick = {
                 recentOverlayVisible = false
                 selectOrRequestAdultPin(it)
@@ -1007,7 +1020,7 @@ private fun RecentChannelsOverlay(
     emptyLabel: String,
     favoriteLabel: String,
     lockedLabel: String,
-    adultUnlocked: Boolean,
+    isAdultLocked: (Channel) -> Boolean,
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1058,7 +1071,7 @@ private fun RecentChannelsOverlay(
                         groupFallbackLabel = emptyLabel,
                         favoriteLabel = favoriteLabel,
                         lockedLabel = lockedLabel,
-                        isAdultLocked = channel.isAdult && !adultUnlocked,
+                        isAdultLocked = isAdultLocked(channel),
                         onClick = { onChannelClick(channel) }
                     )
                 }
@@ -1089,7 +1102,7 @@ private fun ReceiverGuideOverlay(
     activeLabel: String,
     favoriteLabel: String,
     lockedLabel: String,
-    adultUnlocked: Boolean,
+    isAdultLocked: (Channel) -> Boolean,
     onContentTypeClick: (ChannelContentType) -> Unit,
     onMenuClick: () -> Unit,
     onCategoryClick: (GuideCategoryItem) -> Unit,
@@ -1172,7 +1185,7 @@ private fun ReceiverGuideOverlay(
                     emptyLabel = emptyLabel,
                     favoriteLabel = favoriteLabel,
                     lockedLabel = lockedLabel,
-                    adultUnlocked = adultUnlocked,
+                    isAdultLocked = isAdultLocked,
                     onChannelClick = onChannelClick,
                     modifier = Modifier
                         .weight(1f)
@@ -1410,7 +1423,7 @@ private fun ReceiverChannelColumn(
     emptyLabel: String,
     favoriteLabel: String,
     lockedLabel: String,
-    adultUnlocked: Boolean,
+    isAdultLocked: (Channel) -> Boolean,
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1455,7 +1468,7 @@ private fun ReceiverChannelColumn(
                             groupFallbackLabel = emptyLabel,
                             favoriteLabel = favoriteLabel,
                             lockedLabel = lockedLabel,
-                            isAdultLocked = channel.isAdult && !adultUnlocked,
+                            isAdultLocked = isAdultLocked(channel),
                             onClick = { onChannelClick(channel) }
                         )
                     }
@@ -1750,6 +1763,14 @@ private fun AudioTrackPickerOverlay(
     title: String,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(visible, focusedIndex, tracks.size) {
+        if (visible && focusedIndex in tracks.indices) {
+            listState.scrollToItem(maxOf(0, focusedIndex - 3))
+        }
+    }
+
     AnimatedVisibility(visible = visible && tracks.isNotEmpty(), enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Column(
             modifier = Modifier
@@ -1776,7 +1797,10 @@ private fun AudioTrackPickerOverlay(
                     fontWeight = FontWeight.Black
                 )
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
                 itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
                     val focused = index == focusedIndex
                     val selected = track.selected

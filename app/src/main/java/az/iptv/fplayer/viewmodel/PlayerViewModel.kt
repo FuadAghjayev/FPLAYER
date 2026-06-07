@@ -8,6 +8,7 @@ import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
 import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.model.XtreamConfig
+import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
 import az.iptv.fplayer.data.preferences.PlaylistProfile
@@ -42,28 +43,40 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppLanguage.AZ.name)
     val adultPin: StateFlow<String> = prefs.adultPin
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_ADULT_PIN)
+    val adultAccessMode: StateFlow<String> = prefs.adultAccessMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AdultAccessMode.PER_CHANNEL.name)
     val favoriteChannelKeys: StateFlow<Set<String>> = prefs.favoriteChannelKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     private val _adultUnlocked = MutableStateFlow(false)
     val adultUnlocked: StateFlow<Boolean> = _adultUnlocked
+    private val _adultUnlockedChannelKeys = MutableStateFlow<Set<String>>(emptySet())
+    val adultUnlockedChannelKeys: StateFlow<Set<String>> = _adultUnlockedChannelKeys
 
     private val _groups = MutableStateFlow<List<ChannelGroup>>(emptyList())
     private val _selectedContentType = MutableStateFlow(ChannelContentType.TV)
     val selectedContentType: StateFlow<ChannelContentType> = _selectedContentType
 
-    val availableContentTypes: StateFlow<List<ChannelContentType>> = _groups.map { groups ->
-        val present = groups.flatMap { group -> group.channels.map { it.contentType } }.toSet()
+    val availableContentTypes: StateFlow<List<ChannelContentType>> = combine(
+        _groups,
+        adultAccessMode
+    ) { groups, adultMode ->
+        val present = groups
+            .flatMap { group -> group.channels.filterVisibleForAdultMode(adultMode).map { it.contentType } }
+            .toSet()
         contentTypeOrder.filter { it in present }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, listOf(ChannelContentType.TV))
 
     val groups: StateFlow<List<ChannelGroup>> = combine(
         _groups,
         _selectedContentType,
-        favoriteChannelKeys
-    ) { groups, contentType, favorites ->
+        favoriteChannelKeys,
+        adultAccessMode
+    ) { groups, contentType, favorites, adultMode ->
         val filteredGroups = groups.mapNotNull { group ->
-            val channels = group.channels.filter { it.contentType == contentType }
+            val channels = group.channels
+                .filterVisibleForAdultMode(adultMode)
+                .filter { it.contentType == contentType }
                 .markFavorites(favorites)
             if (channels.isEmpty()) null else group.copy(channels = channels)
         }
@@ -129,6 +142,23 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     "HARDWARE" -> AudioDecoderMode.HARDWARE
                     "SOFTWARE" -> AudioDecoderMode.SOFTWARE
                     else -> AudioDecoderMode.AUTO
+                }
+            }
+        }
+        viewModelScope.launch {
+            adultAccessMode.collect { mode ->
+                _adultUnlocked.value = false
+                _adultUnlockedChannelKeys.value = emptySet()
+                _recentChannels.value = _recentChannels.value.filterVisibleForAdultMode(mode)
+                if (mode == AdultAccessMode.HIDDEN.name && _currentChannel.value?.isAdult == true) {
+                    val nextChannel = firstPlayableVisibleChannel()
+                    if (nextChannel != null) {
+                        _currentChannel.value = nextChannel
+                        loadCurrentProgram(nextChannel)
+                    } else {
+                        _currentChannel.value = null
+                        _currentProgram.value = null
+                    }
                 }
             }
         }
@@ -318,7 +348,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             _selectedGroup.value = null
         }
 
-        val channelsByKey = channels.associateBy { it.stableKey }
+        val channelsByKey = channels
+            .filterVisibleForAdultMode(adultAccessMode.value)
+            .associateBy { it.stableKey }
         _recentChannels.value = _recentChannels.value.mapNotNull { channelsByKey[it.stableKey] }
         _currentChannel.value?.let(::rememberRecentChannel)
         _currentChannel.value?.group?.takeIf { it.isNotBlank() && revealSidebar }?.let { channelGroup ->
@@ -429,17 +461,32 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setAdultPin(pin: String) {
         _adultUnlocked.value = false
+        _adultUnlockedChannelKeys.value = emptySet()
         viewModelScope.launch { prefs.setAdultPin(pin) }
     }
 
-    fun unlockAdult(pin: String): Boolean {
+    fun setAdultAccessMode(mode: AdultAccessMode) {
+        _adultUnlocked.value = false
+        _adultUnlockedChannelKeys.value = emptySet()
+        viewModelScope.launch { prefs.setAdultAccessMode(mode.name) }
+    }
+
+    fun unlockAdult(channel: Channel, pin: String): Boolean {
         val unlocked = pin == adultPin.value
-        if (unlocked) _adultUnlocked.value = true
+        if (!unlocked) return false
+        when (adultMode()) {
+            AdultAccessMode.SESSION -> _adultUnlocked.value = true
+            AdultAccessMode.PER_CHANNEL -> {
+                _adultUnlockedChannelKeys.value = _adultUnlockedChannelKeys.value + channel.stableKey
+            }
+            AdultAccessMode.HIDDEN -> return false
+        }
         return unlocked
     }
 
     fun lockAdult() {
         _adultUnlocked.value = false
+        _adultUnlockedChannelKeys.value = emptySet()
     }
 
     fun toggleFavorite(channel: Channel) {
@@ -454,14 +501,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun nextChannel() {
-        val channels = visibleChannels.value.filter { it.isPlayable() }
+        val channels = visibleChannels.value.filter { isChannelPlayable(it) }
         val currentKey = _currentChannel.value?.stableKey
         val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx + 1) ?: channels.firstOrNull())?.let { selectChannel(it) }
     }
 
     fun prevChannel() {
-        val channels = visibleChannels.value.filter { it.isPlayable() }
+        val channels = visibleChannels.value.filter { isChannelPlayable(it) }
         val currentKey = _currentChannel.value?.stableKey
         val idx = channels.indexOfFirst { it.stableKey == currentKey }
         (channels.getOrNull(idx - 1) ?: channels.lastOrNull())?.let { selectChannel(it) }
@@ -477,8 +524,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         contentType: ChannelContentType = _selectedContentType.value
     ): List<ChannelGroup> {
         val favorites = favoriteChannelKeys.value
+        val adultMode = adultAccessMode.value
         val filteredGroups = _groups.value.mapNotNull { group ->
-            val channels = group.channels.filter { it.contentType == contentType }
+            val channels = group.channels
+                .filterVisibleForAdultMode(adultMode)
+                .filter { it.contentType == contentType }
                 .markFavorites(favorites)
             if (channels.isEmpty()) null else group.copy(channels = channels)
         }
@@ -493,8 +543,29 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private fun List<Channel>.markFavorites(favorites: Set<String>): List<Channel> =
         map { channel -> channel.copy(isFavorite = channel.stableKey in favorites) }
 
-    private fun Channel.isPlayable(): Boolean =
-        !isAdult || _adultUnlocked.value
+    private fun List<Channel>.filterVisibleForAdultMode(mode: String): List<Channel> =
+        if (mode == AdultAccessMode.HIDDEN.name) filterNot { it.isAdult } else this
+
+    fun isAdultLocked(channel: Channel): Boolean =
+        channel.isAdult && !isChannelPlayable(channel)
+
+    private fun Channel.isPlayable(): Boolean = isChannelPlayable(this)
+
+    private fun isChannelPlayable(channel: Channel): Boolean {
+        if (!channel.isAdult) return true
+        return when (adultMode()) {
+            AdultAccessMode.SESSION -> _adultUnlocked.value
+            AdultAccessMode.PER_CHANNEL -> channel.stableKey in _adultUnlockedChannelKeys.value
+            AdultAccessMode.HIDDEN -> false
+        }
+    }
+
+    private fun adultMode(): AdultAccessMode =
+        runCatching { AdultAccessMode.valueOf(adultAccessMode.value) }
+            .getOrDefault(AdultAccessMode.PER_CHANNEL)
+
+    private fun firstPlayableVisibleChannel(): Channel? =
+        groupsForSelectedContent().flatMap { it.channels }.firstOrNull { isChannelPlayable(it) }
 
     companion object {
         const val FAVORITE_GROUP_NAME = "Favoriler"

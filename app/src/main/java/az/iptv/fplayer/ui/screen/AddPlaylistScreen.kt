@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
 import az.iptv.fplayer.data.preferences.PlaylistProfile
@@ -89,6 +90,7 @@ fun AddPlaylistScreen(
     val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
     val adultPin by vm.adultPin.collectAsState()
+    val adultAccessMode by vm.adultAccessMode.collectAsState()
     val t = appTexts(language)
 
     var selectedTab by remember { mutableStateOf(SourceTab.M3U) }
@@ -348,6 +350,13 @@ fun AddPlaylistScreen(
                     pin = adultPinInput,
                     onPinChange = { adultPinInput = it.filter(Char::isDigit).take(4) },
                     onSave = { vm.setAdultPin(adultPinInput) }
+                )
+                Spacer(Modifier.height(12.dp))
+                AdultAccessModeSettings(
+                    texts = t,
+                    selectedMode = adultAccessMode,
+                    isWide = isWide,
+                    onModeSelect = vm::setAdultAccessMode
                 )
 
                 Spacer(Modifier.height(40.dp))
@@ -718,6 +727,68 @@ private fun AdultPinSettings(
     }
 }
 
+@Composable
+private fun AdultAccessModeSettings(
+    texts: AppTexts,
+    selectedMode: String,
+    isWide: Boolean,
+    onModeSelect: (AdultAccessMode) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0x7012252F))
+            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(text = texts.adultMode, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        if (isWide) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdultModeChip(texts.adultModePerChannel, texts.adultModePerChannelHint, selectedMode == AdultAccessMode.PER_CHANNEL.name, Modifier.weight(1f)) {
+                    onModeSelect(AdultAccessMode.PER_CHANNEL)
+                }
+                AdultModeChip(texts.adultModeSession, texts.adultModeSessionHint, selectedMode == AdultAccessMode.SESSION.name, Modifier.weight(1f)) {
+                    onModeSelect(AdultAccessMode.SESSION)
+                }
+                AdultModeChip(texts.adultModeHidden, texts.adultModeHiddenHint, selectedMode == AdultAccessMode.HIDDEN.name, Modifier.weight(1f)) {
+                    onModeSelect(AdultAccessMode.HIDDEN)
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdultModeChip(texts.adultModePerChannel, texts.adultModePerChannelHint, selectedMode == AdultAccessMode.PER_CHANNEL.name, Modifier.fillMaxWidth()) {
+                    onModeSelect(AdultAccessMode.PER_CHANNEL)
+                }
+                AdultModeChip(texts.adultModeSession, texts.adultModeSessionHint, selectedMode == AdultAccessMode.SESSION.name, Modifier.fillMaxWidth()) {
+                    onModeSelect(AdultAccessMode.SESSION)
+                }
+                AdultModeChip(texts.adultModeHidden, texts.adultModeHiddenHint, selectedMode == AdultAccessMode.HIDDEN.name, Modifier.fillMaxWidth()) {
+                    onModeSelect(AdultAccessMode.HIDDEN)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdultModeChip(
+    label: String,
+    subtitle: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    PlayerChip(
+        label = label,
+        subtitle = subtitle,
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun FPlayerLogo(size: Int, modifier: Modifier = Modifier) {
@@ -953,7 +1024,13 @@ private fun SectionTitle(text: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun PlayerChip(label: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+private fun PlayerChip(
+    label: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var focused by remember { mutableStateOf(false) }
     val bg = when {
         focused -> Color(0xFFEAF7FF)
@@ -962,6 +1039,7 @@ private fun PlayerChip(label: String, subtitle: String, selected: Boolean, onCli
     }
     Box(
         modifier = Modifier
+            .then(modifier)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .border(
