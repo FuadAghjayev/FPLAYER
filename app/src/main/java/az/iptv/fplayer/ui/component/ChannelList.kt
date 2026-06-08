@@ -53,7 +53,7 @@ fun ChannelList(
     LazyColumn(
         state = listState,
         modifier = modifier,
-        contentPadding = PaddingValues(vertical = 6.dp)
+        contentPadding = PaddingValues(vertical = 4.dp)
     ) {
         itemsIndexed(channels, key = { index, ch -> "${ch.stableKey}#$index" }) { index, channel ->
             val isPlaying = currentChannel?.stableKey == channel.stableKey
@@ -95,36 +95,36 @@ fun ChannelItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .height(72.dp)
+            .padding(vertical = 3.dp)
+            .height(60.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(background)
             .border(if (isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(6.dp))
             .focusProperties { canFocus = false }
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ChannelLogo(channel.logoUrl, size = 48)
+        ChannelLogo(channel.logoUrl, size = 40)
 
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 14.dp),
+                .padding(start = 10.dp),
             horizontalAlignment = Alignment.Start
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "$index",
                     color = primaryText,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(24.dp)
+                    modifier = Modifier.width(22.dp)
                 )
                 Text(
                     text = channel.name,
                     color = primaryText,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -133,14 +133,14 @@ fun ChannelItem(
             Text(
                 text = programLabel,
                 color = secondaryText,
-                fontSize = 15.sp,
+                fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 2.dp)
             )
             Box(
                 modifier = Modifier
-                    .padding(top = 6.dp)
+                    .padding(top = 4.dp)
                     .fillMaxWidth()
                     .height(2.dp)
                     .clip(RoundedCornerShape(2.dp))
@@ -156,10 +156,10 @@ fun ChannelItem(
         }
 
         if (!isFocused && channel.isFavorite) {
-            Text("Fav", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            Text("Fav", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Black)
         }
         if (isFocused) {
-            Text("▶", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("▶", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

@@ -1128,10 +1128,10 @@ private fun ReceiverGuideOverlay(
     onCategoryClick: (GuideCategoryItem) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
-    val panelShape = RoundedCornerShape(10.dp)
-    val panelWidth = if (channelsOnly) (guideWidth * 0.56f).coerceIn(500.dp, 700.dp) else guideWidth
-    val railWidth = if (guideWidth >= 900.dp) 132.dp else 102.dp
-    val groupWidth = if (guideWidth >= 1000.dp) 370.dp else 286.dp
+    val panelShape = RoundedCornerShape(8.dp)
+    val panelWidth = if (channelsOnly) (guideWidth * 0.52f).coerceIn(460.dp, 640.dp) else guideWidth
+    val railWidth = if (guideWidth >= 900.dp) 120.dp else 94.dp
+    val groupWidth = if (guideWidth >= 1000.dp) 330.dp else 258.dp
     val footerChannel = channels.getOrNull(focusedChannelIndex) ?: currentChannel
 
     Box(
@@ -1142,7 +1142,7 @@ private fun ReceiverGuideOverlay(
     ) {
         Column(
             modifier = Modifier
-                .padding(start = if (channelsOnly) 38.dp else 0.dp)
+                .padding(start = if (channelsOnly) 30.dp else 0.dp)
                 .width(panelWidth)
                 .fillMaxHeight(0.82f)
                 .clip(panelShape)
@@ -1161,7 +1161,7 @@ private fun ReceiverGuideOverlay(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 14.dp)
+                    .padding(horizontal = 10.dp, vertical = 10.dp)
             ) {
                 if (!channelsOnly) {
                     ContentTypeColumn(
@@ -1236,8 +1236,8 @@ private fun ContentTypeColumn(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.padding(top = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = modifier.padding(top = 34.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         contentTypes.forEachIndexed { index, type ->
             val selected = type == selectedContentType
@@ -1245,7 +1245,7 @@ private fun ContentTypeColumn(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(42.dp)
+                    .height(36.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(if (activeFocus) Color(0x22FFFFFF) else Color.Transparent)
                     .border(
@@ -1254,26 +1254,26 @@ private fun ContentTypeColumn(
                         shape = RoundedCornerShape(2.dp)
                     )
                     .clickable { onContentTypeClick(type) }
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 7.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
                     text = contentTypeLabel(type),
                     color = if (activeFocus || selected) Accent else Color(0xFFEAECEF),
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         val menuIndex = contentTypes.size
         val activeMenuFocus = focused && focusedIndex == menuIndex
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
+                .height(38.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(if (activeMenuFocus) Color(0xEAF2F4F6) else Color(0x201AADB1))
                 .border(
@@ -1282,13 +1282,13 @@ private fun ContentTypeColumn(
                     shape = RoundedCornerShape(4.dp)
                 )
                 .clickable { onMenuClick() }
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 7.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Text(
                 text = menuLabel,
                 color = if (activeMenuFocus) Color(0xFF101317) else Accent,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1301,7 +1301,7 @@ private fun ContentTypeColumn(
 private fun ReceiverGuideDivider() {
     Box(
         modifier = Modifier
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 6.dp)
             .fillMaxHeight()
             .width(1.dp)
             .background(Color(0x45D7DCE0))
@@ -1334,11 +1334,11 @@ private fun ReceiverCategoryColumn(
         Text(
             text = categoriesLabel,
             color = Color(0xFFEAECEF),
-            fontSize = 15.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+            modifier = Modifier.padding(start = 3.dp, bottom = 5.dp)
         )
         LazyColumn(
             state = listState,
@@ -1362,8 +1362,8 @@ private fun ReceiverCategoryColumn(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 3.dp)
-                        .height(58.dp)
+                        .padding(vertical = 2.dp)
+                        .height(46.dp)
                         .clip(rowShape)
                         .background(rowBg)
                         .border(
@@ -1372,7 +1372,7 @@ private fun ReceiverCategoryColumn(
                             shape = rowShape
                         )
                         .clickable { onCategoryClick(item) }
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val prefix = when (item.type) {
@@ -1382,8 +1382,8 @@ private fun ReceiverCategoryColumn(
                     }
                     Box(
                         modifier = Modifier
-                            .width(42.dp)
-                            .height(26.dp)
+                            .width(34.dp)
+                            .height(22.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(if (activeFocus) Color(0x1A101317) else Accent.copy(alpha = 0.16f)),
                         contentAlignment = Alignment.Center
@@ -1391,36 +1391,36 @@ private fun ReceiverCategoryColumn(
                         Text(
                             text = prefix,
                             color = if (activeFocus) Color(0xFF101317) else Accent,
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = item.label,
                         color = textColor,
-                        fontSize = 16.sp,
-                        lineHeight = 18.sp,
+                        fontSize = 14.sp,
+                        lineHeight = 16.sp,
                         fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     val meta = if (item.active && item.type == GuideCategoryType.PLAYLIST) activeLabel
                     else item.count?.toString().orEmpty()
                     if (meta.isNotEmpty()) {
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(if (activeFocus) Color(0x1A101317) else Color(0x1FFFFFFF))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = meta,
                                 color = if (activeFocus) Color(0xFF2E3135) else Color(0xFFCED3D8),
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1
                             )
@@ -1476,7 +1476,7 @@ private fun ReceiverChannelColumn(
             else -> {
                 LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(top = 28.dp, bottom = 6.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 4.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(channels, key = { index, channel -> "${channel.stableKey}#$index" }) { index, channel ->
@@ -1528,7 +1528,7 @@ private fun ReceiverChannelRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(50.dp)
             .clip(shape)
             .background(rowBrush)
             .border(
@@ -1537,7 +1537,7 @@ private fun ReceiverChannelRow(
                 shape = shape
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Row(
             modifier = Modifier.weight(1f),
@@ -1546,15 +1546,15 @@ private fun ReceiverChannelRow(
             Text(
                 text = index.toString().padStart(4, '0'),
                 color = numberColor,
-                fontSize = 18.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Black,
-                modifier = Modifier.width(74.dp)
+                modifier = Modifier.width(58.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = channel.name,
                     color = textColor,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = if (isFocused || isPlaying) FontWeight.Black else FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1562,7 +1562,7 @@ private fun ReceiverChannelRow(
                 Text(
                     text = channel.group.ifBlank { groupFallbackLabel },
                     color = groupColor,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1604,12 +1604,12 @@ private fun ReceiverHdBadge(text: String, active: Boolean) {
             .clip(RoundedCornerShape(3.dp))
             .border(1.dp, if (active) Color.White else Color(0x70FFFFFF), RoundedCornerShape(3.dp))
             .background(if (active) Color(0xE8FFFFFF) else Color(0x18FFFFFF))
-            .padding(horizontal = 4.dp, vertical = 1.dp)
+            .padding(horizontal = 3.dp, vertical = 1.dp)
     ) {
         Text(
             text = text,
             color = if (active) Color.Black else Color.White,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
@@ -1627,32 +1627,32 @@ private fun ReceiverFooter(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp)
+            .height(38.dp)
             .background(Color(0x8F13171D))
             .border(1.dp, Accent.copy(alpha = 0.28f))
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = contentTypeLabel(selectedContentType),
             color = Accent,
-            fontSize = 15.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Black,
-            modifier = Modifier.width(86.dp)
+            modifier = Modifier.width(72.dp)
         )
         Text(
             text = selectedGroup ?: channel?.group?.takeIf { it.isNotBlank() } ?: allChannelsLabel,
             color = Color(0xFFE3E6EA),
-            fontSize = 15.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(220.dp)
+            modifier = Modifier.width(190.dp)
         )
         Text(
             text = channel?.name.orEmpty(),
             color = Color(0xFFFFF4B7),
-            fontSize = 16.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
