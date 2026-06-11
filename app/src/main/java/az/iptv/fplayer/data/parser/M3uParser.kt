@@ -165,13 +165,16 @@ object M3uParser {
     }
 
     private fun isAdultContent(vararg values: String): Boolean {
-        val haystack = values.joinToString(" ").lowercase()
+        val raw = values.joinToString(" ").lowercase()
+        val haystack = raw.replace(Regex("[^a-z0-9+]+"), " ")
         val words = listOf(
-            "adult", "adults", "xxx", "x-x-x", "18+", "+18", "18 plus", "porno", "porn",
-            "erotic", "erotica", "erotik", "sex", "sexy", "playboy", "penthouse", "hustler",
-            "venus", "redlight", "brazzers"
+            "adult", "adults", "adulte", "adulto", "adulti", "xxx", "x-x-x", "18+", "+18",
+            "18 plus", "18plus", "18 only", "x adult", "xadult", "porno", "porn",
+            "erotic", "erotica", "erotik", "erotika", "erotico", "erotique", "sex",
+            "sexe", "seks", "sexy", "mature", "playboy", "penthouse", "hustler",
+            "venus", "redlight", "brazzers", "babes", "onlyfans", "yetiskin"
         )
-        return words.any { haystack.contains(it) }
+        return words.any { raw.contains(it) || haystack.contains(it) }
     }
 
     private fun String.toPositiveFrameRate(): Float? {

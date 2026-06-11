@@ -695,48 +695,56 @@ private fun AdditionalOptionsPanel(
     onSavePin: () -> Unit,
     onModeSelect: (AdultAccessMode) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0x361C2228), Color(0x24101418), Color(0x2AFFFFFF))
+                    listOf(Color(0x241C2228), Color(0x18101418), Color(0x14FFFFFF))
                 )
             )
-            .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(8.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .border(1.dp, Color(0x18FFFFFF), RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (expanded) 12.dp else 0.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = title.uppercase(),
-                color = Color(0x99FFFFFF),
+                color = Color(0x72FFFFFF),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 1.4.sp,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = texts.adultMode,
-                color = Color(0x66FFFFFF),
+                text = if (expanded) "Close" else texts.adultMode,
+                color = Color(0x5EFFFFFF),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }
-        AdultPinSettings(
-            texts = texts,
-            pin = pin,
-            onPinChange = onPinChange,
-            onSave = onSavePin
-        )
-        AdultAccessModeSettings(
-            texts = texts,
-            selectedMode = selectedMode,
-            isWide = isWide,
-            onModeSelect = onModeSelect
-        )
+        if (expanded) {
+            AdultPinSettings(
+                texts = texts,
+                pin = pin,
+                onPinChange = onPinChange,
+                onSave = onSavePin
+            )
+            AdultAccessModeSettings(
+                texts = texts,
+                selectedMode = selectedMode,
+                isWide = isWide,
+                onModeSelect = onModeSelect
+            )
+        }
     }
 }
 

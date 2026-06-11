@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -85,7 +86,6 @@ fun ChannelInfoOsd(
             .firstOrNull { it.selected }
             ?.label
             ?: mediaTracks.audioTracks.firstOrNull()?.label
-        val hasMultipleAudioTracks = mediaTracks.audioTracks.size > 1
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,7 +111,7 @@ fun ChannelInfoOsd(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(98.dp)
+                    .height(112.dp)
                     .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -191,8 +191,9 @@ fun ChannelInfoOsd(
                 }
 
                 Column(
+                    modifier = Modifier.widthIn(min = 196.dp, max = 260.dp),
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OsdInfoPill(qualityLabel)
@@ -202,7 +203,7 @@ fun ChannelInfoOsd(
                         OsdInfoPill(codec)
                         OsdInfoPill(resolution)
                     }
-                    if (hasMultipleAudioTracks && selectedAudioLabel != null) {
+                    if (selectedAudioLabel != null) {
                         AudioTrackPill(
                             label = audioLabel,
                             value = selectedAudioLabel
@@ -266,15 +267,19 @@ private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
 private fun AudioTrackPill(label: String, value: String) {
     Row(
         modifier = Modifier
+            .widthIn(min = 190.dp, max = 260.dp)
             .clip(RoundedCornerShape(3.dp))
             .background(Brush.linearGradient(listOf(Color(0xF4FFFFFF), Color(0xD8E6EBF0))))
             .border(1.dp, Color.White, RoundedCornerShape(3.dp))
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         SpeakerIcon(color = Color(0xFF080808))
-        Column(horizontalAlignment = Alignment.Start) {
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.Start
+        ) {
             Text(
                 text = label.uppercase(),
                 color = Color(0xFF5B5B5B),
@@ -333,7 +338,7 @@ private fun OsdInfoPill(text: String) {
             .clip(RoundedCornerShape(2.dp))
             .background(Brush.linearGradient(listOf(Color(0xF2FFFFFF), Color(0xDDE7EBEF))))
             .border(1.dp, Color.White, RoundedCornerShape(2.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
             text = text,
