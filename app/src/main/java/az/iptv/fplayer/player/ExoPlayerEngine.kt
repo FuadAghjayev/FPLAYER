@@ -36,6 +36,7 @@ class ExoPlayerEngine(
     private var mediaSession: MediaSession? = null
     private var listener: PlayerEventListener? = null
     private var surface: SurfaceView? = null
+    private var autoAudioSelectionAttempted = false
     private val trackRefs = mutableMapOf<String, TrackRef>()
     private val defaultHeaders = mapOf(
         "User-Agent" to DEFAULT_USER_AGENT,
@@ -79,6 +80,7 @@ class ExoPlayerEngine(
             .also { exo ->
                 exo.setVideoSurfaceView(surfaceView)
                 exo.addListener(exoListener)
+                exo.volume = 1f
                 exo.playWhenReady = true
                 mediaSession = MediaSession.Builder(context, exo)
                     .setId(MEDIA_SESSION_ID)
@@ -92,7 +94,15 @@ class ExoPlayerEngine(
         listener?.onStateChanged(PlaybackState.Buffering)
         listener?.onMediaTracksChanged(MediaTracks())
         trackRefs.clear()
+        autoAudioSelectionAttempted = false
         exo.stop()
+        exo.volume = 1f
+        exo.playWhenReady = true
+        exo.trackSelectionParameters = exo.trackSelectionParameters
+            .buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+            .build()
         exo.setMediaSource(
             mediaSourceFactory(stream.headers)
                 .createMediaSource(stream.toMediaItem())
@@ -222,6 +232,12 @@ class ExoPlayerEngine(
             }
         }
 
+        if (audio.isNotEmpty() && audio.none { it.selected } && !autoAudioSelectionAttempted) {
+            autoAudioSelectionAttempted = true
+            selectAudioTrack(audio.first().id)
+            return
+        }
+
         listener?.onMediaTracksChanged(
             MediaTracks(
                 audioTracks = audio,
@@ -323,7 +339,7 @@ class ExoPlayerEngine(
     }
 
     companion object {
-        private const val DEFAULT_USER_AGENT = "FPLAYER/1.0 AndroidTV"
+        private const val DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
         private const val MEDIA_SESSION_ID = "FPLAYER_EXOPLAYER_SESSION"
         private const val LIVE_MIN_BUFFER_MS = 20_000
         private const val LIVE_MAX_BUFFER_MS = 70_000

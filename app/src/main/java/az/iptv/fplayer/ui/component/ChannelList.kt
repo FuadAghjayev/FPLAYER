@@ -31,6 +31,13 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
+import az.iptv.fplayer.ui.theme.FocusBorder
+import az.iptv.fplayer.ui.theme.ProgressFill
+import az.iptv.fplayer.ui.theme.ProgressTrack
+import az.iptv.fplayer.ui.theme.SelectionBg
+import az.iptv.fplayer.ui.theme.SelectionProgressFill
+import az.iptv.fplayer.ui.theme.SelectionSecondaryText
+import az.iptv.fplayer.ui.theme.SelectionText
 
 @Composable
 fun ChannelList(
@@ -79,15 +86,15 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val background = when {
-        isFocused -> Brush.linearGradient(listOf(Color(0xF2FFFFFF), Color(0xDDE8EEF4), Color(0xC9FFFFFF)))
+        isFocused -> Brush.linearGradient(listOf(SelectionBg, SelectionBg.copy(alpha = 0.88f), SelectionBg))
         isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x4428D7E8)))
         else -> Brush.linearGradient(listOf(Color(0x14FFFFFF), Color(0x06000000)))
     }
-    val primaryText = if (isFocused) Color(0xFF111417) else Color.White
-    val secondaryText = if (isFocused) Color(0xFF2E3135) else Color(0xDDEAF7FF)
-    val progressColor = if (isFocused) Color(0xFF202226) else Color(0xF2FFFFFF)
+    val primaryText = if (isFocused) SelectionText else Color.White
+    val secondaryText = if (isFocused) SelectionSecondaryText else Color(0xDDEAF7FF)
+    val progressColor = if (isFocused) SelectionProgressFill else ProgressFill
     val borderColor = when {
-        isFocused -> Color.White
+        isFocused -> FocusBorder
         isPlaying -> Color(0x8AFFFFFF)
         else -> Color(0x20FFFFFF)
     }
@@ -144,7 +151,7 @@ fun ChannelItem(
                     .fillMaxWidth()
                     .height(2.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0x52FFFFFF))
+                    .background(ProgressTrack)
             ) {
                 Box(
                     modifier = Modifier
@@ -159,7 +166,7 @@ fun ChannelItem(
             Text("Fav", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Black)
         }
         if (isFocused) {
-            Text("▶", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("▶", color = SelectionText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

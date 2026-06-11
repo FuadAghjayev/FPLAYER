@@ -8,14 +8,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -146,14 +156,44 @@ private fun ChannelPanel(
 
 @Composable
 private fun SearchBox(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var keyboardVisible by remember { mutableStateOf(false) }
+
+    fun hideKeyboard() {
+        keyboardController?.hide()
+        keyboardVisible = false
+    }
+
     BasicTextField(
         value = query,
         onValueChange = onQueryChange,
         textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
         cursorBrush = SolidColor(Accent),
         singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            imeAction = ImeAction.Done,
+            showKeyboardOnFocus = false
+        ),
+        keyboardActions = KeyboardActions(onDone = { hideKeyboard() }),
         modifier = modifier
             .fillMaxWidth()
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter)
+                ) {
+                    if (keyboardVisible) {
+                        hideKeyboard()
+                    } else {
+                        keyboardController?.show()
+                        keyboardVisible = true
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            .onFocusChanged { if (!it.isFocused) keyboardVisible = false }
             .clip(RoundedCornerShape(6.dp))
             .background(Color(0x33FFFFFF))
             .padding(horizontal = 12.dp, vertical = 8.dp),

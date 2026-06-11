@@ -11,6 +11,7 @@ import az.iptv.fplayer.data.model.XtreamConfig
 import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
+import az.iptv.fplayer.data.preferences.AppThemeMode
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.data.preferences.PlaylistType
 import az.iptv.fplayer.data.repository.ChannelRepository
@@ -41,6 +42,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val appLanguage: StateFlow<String> = prefs.language
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppLanguage.AZ.name)
+    val appThemeMode: StateFlow<String> = prefs.themeMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppThemeMode.CLASSIC.name)
     val adultPin: StateFlow<String> = prefs.adultPin
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_ADULT_PIN)
     val adultAccessMode: StateFlow<String> = prefs.adultAccessMode
@@ -133,7 +136,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             prefs.playerType.collect { saved ->
-                _playerType.value = if (saved == "VLC") PlayerType.VLC else PlayerType.EXOPLAYER
+                _playerType.value = PlayerType.EXOPLAYER
+                if (saved != PlayerType.EXOPLAYER.name) {
+                    prefs.setPlayerType(PlayerType.EXOPLAYER.name)
+                }
             }
         }
         viewModelScope.launch {
@@ -446,6 +452,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun onVideoInfoChanged(info: VideoInfo) { _videoInfo.value = info }
 
     fun setPlayerType(type: PlayerType) {
+        if (type != PlayerType.EXOPLAYER) return
         _playerType.value = type
         viewModelScope.launch { prefs.setPlayerType(type.name) }
     }
@@ -457,6 +464,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setLanguage(language: AppLanguage) {
         viewModelScope.launch { prefs.setLanguage(language.name) }
+    }
+
+    fun setThemeMode(mode: AppThemeMode) {
+        viewModelScope.launch { prefs.setThemeMode(mode.name) }
     }
 
     fun setAdultPin(pin: String) {

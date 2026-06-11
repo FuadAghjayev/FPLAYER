@@ -43,6 +43,9 @@ import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.player.MediaTracks
 import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.VideoInfo
+import az.iptv.fplayer.ui.theme.Accent
+import az.iptv.fplayer.ui.theme.ProgressFill
+import az.iptv.fplayer.ui.theme.ProgressTrack
 import coil.compose.AsyncImage
 
 @Composable
@@ -104,7 +107,7 @@ fun ChannelInfoOsd(
                     .height(2.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0x00FFFFFF), Color.White, Color(0x66FFFFFF), Color(0x00FFFFFF))
+                            listOf(Color(0x00FFFFFF), Accent, Accent.copy(alpha = 0.4f), Color(0x00FFFFFF))
                         )
                     )
             )
@@ -356,13 +359,13 @@ private fun OsdProgressLine(progress: Float, modifier: Modifier = Modifier) {
         modifier = modifier
             .height(4.dp)
             .clip(RoundedCornerShape(1.dp))
-            .background(Color(0x42FFFFFF))
+            .background(ProgressTrack)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .background(Color.White)
+                .background(ProgressFill)
         )
     }
 }

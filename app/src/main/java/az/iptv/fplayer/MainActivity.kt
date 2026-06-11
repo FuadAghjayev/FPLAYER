@@ -50,7 +50,9 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContent {
-            FPLAYERTheme {
+            val vm: PlayerViewModel = viewModel()
+            val themeMode by vm.appThemeMode.collectAsState()
+            FPLAYERTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize(), shape = RectangleShape) {
                     val snackbarHostState = remember { SnackbarHostState() }
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -75,7 +77,10 @@ private fun ExitHandler(snackbarHostState: SnackbarHostState) {
     BackHandler {
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastBackTime < 2000) {
-            (context as? ComponentActivity)?.finishAffinity()
+            (context as? ComponentActivity)?.let { activity ->
+                activity.finishAndRemoveTask()
+                activity.finishAffinity()
+            }
         } else {
             lastBackTime = currentTime
             // Burada snackbar göstərə bilərik

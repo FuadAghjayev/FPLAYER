@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -61,6 +62,7 @@ import androidx.tv.material3.Text
 import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
+import az.iptv.fplayer.data.preferences.AppThemeMode
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.data.preferences.PlaylistType
 import az.iptv.fplayer.player.PlayerType
@@ -68,6 +70,8 @@ import az.iptv.fplayer.ui.text.AppTexts
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
+import az.iptv.fplayer.ui.theme.AppBgEnd
+import az.iptv.fplayer.ui.theme.AppBgMid
 import az.iptv.fplayer.ui.theme.FocusBorder
 import az.iptv.fplayer.ui.theme.PanelBg
 import az.iptv.fplayer.ui.theme.TextSecondary
@@ -85,10 +89,10 @@ fun AddPlaylistScreen(
     vm: PlayerViewModel = viewModel()
 ) {
     val loadState by vm.loadState.collectAsState()
-    val playerType by vm.playerType.collectAsState()
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
+    val themeMode by vm.appThemeMode.collectAsState()
     val adultPin by vm.adultPin.collectAsState()
     val adultAccessMode by vm.adultAccessMode.collectAsState()
     val t = appTexts(language)
@@ -158,9 +162,7 @@ fun AddPlaylistScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.linearGradient(
-                    listOf(AppBg, Color(0xFF0B1F27), Color(0xFF020609))
-                )
+                Brush.linearGradient(listOf(AppBg, AppBgMid, AppBgEnd))
             )
     ) {
         val isWide = maxWidth > 600.dp
@@ -313,14 +315,8 @@ fun AddPlaylistScreen(
                     PlayerChip(
                         label = "ExoPlayer",
                         subtitle = t.recommended,
-                        selected = playerType == PlayerType.EXOPLAYER,
+                        selected = true,
                         onClick = { vm.setPlayerType(PlayerType.EXOPLAYER) }
-                    )
-                    PlayerChip(
-                        label = "VLC",
-                        subtitle = t.manualVlc,
-                        selected = playerType == PlayerType.VLC,
-                        onClick = { vm.setPlayerType(PlayerType.VLC) }
                     )
                 }
 
@@ -339,6 +335,24 @@ fun AddPlaylistScreen(
                         subtitle = t.en,
                         selected = language == AppLanguage.EN.name,
                         onClick = { vm.setLanguage(AppLanguage.EN) }
+                    )
+                }
+
+                Spacer(Modifier.height(22.dp))
+                SectionTitle(t.theme)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PlayerChip(
+                        label = t.themeClassic,
+                        subtitle = t.themeClassicHint,
+                        selected = themeMode == AppThemeMode.CLASSIC.name,
+                        onClick = { vm.setThemeMode(AppThemeMode.CLASSIC) }
+                    )
+                    PlayerChip(
+                        label = t.themeDrmPlay,
+                        subtitle = t.themeDrmPlayHint,
+                        selected = themeMode == AppThemeMode.DRM_PLAY.name,
+                        onClick = { vm.setThemeMode(AppThemeMode.DRM_PLAY) }
                     )
                 }
 
@@ -941,6 +955,12 @@ private fun FormField(
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     var focused by remember { mutableStateOf(false) }
+    var keyboardVisible by remember { mutableStateOf(false) }
+
+    fun hideKeyboard() {
+        keyboardController?.hide()
+        keyboardVisible = false
+    }
 
     BasicTextField(
         value = value,
@@ -953,6 +973,7 @@ private fun FormField(
             imeAction = ImeAction.Done,
             showKeyboardOnFocus = false
         ),
+        keyboardActions = KeyboardActions(onDone = { hideKeyboard() }),
         modifier = Modifier
             .fillMaxWidth()
             .onPreviewKeyEvent { event ->
@@ -960,7 +981,12 @@ private fun FormField(
                     event.type == KeyEventType.KeyUp &&
                     (event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter)
                 ) {
-                    keyboardController?.show()
+                    if (keyboardVisible) {
+                        hideKeyboard()
+                    } else {
+                        keyboardController?.show()
+                        keyboardVisible = true
+                    }
                     true
                 } else {
                     false
@@ -973,7 +999,10 @@ private fun FormField(
                 if (focused) Color(0xFFFFC247) else Color(0x66FFFFFF),
                 RoundedCornerShape(8.dp)
             )
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (!it.isFocused) keyboardVisible = false
+            }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         decorationBox = { inner ->
             if (value.isEmpty()) {

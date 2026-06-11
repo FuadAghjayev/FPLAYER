@@ -17,6 +17,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 enum class PlaylistType { M3U, XTREAM }
 enum class AppLanguage { AZ, EN }
 enum class AdultAccessMode { PER_CHANNEL, SESSION, HIDDEN }
+enum class AppThemeMode { CLASSIC, DRM_PLAY }
 
 data class PlaylistProfile(
     val id: String,
@@ -51,6 +52,7 @@ class AppPreferences(private val context: Context) {
         private val KEY_LAST_CHANNEL_ID = stringPreferencesKey("last_channel_id")
         private val KEY_AUDIO_DECODER = stringPreferencesKey("audio_decoder")
         private val KEY_LANGUAGE = stringPreferencesKey("language")
+        private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_ADULT_PIN = stringPreferencesKey("adult_pin")
         private val KEY_ADULT_ACCESS_MODE = stringPreferencesKey("adult_access_mode")
         private val KEY_FAVORITE_CHANNELS = stringSetPreferencesKey("favorite_channels")
@@ -74,6 +76,11 @@ class AppPreferences(private val context: Context) {
     val lastChannelId: Flow<String> = context.dataStore.data.map { it[KEY_LAST_CHANNEL_ID] ?: "" }
     val audioDecoderMode: Flow<String> = context.dataStore.data.map { it[KEY_AUDIO_DECODER] ?: "AUTO" }
     val language: Flow<String> = context.dataStore.data.map { it[KEY_LANGUAGE] ?: AppLanguage.AZ.name }
+    val themeMode: Flow<String> = context.dataStore.data.map {
+        runCatching { AppThemeMode.valueOf(it[KEY_THEME_MODE] ?: AppThemeMode.CLASSIC.name) }
+            .getOrDefault(AppThemeMode.CLASSIC)
+            .name
+    }
     val adultPin: Flow<String> = context.dataStore.data.map { it[KEY_ADULT_PIN] ?: DEFAULT_ADULT_PIN }
     val adultAccessMode: Flow<String> = context.dataStore.data.map {
         it[KEY_ADULT_ACCESS_MODE] ?: AdultAccessMode.PER_CHANNEL.name
@@ -157,6 +164,11 @@ class AppPreferences(private val context: Context) {
     suspend fun setLastChannelId(id: String) = context.dataStore.edit { it[KEY_LAST_CHANNEL_ID] = id }
     suspend fun setAudioDecoderMode(mode: String) = context.dataStore.edit { it[KEY_AUDIO_DECODER] = mode }
     suspend fun setLanguage(language: String) = context.dataStore.edit { it[KEY_LANGUAGE] = language }
+    suspend fun setThemeMode(mode: String) = context.dataStore.edit {
+        it[KEY_THEME_MODE] = runCatching { AppThemeMode.valueOf(mode) }
+            .getOrDefault(AppThemeMode.CLASSIC)
+            .name
+    }
     suspend fun setAdultPin(pin: String) = context.dataStore.edit {
         it[KEY_ADULT_PIN] = pin.filter(Char::isDigit).take(4).ifBlank { DEFAULT_ADULT_PIN }
     }

@@ -5,14 +5,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,10 +42,16 @@ fun SettingsScreen(
     onBack: () -> Unit,
     vm: PlayerViewModel = viewModel()
 ) {
-    val playerType by vm.playerType.collectAsState()
     val audioDecoderMode by vm.audioDecoderMode.collectAsState()
     val loadState by vm.loadState.collectAsState()
     var m3uUrl by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var keyboardVisible by remember { mutableStateOf(false) }
+
+    fun hideKeyboard() {
+        keyboardController?.hide()
+        keyboardVisible = false
+    }
 
     LaunchedEffect(Unit) {
         vm.prefs.m3uUrl.collect { m3uUrl = it }
@@ -80,8 +96,30 @@ fun SettingsScreen(
                     textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
                     cursorBrush = SolidColor(Accent),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        showKeyboardOnFocus = false
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { hideKeyboard() }),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onPreviewKeyEvent { event ->
+                            if (
+                                event.type == KeyEventType.KeyUp &&
+                                (event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter)
+                            ) {
+                                if (keyboardVisible) {
+                                    hideKeyboard()
+                                } else {
+                                    keyboardController?.show()
+                                    keyboardVisible = true
+                                }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        .onFocusChanged { if (!it.isFocused) keyboardVisible = false }
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0x33FFFFFF))
                         .padding(12.dp),
@@ -119,15 +157,17 @@ fun SettingsScreen(
                 PlayerTypeChip(
                     label = "ExoPlayer",
                     subtitle = "Рекомендуется",
-                    selected = playerType == PlayerType.EXOPLAYER,
+                    selected = true,
                     onClick = { vm.setPlayerType(PlayerType.EXOPLAYER) }
                 )
-                PlayerTypeChip(
-                    label = "VLC",
+                if (false) {
+                    PlayerTypeChip(
+                        label = "VLC",
                     subtitle = "Больше форматов",
-                    selected = playerType == PlayerType.VLC,
-                    onClick = { vm.setPlayerType(PlayerType.VLC) }
-                )
+                    selected = false,
+                        onClick = { vm.setPlayerType(PlayerType.VLC) }
+                    )
+                }
             }
 
             SectionLabel("Аудио декодер")
@@ -165,7 +205,7 @@ fun SettingsScreen(
             )
 
             SectionLabel("Версия")
-            Text("FPLAYER v1.0  •  ExoPlayer + LibVLC", color = TextSecondary, fontSize = 12.sp)
+            Text("FPLAYER v1.0  •  ExoPlayer", color = TextSecondary, fontSize = 12.sp)
         }
     }
 }
