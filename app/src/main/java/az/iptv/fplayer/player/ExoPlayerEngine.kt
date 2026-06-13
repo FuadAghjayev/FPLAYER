@@ -19,7 +19,9 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.session.MediaSession
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -37,6 +39,7 @@ class ExoPlayerEngine(
     private var listener: PlayerEventListener? = null
     private var surface: SurfaceView? = null
     private var autoAudioSelectionAttempted = false
+    private var audioDisabledRecoveryAttempted = false
     private val trackRefs = mutableMapOf<String, TrackRef>()
     private val defaultHeaders = mapOf(
         "User-Agent" to DEFAULT_USER_AGENT,
@@ -70,7 +73,9 @@ class ExoPlayerEngine(
 
         player = ExoPlayer.Builder(
             context,
-            DefaultRenderersFactory(context).setExtensionRendererMode(rendererMode)
+            DefaultRenderersFactory(context)
+                .setExtensionRendererMode(rendererMode)
+                .setEnableDecoderFallback(true)
         )
             .setMediaSourceFactory(mediaSourceFactory())
             .setLoadControl(loadControl)
@@ -95,6 +100,7 @@ class ExoPlayerEngine(
         listener?.onMediaTracksChanged(MediaTracks())
         trackRefs.clear()
         autoAudioSelectionAttempted = false
+        audioDisabledRecoveryAttempted = false
         exo.stop()
         exo.volume = 1f
         exo.playWhenReady = true
@@ -103,10 +109,7 @@ class ExoPlayerEngine(
             .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
             .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
             .build()
-        exo.setMediaSource(
-            mediaSourceFactory(stream.headers)
-                .createMediaSource(stream.toMediaItem())
-        )
+        exo.setMediaSource(stream.toMediaSource())
         exo.prepare()
     }
 
@@ -170,6 +173,7 @@ class ExoPlayerEngine(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            if (tryRecoverWithoutAudio(error)) return
             listener?.onStateChanged(PlaybackState.Error(error.message ?: "Unknown error"))
         }
 
@@ -247,6 +251,41 @@ class ExoPlayerEngine(
         )
     }
 
+    private fun tryRecoverWithoutAudio(error: PlaybackException): Boolean {
+        val exo = player ?: return false
+        if (audioDisabledRecoveryAttempted || !isLikelyAudioDecoderError(error)) return false
+
+        audioDisabledRecoveryAttempted = true
+        exo.trackSelectionParameters = exo.trackSelectionParameters
+            .buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+            .build()
+        listener?.onStateChanged(PlaybackState.Buffering)
+        listener?.onMediaTracksChanged(MediaTracks())
+        exo.prepare()
+        exo.play()
+        return true
+    }
+
+    private fun isLikelyAudioDecoderError(error: PlaybackException): Boolean {
+        val parts = mutableListOf<String>()
+        var throwable: Throwable? = error
+        var depth = 0
+        while (throwable != null && depth < 6) {
+            parts += throwable.javaClass.name
+            throwable.message?.let(parts::add)
+            throwable = throwable.cause
+            depth += 1
+        }
+        val text = parts.joinToString(" ").lowercase()
+
+        return "audio/mpeg-l2" in text ||
+            "mpeg-l2" in text ||
+            "mpeg audio layer 2" in text ||
+            ("audio" in text && "decoder" in text)
+    }
+
     private fun formatTrackLabel(group: Tracks.Group, trackIndex: Int): String {
         val format = group.getTrackFormat(trackIndex)
         val language = format.language?.takeIf { it.isNotBlank() && it != "und" }?.uppercase()
@@ -266,14 +305,28 @@ class ExoPlayerEngine(
         val type: Int
     )
 
-    private fun mediaSourceFactory(extraHeaders: Map<String, String> = emptyMap()): DefaultMediaSourceFactory {
+    private fun dataSourceFactory(extraHeaders: Map<String, String> = emptyMap()): DefaultDataSource.Factory {
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(HTTP_CONNECT_TIMEOUT_MS)
             .setReadTimeoutMs(HTTP_READ_TIMEOUT_MS)
             .setUserAgent(DEFAULT_USER_AGENT)
             .setDefaultRequestProperties(defaultHeaders + extraHeaders)
-        return DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpFactory))
+        return DefaultDataSource.Factory(context, httpFactory)
+    }
+
+    private fun mediaSourceFactory(extraHeaders: Map<String, String> = emptyMap()): DefaultMediaSourceFactory {
+        return DefaultMediaSourceFactory(dataSourceFactory(extraHeaders))
+    }
+
+    private fun StreamRequest.toMediaSource(): MediaSource {
+        val mediaItem = toMediaItem()
+        if (!isLikelyHls()) {
+            return mediaSourceFactory(headers).createMediaSource(mediaItem)
+        }
+        return HlsMediaSource.Factory(dataSourceFactory(headers))
+            .setAllowChunklessPreparation(false)
+            .createMediaSource(mediaItem)
     }
 
     private fun StreamRequest.toMediaItem(): MediaItem {
@@ -289,11 +342,17 @@ class ExoPlayerEngine(
             .setUri(url)
             .setLiveConfiguration(liveConfiguration)
             .apply {
-                if (url.substringBefore('?').endsWith(".m3u8", ignoreCase = true)) {
+                if (isLikelyHls()) {
                     setMimeType(MimeTypes.APPLICATION_M3U8)
                 }
             }
             .build()
+    }
+
+    private fun StreamRequest.isLikelyHls(): Boolean {
+        val urlWithoutQuery = url.substringBefore('?').substringBefore('#')
+        return urlWithoutQuery.endsWith(".m3u8", ignoreCase = true) ||
+            url.contains("m3u8", ignoreCase = true)
     }
 
     private data class StreamRequest(

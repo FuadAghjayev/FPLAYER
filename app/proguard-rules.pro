@@ -21,4 +21,9 @@
 #-renamesourcefileattribute SourceFile
 
 # Media3 loads decoder extensions with reflection from DefaultRenderersFactory.
--keep class androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer { *; }
+# Keep the whole FFmpeg package because MPEG layer-2 audio streams rely on the
+# renderer, decoder, JNI bridge, and codec support table surviving release shrink.
+-keep class androidx.media3.decoder.ffmpeg.** { *; }
+-keepclasseswithmembernames class androidx.media3.decoder.ffmpeg.** {
+    native <methods>;
+}
