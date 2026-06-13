@@ -142,7 +142,10 @@ fun PlayerScreen(
         }
     }
     val guideContentTypes = availableContentTypes.ifEmpty { listOf(selectedContentType) }
-    val guideRailItemCount = guideContentTypes.size + playlists.size + 1
+    val guideRailItemCount = guideContentTypes.size + playlists.size + 2
+    val quickRefreshLabel = remember(t.loadRefresh) {
+        t.loadRefresh.substringAfter("/", t.loadRefresh).trim().ifBlank { t.loadRefresh }
+    }
     val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, t.allChannels) {
         buildGuideCategories(
             playlists = playlists,
@@ -175,6 +178,8 @@ fun PlayerScreen(
     }
 
     val playbackUrl = currentChannel?.url
+    var recoveryAttemptKey by remember { mutableStateOf<String?>(null) }
+    var recoveryAttemptCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(engine, playbackUrl) {
         playbackUrl?.let {
             vm.onVideoInfoChanged(VideoInfo())
@@ -182,17 +187,30 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(playbackState, currentChannel?.stableKey) {
-        val key = currentChannel?.stableKey ?: return@LaunchedEffect
-        if (playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering) {
+    LaunchedEffect(playbackState, currentChannel?.stableKey, playbackUrl) {
+        val channel = currentChannel ?: return@LaunchedEffect
+        val key = channel.stableKey
+        if (playbackState is PlaybackState.Playing) {
+            recoveryAttemptKey = null
+            recoveryAttemptCount = 0
             recoveryChannelKey = null
             return@LaunchedEffect
         }
+        if (playbackState is PlaybackState.Buffering) return@LaunchedEffect
         if (playbackState is PlaybackState.Error || playbackState is PlaybackState.Idle) {
-            if (recoveryChannelKey == key) return@LaunchedEffect
-            delay(2500)
-            recoveryChannelKey = key
-            vm.refreshPlaylist()
+            if (recoveryAttemptKey != key) {
+                recoveryAttemptKey = key
+                recoveryAttemptCount = 0
+            }
+            delay(if (playbackState is PlaybackState.Error) 1400 else 2200)
+            if (recoveryAttemptCount < 2 && playbackUrl != null) {
+                recoveryAttemptCount += 1
+                vm.onVideoInfoChanged(VideoInfo())
+                engine.play(playbackUrl)
+            } else if (recoveryChannelKey != key) {
+                recoveryChannelKey = key
+                vm.refreshPlaylist(revealSidebar = false)
+            }
         }
     }
 
@@ -281,7 +299,12 @@ fun PlayerScreen(
             selectorPane = SelectorPane.GROUPS
             return
         }
-        openPlaylistMenu()
+        val menuIndex = guideContentTypes.size + playlists.size
+        if (focusedContentTypeIndex == menuIndex) {
+            openPlaylistMenu()
+            return
+        }
+        vm.refreshPlaylist(revealSidebar = true)
     }
 
     fun submitAdultPin() {
@@ -806,6 +829,7 @@ fun PlayerScreen(
                 allChannelsLabel = t.allChannels,
                 emptyLabel = t.noInfo,
                 activeLabel = t.active,
+                refreshLabel = quickRefreshLabel,
                 favoriteLabel = t.favorite,
                 lockedLabel = t.locked,
                 isAdultLocked = ::isAdultLocked,
@@ -822,6 +846,7 @@ fun PlayerScreen(
                     selectorPane = SelectorPane.GROUPS
                 },
                 onMenuClick = { openPlaylistMenu() },
+                onRefreshClick = { vm.refreshPlaylist(revealSidebar = true) },
                 onCategoryClick = { item ->
                     when (item.type) {
                         GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
@@ -1151,12 +1176,14 @@ private fun ReceiverGuideOverlay(
     allChannelsLabel: String,
     emptyLabel: String,
     activeLabel: String,
+    refreshLabel: String,
     favoriteLabel: String,
     lockedLabel: String,
     isAdultLocked: (Channel) -> Boolean,
     onContentTypeClick: (ChannelContentType) -> Unit,
     onPlaylistClick: (PlaylistProfile) -> Unit,
     onMenuClick: () -> Unit,
+    onRefreshClick: () -> Unit,
     onCategoryClick: (GuideCategoryItem) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
@@ -1207,6 +1234,8 @@ private fun ReceiverGuideOverlay(
                         onPlaylistClick = onPlaylistClick,
                         menuLabel = "Menu",
                         onMenuClick = onMenuClick,
+                        refreshLabel = refreshLabel,
+                        onRefreshClick = onRefreshClick,
                         modifier = Modifier
                             .width(railWidth)
                             .fillMaxHeight()
@@ -1271,14 +1300,28 @@ private fun ContentTypeColumn(
     onPlaylistClick: (PlaylistProfile) -> Unit,
     menuLabel: String,
     onMenuClick: () -> Unit,
+    refreshLabel: String,
+    onRefreshClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    val listState = rememberLazyListState()
+    val menuIndex = contentTypes.size + playlists.size
+    val refreshIndex = menuIndex + 1
+
+    LaunchedEffect(focusedIndex, contentTypes.size, playlists.size) {
+        if (focusedIndex in 0..refreshIndex) {
+            listState.scrollToItem(maxOf(0, focusedIndex - 4))
+        }
+    }
+
+    LazyColumn(
+        state = listState,
         modifier = modifier.padding(top = 22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        contentPadding = PaddingValues(bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        contentTypes.forEachIndexed { index, type ->
+        itemsIndexed(contentTypes, key = { _, type -> "type-${type.name}" }) { index, type ->
             val selected = type == selectedContentType
             val activeFocus = focused && index == focusedIndex
             Box(
@@ -1307,9 +1350,9 @@ private fun ContentTypeColumn(
             }
         }
         if (playlists.isNotEmpty()) {
-            Spacer(Modifier.height(3.dp))
+            item(key = "playlist_gap") { Spacer(Modifier.height(3.dp)) }
         }
-        playlists.forEachIndexed { index, profile ->
+        itemsIndexed(playlists, key = { index, profile -> "playlist-${profile.id}-$index" }) { index, profile ->
             val railIndex = contentTypes.size + index
             val selected = profile.id == activePlaylistId
             val activeFocus = focused && focusedIndex == railIndex
@@ -1344,33 +1387,56 @@ private fun ContentTypeColumn(
                 )
             }
         }
-        Spacer(Modifier.height(3.dp))
-        val menuIndex = contentTypes.size + playlists.size
-        val activeMenuFocus = focused && focusedIndex == menuIndex
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(34.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(if (activeMenuFocus) Color(0xEAF2F4F6) else Color(0x201AADB1))
-                .border(
-                    width = if (activeMenuFocus) 2.dp else 1.dp,
-                    color = if (activeMenuFocus) Color(0xFFFF744A) else Accent.copy(alpha = 0.42f),
-                    shape = RoundedCornerShape(4.dp)
-                )
-                .clickable { onMenuClick() }
-                .padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = menuLabel,
-                color = if (activeMenuFocus) Color(0xFF101317) else Accent,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        item(key = "rail_gap") { Spacer(Modifier.height(3.dp)) }
+        item(key = "menu") {
+            val activeMenuFocus = focused && focusedIndex == menuIndex
+            RailActionButton(
+                label = menuLabel,
+                activeFocus = activeMenuFocus,
+                onClick = onMenuClick
             )
         }
+        item(key = "refresh") {
+            val activeRefreshFocus = focused && focusedIndex == refreshIndex
+            RailActionButton(
+                label = refreshLabel,
+                activeFocus = activeRefreshFocus,
+                onClick = onRefreshClick
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun RailActionButton(
+    label: String,
+    activeFocus: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (activeFocus) Color(0xEAF2F4F6) else Color(0x201AADB1))
+            .border(
+                width = if (activeFocus) 2.dp else 1.dp,
+                color = if (activeFocus) Color(0xFFFF744A) else Accent.copy(alpha = 0.42f),
+                shape = RoundedCornerShape(4.dp)
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (activeFocus) Color(0xFF101317) else Accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -1646,8 +1712,10 @@ private fun ReceiverChannelRow(
                 color = numberColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Black,
-                modifier = Modifier.width(58.dp)
+                modifier = Modifier.width(48.dp)
             )
+            ChannelLogo(channel.logoUrl, size = 34)
+            Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = channel.name,

@@ -341,16 +341,16 @@ class ExoPlayerEngine(
     companion object {
         private const val DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
         private const val MEDIA_SESSION_ID = "FPLAYER_EXOPLAYER_SESSION"
-        private const val LIVE_MIN_BUFFER_MS = 20_000
-        private const val LIVE_MAX_BUFFER_MS = 70_000
-        private const val PLAYBACK_START_BUFFER_MS = 2_500
-        private const val REBUFFER_START_BUFFER_MS = 5_000
-        private const val LIVE_TARGET_OFFSET_MS = 12_000L
-        private const val LIVE_MIN_OFFSET_MS = 8_000L
-        private const val LIVE_MAX_OFFSET_MS = 30_000L
+        private const val LIVE_MIN_BUFFER_MS = 12_000
+        private const val LIVE_MAX_BUFFER_MS = 45_000
+        private const val PLAYBACK_START_BUFFER_MS = 1_500
+        private const val REBUFFER_START_BUFFER_MS = 3_000
+        private const val LIVE_TARGET_OFFSET_MS = 9_000L
+        private const val LIVE_MIN_OFFSET_MS = 5_000L
+        private const val LIVE_MAX_OFFSET_MS = 22_000L
         private const val LIVE_MIN_PLAYBACK_SPEED = 0.97f
         private const val LIVE_MAX_PLAYBACK_SPEED = 1.04f
-        private const val HTTP_CONNECT_TIMEOUT_MS = 10_000
-        private const val HTTP_READ_TIMEOUT_MS = 18_000
+        private const val HTTP_CONNECT_TIMEOUT_MS = 8_000
+        private const val HTTP_READ_TIMEOUT_MS = 14_000
     }
 }

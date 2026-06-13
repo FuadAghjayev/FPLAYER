@@ -244,7 +244,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refreshPlaylist() {
+    fun refreshPlaylist(revealSidebar: Boolean = _sidebarVisible.value) {
         playlistLoadJob?.cancel()
         playlistLoadJob = viewModelScope.launch {
             val currentKey = _currentChannel.value?.stableKey ?: prefs.lastChannelId.first()
@@ -252,7 +252,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 loadPlaylist(
                     profile = it,
                     preferredChannelKey = currentKey,
-                    revealSidebar = _sidebarVisible.value,
+                    revealSidebar = revealSidebar,
                     preferNetwork = true
                 )
             }
