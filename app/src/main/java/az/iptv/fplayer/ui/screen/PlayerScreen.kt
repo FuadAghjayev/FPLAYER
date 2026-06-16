@@ -81,8 +81,6 @@ import az.iptv.fplayer.ui.component.TechBadge
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
-import az.iptv.fplayer.ui.theme.SelectionSecondaryText
-import az.iptv.fplayer.ui.theme.SelectionText
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
@@ -325,7 +323,7 @@ fun PlayerScreen(
         when (item.type) {
             GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
             GuideCategoryType.ALL -> vm.selectGroup(null)
-            GuideCategoryType.GROUP -> item.groupName?.let(vm::toggleSelectedGroup)
+            GuideCategoryType.GROUP -> item.groupName?.let(vm::selectGroup)
         }
         selectorPane = SelectorPane.CHANNELS
         focusedChannelIndex = 0
@@ -392,7 +390,7 @@ fun PlayerScreen(
         if (recentOverlayVisible) {
             focusedRecentIndex = focusedRecentIndex.coerceIn(
                 0,
-                (recentChannels.take(5).size - 1).coerceAtLeast(0)
+                (recentChannels.take(10).size - 1).coerceAtLeast(0)
             )
         }
     }
@@ -510,7 +508,7 @@ fun PlayerScreen(
                         else -> true
                     }
                 } else if (recentOverlayVisible) {
-                    val recentList = recentChannels.take(5)
+                    val recentList = recentChannels.take(10)
                     when (event.key) {
                         Key.Back -> {
                             recentOverlayVisible = false
@@ -692,7 +690,7 @@ fun PlayerScreen(
                                     vm.showOsd()
                                 }
                             } else {
-                                val recentList = recentChannels.take(5)
+                                val recentList = recentChannels.take(10)
                                 if (!osdVisible && recentList.isNotEmpty()) {
                                     focusedRecentIndex = 0
                                     recentOverlayVisible = true
@@ -908,7 +906,7 @@ fun PlayerScreen(
 
         RecentChannelsOverlay(
             visible = recentOverlayVisible && !selectorVisible,
-            channels = recentChannels.take(5),
+            channels = recentChannels.take(10),
             currentChannel = currentChannel,
             focusedIndex = focusedRecentIndex,
             title = t.recentChannels,
@@ -1206,7 +1204,7 @@ private fun ReceiverGuideOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x38000000)),
+            .background(if (channelsOnly) Color(0x18000000) else Color(0x30000000)),
         contentAlignment = if (channelsOnly) Alignment.CenterStart else Alignment.Center
     ) {
         Column(
@@ -1217,14 +1215,22 @@ private fun ReceiverGuideOverlay(
                 .clip(panelShape)
                 .background(
                     Brush.linearGradient(
-                        listOf(
-                            Color(0xEA050A10),
-                            Color(0xC70B1824),
-                            Color(0x7214AFC0)
-                        )
+                        if (channelsOnly) {
+                            listOf(
+                                Color(0xB8050A10),
+                                Color(0x940B1824),
+                                Color(0x4F14AFC0)
+                            )
+                        } else {
+                            listOf(
+                                Color(0xEA050A10),
+                                Color(0xC70B1824),
+                                Color(0x7214AFC0)
+                            )
+                        }
                     )
                 )
-                .border(1.dp, Color(0x881FD8E8), panelShape)
+                .border(1.dp, if (channelsOnly) Color(0x661FD8E8) else Color(0x881FD8E8), panelShape)
         ) {
             Box(
                 modifier = Modifier
@@ -1352,10 +1358,10 @@ private fun ContentTypeColumn(
                     .fillMaxWidth()
                     .height(36.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(if (activeFocus) Color(0x22FFFFFF) else Color.Transparent)
+                    .background(if (activeFocus) Color(0x331FD8E8) else Color.Transparent)
                     .border(
                         width = if (activeFocus) 2.dp else 0.dp,
-                        color = Color(0xFFFF744A),
+                        color = Color(0xFF8CCBFF),
                         shape = RoundedCornerShape(6.dp)
                     )
                     .clickable { onContentTypeClick(type) }
@@ -1364,7 +1370,7 @@ private fun ContentTypeColumn(
             ) {
                 Text(
                     text = contentTypeShortLabel(type),
-                    color = if (activeFocus || selected) Accent else Color(0xFFEAECEF),
+                    color = if (activeFocus || selected) Color(0xFFEAFBFF) else Color(0xFFEAECEF),
                     fontSize = 14.sp,
                     fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
@@ -1386,14 +1392,14 @@ private fun ContentTypeColumn(
                     .clip(RoundedCornerShape(5.dp))
                     .background(
                         when {
-                            activeFocus -> Color(0xEAF2F4F6)
+                            activeFocus -> Color(0x4423353C)
                             selected -> Color(0x2FFFF744)
                             else -> Color(0x161AADB1)
                         }
                     )
                     .border(
                         width = if (activeFocus || selected) 1.dp else 0.dp,
-                        color = if (activeFocus) Color(0xFFFF744A) else Accent.copy(alpha = 0.45f),
+                        color = if (activeFocus) Color(0xFF8CCBFF) else Accent.copy(alpha = 0.45f),
                         shape = RoundedCornerShape(5.dp)
                     )
                     .clickable { onPlaylistClick(profile) }
@@ -1402,7 +1408,7 @@ private fun ContentTypeColumn(
             ) {
                 Text(
                     text = providerShortLabel(profile, index),
-                    color = if (activeFocus) Color(0xFF101317) else if (selected) Accent else Color(0xFFEAECEF),
+                    color = if (activeFocus) Color(0xFFEAFBFF) else if (selected) Accent else Color(0xFFEAECEF),
                     fontSize = 11.sp,
                     fontWeight = if (activeFocus || selected) FontWeight.Black else FontWeight.SemiBold,
                     maxLines = 1,
@@ -1442,10 +1448,10 @@ private fun RailActionButton(
             .fillMaxWidth()
             .height(34.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(if (activeFocus) Color(0xEAF2F4F6) else Color(0x201AADB1))
+            .background(if (activeFocus) Color(0x4423353C) else Color(0x201AADB1))
             .border(
                 width = if (activeFocus) 2.dp else 1.dp,
-                color = if (activeFocus) Color(0xFFFF744A) else Accent.copy(alpha = 0.42f),
+                color = if (activeFocus) Color(0xFF8CCBFF) else Accent.copy(alpha = 0.42f),
                 shape = RoundedCornerShape(4.dp)
             )
             .clickable { onClick() }
@@ -1454,7 +1460,7 @@ private fun RailActionButton(
     ) {
         Text(
             text = label,
-            color = if (activeFocus) Color(0xFF101317) else Accent,
+            color = if (activeFocus) Color(0xFFEAFBFF) else Accent,
             fontSize = 12.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
@@ -1526,12 +1532,12 @@ private fun ReceiverCategoryColumn(
                     index == selectedIndex
                 val rowShape = RoundedCornerShape(6.dp)
                 val rowBg = when {
-                    activeFocus -> Color(0xF2DDFBFF)
+                    activeFocus -> Color(0x4423353C)
                     selected -> Color(0x3D1FD8E8)
                     else -> Color(0x0BFFFFFF)
                 }
                 val textColor = when {
-                    activeFocus -> Color(0xFF101317)
+                    activeFocus -> Color(0xFFEAFBFF)
                     selected -> Color(0xFFE8FCFF)
                     else -> Color(0xFFEAF4FA)
                 }
@@ -1545,7 +1551,7 @@ private fun ReceiverCategoryColumn(
                         .border(
                             width = if (activeFocus || selected) 2.dp else 1.dp,
                             color = when {
-                                activeFocus -> Color(0xFFF04468)
+                                activeFocus -> Color(0xFF8CCBFF)
                                 selected -> Color(0xFF1FD8E8)
                                 else -> Color(0x18FFFFFF)
                             },
@@ -1567,7 +1573,7 @@ private fun ReceiverCategoryColumn(
                             .clip(RoundedCornerShape(4.dp))
                             .background(
                                 when {
-                                    activeFocus -> Color(0x1A101317)
+                                    activeFocus -> Color(0x3323353C)
                                     selected -> Color(0xFF1FD8E8)
                                     else -> Color(0x231FD8E8)
                                 }
@@ -1576,7 +1582,7 @@ private fun ReceiverCategoryColumn(
                     ) {
                         Text(
                             text = prefix,
-                            color = if (activeFocus) Color(0xFF101317) else if (selected) Color(0xFF061217) else Color(0xFF8CCBFF),
+                            color = if (activeFocus) Color(0xFFEAFBFF) else if (selected) Color(0xFF061217) else Color(0xFF8CCBFF),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
@@ -1600,12 +1606,12 @@ private fun ReceiverCategoryColumn(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(if (activeFocus) Color(0x1A101317) else Color(0x1FFFFFFF))
+                                .background(if (activeFocus) Color(0x3323353C) else Color(0x1FFFFFFF))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = meta,
-                                color = if (activeFocus) Color(0xFF2E3135) else if (selected) Color(0xFFE8FCFF) else Color(0xFFCED3D8),
+                                color = if (activeFocus) Color(0xFFDCEFF6) else if (selected) Color(0xFFE8FCFF) else Color(0xFFCED3D8),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black,
                                 maxLines = 1
@@ -1713,18 +1719,18 @@ private fun ReceiverChannelRow(
 ) {
     val shape = RoundedCornerShape(4.dp)
     val rowBrush = when {
-        isFocused -> Brush.linearGradient(listOf(Color(0xFFF2FDFF), Color(0xFFD2F8FF), Color(0xFFECFCFF)))
+        isFocused -> Brush.linearGradient(listOf(Color(0x6623353C), Color(0x55304E57), Color(0x441FD8E8)))
         isPlaying -> Brush.linearGradient(listOf(Color(0x65353E48), Color(0x54101A24), Color(0x361FD8E8)))
         else -> Brush.linearGradient(listOf(Color(0x12FFFFFF), Color(0x06071318)))
     }
     val rowBorder = when {
-        isFocused -> Color(0xFFF04468)
+        isFocused -> Color(0xFF8CCBFF)
         isPlaying -> Color(0x951FD8E8)
         else -> Color(0x18FFFFFF)
     }
-    val textColor = if (isFocused) SelectionText else Color.White
-    val numberColor = if (isFocused) SelectionText else Color(0xFFEFF5FA)
-    val groupColor = if (isFocused) SelectionSecondaryText else Color(0xFFC7D2DA)
+    val textColor = if (isFocused) Color(0xFFFFFFFF) else Color.White
+    val numberColor = if (isFocused) Color(0xFFD8F5FF) else Color(0xFFEFF5FA)
+    val groupColor = if (isFocused) Color(0xFFCFE3EA) else Color(0xFFC7D2DA)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1793,7 +1799,7 @@ private fun ReceiverChannelRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (isFocused) 2.dp else 1.dp)
-                .background(if (isFocused) Color(0xFFF04468) else Color(0xB21FD8E8))
+                .background(if (isFocused) Color(0xFF8CCBFF) else Color(0xB21FD8E8))
         )
     }
 }
@@ -2493,6 +2499,15 @@ private fun buildGuideCategories(
         count = realGroups.sumOf { it.channels.size },
         selected = selectedGroup == null && selectedGroups.isEmpty()
     )
+    val playlistItems = playlists.map { profile ->
+        GuideCategoryItem(
+            type = GuideCategoryType.PLAYLIST,
+            label = profile.name.ifBlank { profile.sourceLabel },
+            playlist = profile,
+            selected = profile.id == activePlaylistId,
+            active = profile.id == activePlaylistId
+        )
+    }
     val groupItems = groups.map { group ->
         GuideCategoryItem(
             type = GuideCategoryType.GROUP,
@@ -2502,7 +2517,7 @@ private fun buildGuideCategories(
             selected = group.name in selectedGroups || selectedGroup == group.name
         )
     }
-    return listOf(allItem) + groupItems
+    return playlistItems + listOf(allItem) + groupItems
 }
 
 private fun selectedGuideCategoryIndex(

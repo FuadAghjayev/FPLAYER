@@ -33,8 +33,6 @@ import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.ProgressFill
 import az.iptv.fplayer.ui.theme.ProgressTrack
-import az.iptv.fplayer.ui.theme.SelectionProgressFill
-import az.iptv.fplayer.ui.theme.SelectionSecondaryText
 import az.iptv.fplayer.ui.theme.SelectionText
 
 @Composable
@@ -84,15 +82,15 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val background = when {
-        isFocused -> Brush.linearGradient(listOf(Color(0xFFF2FDFF), Color(0xFFD2F8FF), Color(0xFFECFCFF)))
+        isFocused -> Brush.linearGradient(listOf(Color(0x6623353C), Color(0x55304E57), Color(0x441FD8E8)))
         isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x441FD8E8)))
         else -> Brush.linearGradient(listOf(Color(0x14FFFFFF), Color(0x06000000)))
     }
-    val primaryText = if (isFocused) SelectionText else Color.White
-    val secondaryText = if (isFocused) SelectionSecondaryText else Color(0xDDEAF7FF)
-    val progressColor = if (isFocused) SelectionProgressFill else ProgressFill
+    val primaryText = Color.White
+    val secondaryText = if (isFocused) Color(0xFFCFE3EA) else Color(0xDDEAF7FF)
+    val progressColor = if (isFocused) Color(0xFF8CCBFF) else ProgressFill
     val borderColor = when {
-        isFocused -> Color(0xFFF04468)
+        isFocused -> Color(0xFF8CCBFF)
         isPlaying -> Color(0x8A1FD8E8)
         else -> Color(0x20FFFFFF)
     }
