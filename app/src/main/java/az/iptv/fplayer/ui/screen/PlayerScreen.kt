@@ -81,10 +81,6 @@ import az.iptv.fplayer.ui.component.TechBadge
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
-import az.iptv.fplayer.ui.theme.FocusBorder
-import az.iptv.fplayer.ui.theme.ProgressFill
-import az.iptv.fplayer.ui.theme.SelectionBg
-import az.iptv.fplayer.ui.theme.SelectionProgressFill
 import az.iptv.fplayer.ui.theme.SelectionSecondaryText
 import az.iptv.fplayer.ui.theme.SelectionText
 import az.iptv.fplayer.viewmodel.LoadState
@@ -121,6 +117,7 @@ fun PlayerScreen(
     val osdVisible by vm.osdVisible.collectAsState()
     val visibleChannels by vm.visibleChannels.collectAsState()
     val selectedGroup by vm.selectedGroup.collectAsState()
+    val selectedGroups by vm.selectedGroups.collectAsState()
     val selectedContentType by vm.selectedContentType.collectAsState()
     val availableContentTypes by vm.availableContentTypes.collectAsState()
     val loadState by vm.loadState.collectAsState()
@@ -146,12 +143,13 @@ fun PlayerScreen(
     val quickRefreshLabel = remember(t.loadRefresh) {
         t.loadRefresh.substringAfter("/", t.loadRefresh).trim().ifBlank { t.loadRefresh }
     }
-    val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, t.allChannels) {
+    val guideCategories = remember(playlists, activePlaylist?.id, groups, selectedGroup, selectedGroups, t.allChannels) {
         buildGuideCategories(
             playlists = playlists,
             activePlaylistId = activePlaylist?.id,
             groups = groups,
             selectedGroup = selectedGroup,
+            selectedGroups = selectedGroups,
             allChannelsLabel = t.allChannels
         )
     }
@@ -196,7 +194,22 @@ fun PlayerScreen(
             recoveryChannelKey = null
             return@LaunchedEffect
         }
-        if (playbackState is PlaybackState.Buffering) return@LaunchedEffect
+        if (playbackState is PlaybackState.Buffering) {
+            if (recoveryAttemptKey != key) {
+                recoveryAttemptKey = key
+                recoveryAttemptCount = 0
+            }
+            delay(18_000)
+            if (recoveryAttemptCount < 2 && playbackUrl != null) {
+                recoveryAttemptCount += 1
+                vm.onVideoInfoChanged(VideoInfo())
+                engine.play(playbackUrl)
+            } else if (recoveryChannelKey != key) {
+                recoveryChannelKey = key
+                vm.refreshPlaylist(revealSidebar = false)
+            }
+            return@LaunchedEffect
+        }
         if (playbackState is PlaybackState.Error || playbackState is PlaybackState.Idle) {
             if (recoveryAttemptKey != key) {
                 recoveryAttemptKey = key
@@ -219,10 +232,11 @@ fun PlayerScreen(
         visibleChannels.indexOfFirst { it.stableKey == currentChannelKey }
     }
     val channelIndex = currentChannelIndex + 1
-    val preferredGuideIndex = remember(guideCategories, selectedGroup, currentChannel?.group) {
+    val preferredGuideIndex = remember(guideCategories, selectedGroup, selectedGroups, currentChannel?.group) {
         selectedGuideCategoryIndex(
             categories = guideCategories,
             selectedGroup = selectedGroup,
+            selectedGroups = selectedGroups,
             currentChannel = currentChannel
         )
     }
@@ -305,6 +319,16 @@ fun PlayerScreen(
             return
         }
         vm.refreshPlaylist(revealSidebar = true)
+    }
+
+    fun activateGuideCategory(item: GuideCategoryItem) {
+        when (item.type) {
+            GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
+            GuideCategoryType.ALL -> vm.selectGroup(null)
+            GuideCategoryType.GROUP -> item.groupName?.let(vm::toggleSelectedGroup)
+        }
+        selectorPane = SelectorPane.CHANNELS
+        focusedChannelIndex = 0
     }
 
     fun submitAdultPin() {
@@ -744,15 +768,7 @@ fun PlayerScreen(
                                         selectFocusedRailItem()
                                     }
                                     SelectorPane.GROUPS -> {
-                                        guideCategories.getOrNull(focusedGroupIndex)?.let { item ->
-                                            when (item.type) {
-                                                GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
-                                                GuideCategoryType.ALL -> vm.selectGroup(null)
-                                                GuideCategoryType.GROUP -> vm.selectGroup(item.groupName)
-                                            }
-                                        }
-                                        selectorPane = SelectorPane.CHANNELS
-                                        focusedChannelIndex = 0
+                                        guideCategories.getOrNull(focusedGroupIndex)?.let(::activateGuideCategory)
                                     }
                                     SelectorPane.CHANNELS -> {
                                         visibleChannels.getOrNull(focusedChannelIndex)?.let {
@@ -817,6 +833,7 @@ fun PlayerScreen(
                 focusedContentTypeIndex = focusedContentTypeIndex,
                 categories = guideCategories,
                 selectedGroup = selectedGroup,
+                selectedGroups = selectedGroups,
                 focusedGroupIndex = focusedGroupIndex,
                 channels = visibleChannels,
                 currentChannel = currentChannel,
@@ -847,15 +864,7 @@ fun PlayerScreen(
                 },
                 onMenuClick = { openPlaylistMenu() },
                 onRefreshClick = { vm.refreshPlaylist(revealSidebar = true) },
-                onCategoryClick = { item ->
-                    when (item.type) {
-                        GuideCategoryType.PLAYLIST -> item.playlist?.let(vm::switchPlaylist)
-                        GuideCategoryType.ALL -> vm.selectGroup(null)
-                        GuideCategoryType.GROUP -> vm.selectGroup(item.groupName)
-                    }
-                    selectorPane = SelectorPane.CHANNELS
-                    focusedChannelIndex = 0
-                },
+                onCategoryClick = ::activateGuideCategory,
                 onChannelClick = ::selectOrRequestAdultPin
             )
         }
@@ -1164,6 +1173,7 @@ private fun ReceiverGuideOverlay(
     focusedContentTypeIndex: Int,
     categories: List<GuideCategoryItem>,
     selectedGroup: String?,
+    selectedGroups: Set<String>,
     focusedGroupIndex: Int,
     channels: List<Channel>,
     currentChannel: Channel?,
@@ -1208,14 +1218,24 @@ private fun ReceiverGuideOverlay(
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            Color(0xB80B0D10),
-                            Color(0x86161A20),
-                            Color(0x4DFFFFFF)
+                            Color(0xEA050A10),
+                            Color(0xC70B1824),
+                            Color(0x7214AFC0)
                         )
                     )
                 )
-                .border(1.dp, Color(0x68FFFFFF), panelShape)
+                .border(1.dp, Color(0x881FD8E8), panelShape)
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color(0x00F04468), Color(0xFFF04468), Color(0x881FD8E8))
+                        )
+                    )
+            )
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -1246,6 +1266,7 @@ private fun ReceiverGuideOverlay(
                     ReceiverCategoryColumn(
                         categories = categories,
                         selectedGroup = selectedGroup,
+                        selectedGroups = selectedGroups,
                         focusedIndex = focusedGroupIndex,
                         focused = focusedPane == SelectorPane.GROUPS,
                         categoriesLabel = categoriesLabel,
@@ -1281,6 +1302,8 @@ private fun ReceiverGuideOverlay(
                 channel = footerChannel,
                 selectedContentType = selectedContentType,
                 selectedGroup = selectedGroup,
+                selectedGroups = selectedGroups,
+                categoriesLabel = categoriesLabel,
                 allChannelsLabel = allChannelsLabel
             )
         }
@@ -1456,6 +1479,7 @@ private fun ReceiverGuideDivider() {
 private fun ReceiverCategoryColumn(
     categories: List<GuideCategoryItem>,
     selectedGroup: String?,
+    selectedGroups: Set<String>,
     focusedIndex: Int,
     focused: Boolean,
     categoriesLabel: String,
@@ -1497,17 +1521,19 @@ private fun ReceiverCategoryColumn(
                     ReceiverCategorySectionHeader(categoriesLabel)
                 }
                 val activeFocus = focused && index == focusedIndex
-                val selected = item.selected || index == selectedIndex
+                val selected = item.selected ||
+                    (item.groupName != null && item.groupName in selectedGroups) ||
+                    index == selectedIndex
                 val rowShape = RoundedCornerShape(6.dp)
                 val rowBg = when {
-                    activeFocus -> Color(0xEAF2F4F6)
-                    selected -> Color(0x331AADB1)
-                    else -> Color(0x08FFFFFF)
+                    activeFocus -> Color(0xF2DDFBFF)
+                    selected -> Color(0x3D1FD8E8)
+                    else -> Color(0x0BFFFFFF)
                 }
                 val textColor = when {
                     activeFocus -> Color(0xFF101317)
-                    selected -> Accent
-                    else -> Color.White
+                    selected -> Color(0xFFE8FCFF)
+                    else -> Color(0xFFEAF4FA)
                 }
                 Row(
                     modifier = Modifier
@@ -1517,8 +1543,12 @@ private fun ReceiverCategoryColumn(
                         .clip(rowShape)
                         .background(rowBg)
                         .border(
-                            width = if (activeFocus) 2.dp else 1.dp,
-                            color = if (activeFocus) Color(0xFFFF744A) else Color(0x18FFFFFF),
+                            width = if (activeFocus || selected) 2.dp else 1.dp,
+                            color = when {
+                                activeFocus -> Color(0xFFF04468)
+                                selected -> Color(0xFF1FD8E8)
+                                else -> Color(0x18FFFFFF)
+                            },
                             shape = rowShape
                         )
                         .clickable { onCategoryClick(item) }
@@ -1535,12 +1565,18 @@ private fun ReceiverCategoryColumn(
                             .width(34.dp)
                             .height(22.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (activeFocus) Color(0x1A101317) else Accent.copy(alpha = 0.16f)),
+                            .background(
+                                when {
+                                    activeFocus -> Color(0x1A101317)
+                                    selected -> Color(0xFF1FD8E8)
+                                    else -> Color(0x231FD8E8)
+                                }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = prefix,
-                            color = if (activeFocus) Color(0xFF101317) else Accent,
+                            color = if (activeFocus) Color(0xFF101317) else if (selected) Color(0xFF061217) else Color(0xFF8CCBFF),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
@@ -1550,9 +1586,9 @@ private fun ReceiverCategoryColumn(
                     Text(
                         text = item.label,
                         color = textColor,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         lineHeight = 16.sp,
-                        fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
+                        fontWeight = if (activeFocus || selected) FontWeight.Black else FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -1569,9 +1605,9 @@ private fun ReceiverCategoryColumn(
                         ) {
                             Text(
                                 text = meta,
-                                color = if (activeFocus) Color(0xFF2E3135) else Color(0xFFCED3D8),
+                                color = if (activeFocus) Color(0xFF2E3135) else if (selected) Color(0xFFE8FCFF) else Color(0xFFCED3D8),
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.Black,
                                 maxLines = 1
                             )
                         }
@@ -1677,13 +1713,13 @@ private fun ReceiverChannelRow(
 ) {
     val shape = RoundedCornerShape(4.dp)
     val rowBrush = when {
-        isFocused -> Brush.linearGradient(listOf(SelectionBg, SelectionBg.copy(alpha = 0.88f), SelectionBg))
-        isPlaying -> Brush.linearGradient(listOf(Color(0x78343B43), Color(0x5212161B), Color(0x3AFFFFFF)))
-        else -> Brush.linearGradient(listOf(Color(0x12FFFFFF), Color(0x04000000)))
+        isFocused -> Brush.linearGradient(listOf(Color(0xFFF2FDFF), Color(0xFFD2F8FF), Color(0xFFECFCFF)))
+        isPlaying -> Brush.linearGradient(listOf(Color(0x65353E48), Color(0x54101A24), Color(0x361FD8E8)))
+        else -> Brush.linearGradient(listOf(Color(0x12FFFFFF), Color(0x06071318)))
     }
     val rowBorder = when {
-        isFocused -> FocusBorder
-        isPlaying -> Color(0x78FFFFFF)
+        isFocused -> Color(0xFFF04468)
+        isPlaying -> Color(0x951FD8E8)
         else -> Color(0x18FFFFFF)
     }
     val textColor = if (isFocused) SelectionText else Color.White
@@ -1710,7 +1746,7 @@ private fun ReceiverChannelRow(
             Text(
                 text = index.toString().padStart(4, '0'),
                 color = numberColor,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.width(48.dp)
             )
@@ -1720,7 +1756,7 @@ private fun ReceiverChannelRow(
                 Text(
                     text = channel.name,
                     color = textColor,
-                    fontSize = 16.sp,
+                    fontSize = 17.sp,
                     fontWeight = if (isFocused || isPlaying) FontWeight.Black else FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1728,8 +1764,8 @@ private fun ReceiverChannelRow(
                 Text(
                     text = channel.group.ifBlank { groupFallbackLabel },
                     color = groupColor,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1756,8 +1792,8 @@ private fun ReceiverChannelRow(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(1.dp)
-                .background(if (isFocused) SelectionProgressFill else ProgressFill)
+                .height(if (isFocused) 2.dp else 1.dp)
+                .background(if (isFocused) Color(0xFFF04468) else Color(0xB21FD8E8))
         )
     }
 }
@@ -1788,26 +1824,32 @@ private fun ReceiverFooter(
     channel: Channel?,
     selectedContentType: ChannelContentType,
     selectedGroup: String?,
+    selectedGroups: Set<String>,
+    categoriesLabel: String,
     allChannelsLabel: String
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(38.dp)
-            .background(Color(0x8F13171D))
-            .border(1.dp, Accent.copy(alpha = 0.28f))
+            .background(Color(0xB0060D14))
+            .border(1.dp, Color(0x661FD8E8))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = contentTypeLabel(selectedContentType),
-            color = Accent,
+            color = Color(0xFF8CEEFF),
             fontSize = 13.sp,
             fontWeight = FontWeight.Black,
             modifier = Modifier.width(72.dp)
         )
         Text(
-            text = selectedGroup ?: channel?.group?.takeIf { it.isNotBlank() } ?: allChannelsLabel,
+            text = when {
+                selectedGroups.size > 1 -> "${selectedGroups.size} $categoriesLabel"
+                selectedGroups.size == 1 -> selectedGroups.first()
+                else -> selectedGroup ?: channel?.group?.takeIf { it.isNotBlank() } ?: allChannelsLabel
+            },
             color = Color(0xFFE3E6EA),
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
@@ -2441,6 +2483,7 @@ private fun buildGuideCategories(
     activePlaylistId: String?,
     groups: List<az.iptv.fplayer.data.model.ChannelGroup>,
     selectedGroup: String?,
+    selectedGroups: Set<String>,
     allChannelsLabel: String
 ): List<GuideCategoryItem> {
     val realGroups = groups.filterNot { it.name == PlayerViewModel.FAVORITE_GROUP_NAME }
@@ -2448,7 +2491,7 @@ private fun buildGuideCategories(
         type = GuideCategoryType.ALL,
         label = allChannelsLabel,
         count = realGroups.sumOf { it.channels.size },
-        selected = selectedGroup == null
+        selected = selectedGroup == null && selectedGroups.isEmpty()
     )
     val groupItems = groups.map { group ->
         GuideCategoryItem(
@@ -2456,7 +2499,7 @@ private fun buildGuideCategories(
             label = group.name,
             count = group.channels.size,
             groupName = group.name,
-            selected = selectedGroup == group.name
+            selected = group.name in selectedGroups || selectedGroup == group.name
         )
     }
     return listOf(allItem) + groupItems
@@ -2465,9 +2508,13 @@ private fun buildGuideCategories(
 private fun selectedGuideCategoryIndex(
     categories: List<GuideCategoryItem>,
     selectedGroup: String?,
+    selectedGroups: Set<String>,
     currentChannel: Channel?
 ): Int =
-    selectedGroup?.let { group ->
+    selectedGroups.firstOrNull()?.let { group ->
+            categories.indexOfFirst { it.groupName == group }.takeIf { it >= 0 }
+        }
+        ?: selectedGroup?.let { group ->
             categories.indexOfFirst { it.groupName == group }.takeIf { it >= 0 }
         }
         ?: currentChannel?.group?.takeIf { it.isNotBlank() }?.let { group ->

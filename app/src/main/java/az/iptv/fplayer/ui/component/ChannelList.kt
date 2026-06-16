@@ -31,10 +31,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.ui.theme.Accent
-import az.iptv.fplayer.ui.theme.FocusBorder
 import az.iptv.fplayer.ui.theme.ProgressFill
 import az.iptv.fplayer.ui.theme.ProgressTrack
-import az.iptv.fplayer.ui.theme.SelectionBg
 import az.iptv.fplayer.ui.theme.SelectionProgressFill
 import az.iptv.fplayer.ui.theme.SelectionSecondaryText
 import az.iptv.fplayer.ui.theme.SelectionText
@@ -86,16 +84,16 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val background = when {
-        isFocused -> Brush.linearGradient(listOf(SelectionBg, SelectionBg.copy(alpha = 0.88f), SelectionBg))
-        isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x4428D7E8)))
+        isFocused -> Brush.linearGradient(listOf(Color(0xFFF2FDFF), Color(0xFFD2F8FF), Color(0xFFECFCFF)))
+        isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x441FD8E8)))
         else -> Brush.linearGradient(listOf(Color(0x14FFFFFF), Color(0x06000000)))
     }
     val primaryText = if (isFocused) SelectionText else Color.White
     val secondaryText = if (isFocused) SelectionSecondaryText else Color(0xDDEAF7FF)
     val progressColor = if (isFocused) SelectionProgressFill else ProgressFill
     val borderColor = when {
-        isFocused -> FocusBorder
-        isPlaying -> Color(0x8AFFFFFF)
+        isFocused -> Color(0xFFF04468)
+        isPlaying -> Color(0x8A1FD8E8)
         else -> Color(0x20FFFFFF)
     }
 
@@ -125,14 +123,14 @@ fun ChannelItem(
                     text = "$index",
                     color = primaryText,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Black,
                     modifier = Modifier.width(22.dp)
                 )
                 Text(
                     text = channel.name,
                     color = primaryText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    fontWeight = if (isFocused || isPlaying) FontWeight.Black else FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -141,6 +139,7 @@ fun ChannelItem(
                 text = programLabel,
                 color = secondaryText,
                 fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp)

@@ -1,6 +1,7 @@
 package az.iptv.fplayer.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import az.iptv.fplayer.data.model.Channel
@@ -93,6 +94,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _selectedGroup = MutableStateFlow<String?>(null)
     val selectedGroup: StateFlow<String?> = _selectedGroup
+    private val _selectedGroups = MutableStateFlow<Set<String>>(emptySet())
+    val selectedGroups: StateFlow<Set<String>> = _selectedGroups
 
     private val _currentChannel = MutableStateFlow<Channel?>(null)
     val currentChannel: StateFlow<Channel?> = _currentChannel
@@ -128,9 +131,19 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var epgJob: Job? = null
     private val maxRecentChannels = 10
 
-    val visibleChannels: StateFlow<List<Channel>> = combine(groups, _selectedGroup) { groups, group ->
-        if (group == null) groups.flatMap { it.channels }
-        else groups.find { it.name == group }?.channels ?: emptyList()
+    val visibleChannels: StateFlow<List<Channel>> = combine(
+        groups,
+        _selectedGroup,
+        _selectedGroups
+    ) { groups, group, selectedGroups ->
+        when {
+            selectedGroups.isNotEmpty() -> groups
+                .filter { it.name in selectedGroups }
+                .flatMap { it.channels }
+                .distinctBy { it.stableKey }
+            group == null -> groups.flatMap { it.channels }
+            else -> groups.find { it.name == group }?.channels ?: emptyList()
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
@@ -214,6 +227,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         playlistLoadJob = viewModelScope.launch {
             prefs.activatePlaylist(profile.id)
             _selectedGroup.value = null
+            _selectedGroups.value = emptySet()
             _currentChannel.value = null
             _currentProgram.value = null
             loadPlaylist(profile, revealSidebar = true)
@@ -229,6 +243,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
             _groups.value = emptyList()
             _selectedGroup.value = null
+            _selectedGroups.value = emptySet()
             _currentChannel.value = null
             _currentProgram.value = null
             _recentChannels.value = emptyList()
@@ -353,6 +368,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (_selectedGroup.value != null && filteredGroups.none { it.name == _selectedGroup.value }) {
             _selectedGroup.value = null
         }
+        val validGroupNames = filteredGroups.map { it.name }.toSet()
+        _selectedGroups.value = _selectedGroups.value.filterTo(mutableSetOf()) { it in validGroupNames }
 
         val channelsByKey = channels
             .filterVisibleForAdultMode(adultAccessMode.value)
@@ -360,7 +377,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _recentChannels.value = _recentChannels.value.mapNotNull { channelsByKey[it.stableKey] }
         _currentChannel.value?.let(::rememberRecentChannel)
         _currentChannel.value?.group?.takeIf { it.isNotBlank() && revealSidebar }?.let { channelGroup ->
-            if (groups.any { it.name == channelGroup }) _selectedGroup.value = channelGroup
+            if (groups.any { it.name == channelGroup }) {
+                _selectedGroup.value = channelGroup
+                _selectedGroups.value = setOf(channelGroup)
+            }
         }
         _sidebarVisible.value = revealSidebar
     }
@@ -377,6 +397,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectChannel(channel: Channel) {
         if (!channel.isPlayable()) return
+        Log.d(
+            PLAYER_LOG_TAG,
+            "selectChannel name=${channel.name} group=${channel.group} type=${channel.contentType} " +
+                "id=${channel.id} adult=${channel.isAdult} url=${channel.url.redactForPlaybackLog()}"
+        )
         _selectedContentType.value = channel.contentType
         _currentChannel.value = channel
         loadCurrentProgram(channel)
@@ -391,11 +416,28 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun selectGroup(group: String?) { _selectedGroup.value = group }
+    fun selectGroup(group: String?) {
+        _selectedGroup.value = group
+        _selectedGroups.value = group?.let { setOf(it) } ?: emptySet()
+    }
+
+    fun toggleSelectedGroup(group: String) {
+        val next = _selectedGroups.value.toMutableSet().apply {
+            if (!add(group)) remove(group)
+        }
+        _selectedGroups.value = next
+        _selectedGroup.value = when {
+            next.isEmpty() -> null
+            group in next -> group
+            else -> next.first()
+        }
+    }
+
     fun selectContentType(contentType: ChannelContentType) {
         if (_selectedContentType.value == contentType) return
         _selectedContentType.value = contentType
         _selectedGroup.value = null
+        _selectedGroups.value = emptySet()
         val channels = groupsForSelectedContent(contentType).flatMap { it.channels }
         channels.firstOrNull { it.isPlayable() }?.let { channel ->
             _currentChannel.value = channel
@@ -578,7 +620,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private fun firstPlayableVisibleChannel(): Channel? =
         groupsForSelectedContent().flatMap { it.channels }.firstOrNull { isChannelPlayable(it) }
 
+    private fun String.redactForPlaybackLog(): String {
+        val withoutCredentials = replace(Regex("(?i)(username|user|password|pass|token|auth|key)=([^&|]+)")) {
+            "${it.groupValues[1]}=***"
+        }
+        return withoutCredentials.take(220)
+    }
+
     companion object {
+        private const val PLAYER_LOG_TAG = "FPLAYER_PLAYBACK"
         const val FAVORITE_GROUP_NAME = "Favoriler"
 
         private val contentTypeOrder = listOf(

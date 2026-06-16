@@ -96,18 +96,18 @@ fun ChannelInfoOsd(
                 .clip(RoundedCornerShape(4.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xCC050505), Color(0xA60F1114), Color(0x4CFFFFFF))
+                        listOf(Color(0xE8050A10), Color(0xC20B1824), Color(0x6620D8EA))
                     )
                 )
-                .border(1.dp, Color(0x9AFFFFFF), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xAA1FD8E8), RoundedCornerShape(4.dp))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.dp)
+                    .height(3.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0x00FFFFFF), Accent, Accent.copy(alpha = 0.4f), Color(0x00FFFFFF))
+                            listOf(Color(0x00F04468), Color(0xFFF04468), Color(0xFF1FD8E8), Color(0x001FD8E8))
                         )
                     )
             )
@@ -136,13 +136,13 @@ fun ChannelInfoOsd(
                     Text(
                         text = channelIndex.toString().padStart(4, '0'),
                         color = Color.White,
-                        fontSize = 22.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1
                     )
                     Text(
                         text = "/ ${totalChannels.coerceAtLeast(0)}",
-                        color = Color(0xFFD7D7D7),
+                        color = Color(0xFFBFEFF6),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1
@@ -165,7 +165,7 @@ fun ChannelInfoOsd(
                     Text(
                         text = channel.name,
                         color = Color.White,
-                        fontSize = 23.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -177,8 +177,8 @@ fun ChannelInfoOsd(
                         LiveStatusBadge(isLive = isLive)
                         Text(
                             text = channel.group.ifBlank { allChannelsLabel },
-                            color = Color(0xFFE2E2E2),
-                            fontSize = 15.sp,
+                            color = Color(0xFFE8FCFF),
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

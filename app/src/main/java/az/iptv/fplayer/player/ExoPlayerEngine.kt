@@ -1,6 +1,7 @@
 package az.iptv.fplayer.player
 
 import android.content.Context
+import android.util.Log
 import android.view.SurfaceView
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -19,9 +20,11 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -96,6 +99,10 @@ class ExoPlayerEngine(
     override fun play(url: String) {
         val exo = player ?: return
         val stream = StreamRequest.from(url)
+        Log.d(
+            LOG_TAG,
+            "play request=${stream.debugLabel()} hls=${stream.isLikelyHls()} audioMode=$audioMode"
+        )
         listener?.onStateChanged(PlaybackState.Buffering)
         listener?.onMediaTracksChanged(MediaTracks())
         trackRefs.clear()
@@ -169,10 +176,21 @@ class ExoPlayerEngine(
                 Player.STATE_ENDED -> PlaybackState.Idle
                 else -> PlaybackState.Idle
             }
+            Log.d(
+                LOG_TAG,
+                "state=${stateName(state)} mapped=$s playWhenReady=${player?.playWhenReady} " +
+                    "bufferedMs=${player?.bufferedPosition} positionMs=${player?.currentPosition}"
+            )
             listener?.onStateChanged(s)
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            Log.e(
+                LOG_TAG,
+                "playerError code=${error.errorCode} name=${error.errorCodeName} " +
+                    "message=${error.message} cause=${error.cause?.javaClass?.simpleName}: ${error.cause?.message}",
+                error
+            )
             if (tryRecoverWithoutAudio(error)) return
             listener?.onStateChanged(PlaybackState.Error(error.message ?: "Unknown error"))
         }
@@ -238,6 +256,7 @@ class ExoPlayerEngine(
 
         if (audio.isNotEmpty() && audio.none { it.selected } && !autoAudioSelectionAttempted) {
             autoAudioSelectionAttempted = true
+            Log.d(LOG_TAG, "autoSelectAudio first=${audio.first().label} options=${audio.size}")
             selectAudioTrack(audio.first().id)
             return
         }
@@ -256,6 +275,10 @@ class ExoPlayerEngine(
         if (audioDisabledRecoveryAttempted || !isLikelyAudioDecoderError(error)) return false
 
         audioDisabledRecoveryAttempted = true
+        Log.w(
+            LOG_TAG,
+            "recoverWithoutAudio code=${error.errorCode} name=${error.errorCodeName} message=${error.message}"
+        )
         exo.trackSelectionParameters = exo.trackSelectionParameters
             .buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
@@ -325,9 +348,18 @@ class ExoPlayerEngine(
             return mediaSourceFactory(headers).createMediaSource(mediaItem)
         }
         return HlsMediaSource.Factory(dataSourceFactory(headers))
+            .setExtractorFactory(tolerantHlsExtractorFactory())
             .setAllowChunklessPreparation(false)
             .createMediaSource(mediaItem)
     }
+
+    private fun tolerantHlsExtractorFactory(): DefaultHlsExtractorFactory =
+        DefaultHlsExtractorFactory(
+            DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+                DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
+                DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS,
+            /* exposeCea608WhenMissingDeclarations= */ true
+        )
 
     private fun StreamRequest.toMediaItem(): MediaItem {
         val liveConfiguration = MediaItem.LiveConfiguration.Builder()
@@ -354,6 +386,24 @@ class ExoPlayerEngine(
         return urlWithoutQuery.endsWith(".m3u8", ignoreCase = true) ||
             url.contains("m3u8", ignoreCase = true)
     }
+
+    private fun StreamRequest.debugLabel(): String {
+        val safeUrl = url
+            .replace(Regex("(?i)(username|user|password|pass|token|auth|key)=([^&]+)")) {
+                "${it.groupValues[1]}=***"
+            }
+            .take(260)
+        return "url=$safeUrl headerNames=${headers.keys.sorted()}"
+    }
+
+    private fun stateName(state: Int): String =
+        when (state) {
+            Player.STATE_IDLE -> "IDLE"
+            Player.STATE_BUFFERING -> "BUFFERING"
+            Player.STATE_READY -> "READY"
+            Player.STATE_ENDED -> "ENDED"
+            else -> "UNKNOWN_$state"
+        }
 
     private data class StreamRequest(
         val url: String,
@@ -398,6 +448,7 @@ class ExoPlayerEngine(
     }
 
     companion object {
+        private const val LOG_TAG = "FPLAYER_EXO"
         private const val DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
         private const val MEDIA_SESSION_ID = "FPLAYER_EXOPLAYER_SESSION"
         private const val LIVE_MIN_BUFFER_MS = 12_000
