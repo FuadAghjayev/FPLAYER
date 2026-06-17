@@ -16,7 +16,6 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 enum class PlaylistType { M3U, XTREAM }
 enum class AppLanguage { AZ, EN }
-enum class AdultAccessMode { PER_CHANNEL, SESSION, HIDDEN }
 enum class AppThemeMode { CLASSIC, DRM_PLAY }
 
 data class PlaylistProfile(
@@ -39,7 +38,6 @@ class AppPreferences(private val context: Context) {
 
     companion object {
         const val MAX_PLAYLISTS = 10
-        const val DEFAULT_ADULT_PIN = "0000"
 
         private val KEY_PLAYLIST_TYPE = stringPreferencesKey("playlist_type")
         private val KEY_M3U_URL = stringPreferencesKey("m3u_url")
@@ -53,8 +51,6 @@ class AppPreferences(private val context: Context) {
         private val KEY_AUDIO_DECODER = stringPreferencesKey("audio_decoder")
         private val KEY_LANGUAGE = stringPreferencesKey("language")
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
-        private val KEY_ADULT_PIN = stringPreferencesKey("adult_pin")
-        private val KEY_ADULT_ACCESS_MODE = stringPreferencesKey("adult_access_mode")
         private val KEY_FAVORITE_CHANNELS = stringSetPreferencesKey("favorite_channels")
     }
 
@@ -80,10 +76,6 @@ class AppPreferences(private val context: Context) {
         runCatching { AppThemeMode.valueOf(it[KEY_THEME_MODE] ?: AppThemeMode.CLASSIC.name) }
             .getOrDefault(AppThemeMode.CLASSIC)
             .name
-    }
-    val adultPin: Flow<String> = context.dataStore.data.map { it[KEY_ADULT_PIN] ?: DEFAULT_ADULT_PIN }
-    val adultAccessMode: Flow<String> = context.dataStore.data.map {
-        it[KEY_ADULT_ACCESS_MODE] ?: AdultAccessMode.PER_CHANNEL.name
     }
     val favoriteChannelKeys: Flow<Set<String>> = context.dataStore.data.map {
         it[KEY_FAVORITE_CHANNELS] ?: emptySet()
@@ -167,14 +159,6 @@ class AppPreferences(private val context: Context) {
     suspend fun setThemeMode(mode: String) = context.dataStore.edit {
         it[KEY_THEME_MODE] = runCatching { AppThemeMode.valueOf(mode) }
             .getOrDefault(AppThemeMode.CLASSIC)
-            .name
-    }
-    suspend fun setAdultPin(pin: String) = context.dataStore.edit {
-        it[KEY_ADULT_PIN] = pin.filter(Char::isDigit).take(4).ifBlank { DEFAULT_ADULT_PIN }
-    }
-    suspend fun setAdultAccessMode(mode: String) = context.dataStore.edit {
-        it[KEY_ADULT_ACCESS_MODE] = runCatching { AdultAccessMode.valueOf(mode) }
-            .getOrDefault(AdultAccessMode.PER_CHANNEL)
             .name
     }
     suspend fun setFavoriteChannel(key: String, favorite: Boolean) = context.dataStore.edit {

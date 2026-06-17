@@ -65,7 +65,6 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelContentType
-import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.ExoPlayerEngine
@@ -124,18 +123,8 @@ fun PlayerScreen(
     val activePlaylist by vm.activePlaylist.collectAsState()
     val recentChannels by vm.recentChannels.collectAsState()
     val language by vm.appLanguage.collectAsState()
-    val adultUnlocked by vm.adultUnlocked.collectAsState()
-    val adultAccessMode by vm.adultAccessMode.collectAsState()
-    val adultUnlockedChannelKeys by vm.adultUnlockedChannelKeys.collectAsState()
     val t = appTexts(language)
-    fun isAdultLocked(channel: Channel): Boolean {
-        if (!channel.isAdult) return false
-        return when (adultAccessMode) {
-            AdultAccessMode.SESSION.name -> !adultUnlocked
-            AdultAccessMode.PER_CHANNEL.name -> channel.stableKey !in adultUnlockedChannelKeys
-            else -> true
-        }
-    }
+    fun isAdultLocked(channel: Channel): Boolean = false
     val guideContentTypes = availableContentTypes.ifEmpty { listOf(selectedContentType) }
     val guideRailItemCount = guideContentTypes.size + playlists.size + 2
     val quickRefreshLabel = remember(t.loadRefresh) {
@@ -250,11 +239,6 @@ fun PlayerScreen(
     var channelOnlyGuideVisible by remember { mutableStateOf(false) }
     var focusedRecentIndex by remember { mutableIntStateOf(0) }
     var focusedAudioTrackIndex by remember { mutableIntStateOf(0) }
-    var adultPinPromptVisible by remember { mutableStateOf(false) }
-    var adultPinInput by remember { mutableStateOf("") }
-    var adultPinError by remember { mutableStateOf(false) }
-    var focusedPinDigit by remember { mutableIntStateOf(0) }
-    var pendingAdultChannel by remember { mutableStateOf<Channel?>(null) }
     var exitPromptVisible by remember { mutableStateOf(false) }
     var exitHintVisible by remember { mutableStateOf(false) }
     var pendingExitOnSelectRelease by remember { mutableStateOf(false) }
@@ -280,19 +264,6 @@ fun PlayerScreen(
     }
 
     fun selectOrRequestAdultPin(channel: Channel) {
-        if (isAdultLocked(channel)) {
-            pendingAdultChannel = channel
-            adultPinInput = ""
-            adultPinError = false
-            focusedPinDigit = 0
-            adultPinPromptVisible = true
-            recentOverlayVisible = false
-            mediaOptionsVisible = false
-            audioTrackPanelVisible = false
-            vm.hideSidebar()
-            vm.hideOsd()
-            return
-        }
         vm.selectChannel(channel)
     }
 
@@ -327,37 +298,6 @@ fun PlayerScreen(
         }
         selectorPane = SelectorPane.CHANNELS
         focusedChannelIndex = 0
-    }
-
-    fun submitAdultPin() {
-        val channel = pendingAdultChannel
-        if (channel != null && vm.unlockAdult(channel, adultPinInput)) {
-            adultPinPromptVisible = false
-            adultPinError = false
-            vm.selectChannel(channel)
-            pendingAdultChannel = null
-        } else {
-            adultPinError = true
-            adultPinInput = ""
-        }
-    }
-
-    fun appendAdultPinDigit() {
-        if (adultPinInput.length >= 4) return
-        val next = adultPinInput + focusedPinDigit.toString()
-        adultPinInput = next
-        adultPinError = false
-        if (next.length == 4) {
-            val channel = pendingAdultChannel
-            if (channel != null && vm.unlockAdult(channel, next)) {
-                adultPinPromptVisible = false
-                vm.selectChannel(channel)
-                pendingAdultChannel = null
-            } else {
-                adultPinError = true
-                adultPinInput = ""
-            }
-        }
     }
 
     LaunchedEffect(selectorVisible) {
@@ -430,42 +370,7 @@ fun PlayerScreen(
                 }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 val isExitKey = event.key == Key.Back
-                if (adultPinPromptVisible) {
-                    when {
-                        isExitKey -> {
-                            adultPinPromptVisible = false
-                            pendingAdultChannel = null
-                            adultPinInput = ""
-                            adultPinError = false
-                            true
-                        }
-                        isSelectKey -> {
-                            appendAdultPinDigit()
-                            true
-                        }
-                        event.key == Key.DirectionLeft -> {
-                            focusedPinDigit = (focusedPinDigit + 9) % 10
-                            adultPinError = false
-                            true
-                        }
-                        event.key == Key.DirectionRight -> {
-                            focusedPinDigit = (focusedPinDigit + 1) % 10
-                            adultPinError = false
-                            true
-                        }
-                        event.key == Key.DirectionUp -> {
-                            focusedPinDigit = (focusedPinDigit + 9) % 10
-                            adultPinError = false
-                            true
-                        }
-                        event.key == Key.DirectionDown -> {
-                            focusedPinDigit = (focusedPinDigit + 1) % 10
-                            adultPinError = false
-                            true
-                        }
-                        else -> true
-                    }
-                } else if (audioTrackPanelVisible) {
+                if (audioTrackPanelVisible) {
                     when (event.key) {
                         Key.Back -> {
                             audioTrackPanelVisible = false
@@ -813,7 +718,19 @@ fun PlayerScreen(
     ) {
         val isWide = maxWidth > 700.dp
         val guideWidth = if (isWide) (maxWidth * 0.92f).coerceIn(820.dp, 1240.dp) else maxWidth * 0.98f
+        val startupLoadingVisible = !selectorVisible &&
+            currentChannel == null &&
+            loadState !is LoadState.Error
         VideoSurface(engine = engine)
+
+        StartupLoadingOverlay(
+            visible = startupLoadingVisible || loadState is LoadState.Loading,
+            title = t.loadingChannels,
+            subtitle = activePlaylist?.name ?: t.playlistSource,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(3f)
+        )
 
         AnimatedVisibility(
             visible = selectorVisible,
@@ -966,17 +883,6 @@ fun PlayerScreen(
                 .zIndex(23f)
         )
 
-        AdultPinDialog(
-            visible = adultPinPromptVisible,
-            title = t.enterPin,
-            error = if (adultPinError) t.wrongPin else "",
-            pinLength = adultPinInput.length,
-            focusedDigit = focusedPinDigit,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .zIndex(24f)
-        )
-
         if (!isWide && !selectorVisible) {
             MobileTapLayer(
                 onTap = {
@@ -998,6 +904,54 @@ private fun VideoSurface(engine: PlayerEngine) {
         factory = { ctx -> SurfaceView(ctx).also { engine.init(it) } },
         modifier = Modifier.fillMaxSize()
     )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun StartupLoadingOverlay(
+    visible: Boolean,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xF2070B10), Color(0xE8122530), Color(0xB214AFC0))
+                    )
+                )
+                .border(1.dp, Accent.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 38.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(72.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Accent)
+            )
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            Text(
+                text = subtitle,
+                color = Color(0xFFD5E8EF),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -1104,12 +1058,12 @@ private fun RecentChannelsOverlay(
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Column(
             modifier = Modifier
-                .widthIn(min = 360.dp, max = 430.dp)
-                .fillMaxHeight(0.58f)
+                .widthIn(min = 430.dp, max = 540.dp)
+                .fillMaxHeight(0.86f)
                 .clip(RoundedCornerShape(6.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xB0090B0F), Color(0x82161B20), Color(0x34FFFFFF))
+                        listOf(Color(0xE6090B0F), Color(0xC2141C24), Color(0x5C1FD8E8))
                     )
                 )
                 .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
@@ -1197,8 +1151,8 @@ private fun ReceiverGuideOverlay(
 ) {
     val panelShape = RoundedCornerShape(8.dp)
     val panelWidth = if (channelsOnly) (guideWidth * 0.52f).coerceIn(460.dp, 640.dp) else guideWidth
-    val railWidth = if (guideWidth >= 900.dp) 82.dp else 72.dp
-    val groupWidth = if (guideWidth >= 1000.dp) 348.dp else 286.dp
+    val railWidth = if (guideWidth >= 900.dp) 132.dp else 116.dp
+    val groupWidth = if (guideWidth >= 1000.dp) 332.dp else 270.dp
     val footerChannel = channels.getOrNull(focusedChannelIndex) ?: currentChannel
 
     Box(
@@ -1388,28 +1342,32 @@ private fun ContentTypeColumn(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(34.dp)
+                    .height(40.dp)
                     .clip(RoundedCornerShape(5.dp))
                     .background(
                         when {
-                            activeFocus -> Color(0x4423353C)
-                            selected -> Color(0x2FFFF744)
-                            else -> Color(0x161AADB1)
+                            activeFocus -> Color(0x66304E57)
+                            selected -> Color(0x3DFFD166)
+                            else -> Color(0x221AADB1)
                         }
                     )
                     .border(
-                        width = if (activeFocus || selected) 1.dp else 0.dp,
-                        color = if (activeFocus) Color(0xFF8CCBFF) else Accent.copy(alpha = 0.45f),
+                        width = if (activeFocus || selected) 2.dp else 1.dp,
+                        color = when {
+                            activeFocus -> Color(0xFFFFD166)
+                            selected -> Color(0xFFFFD166)
+                            else -> Accent.copy(alpha = 0.35f)
+                        },
                         shape = RoundedCornerShape(5.dp)
                     )
                     .clickable { onPlaylistClick(profile) }
-                    .padding(horizontal = 4.dp),
+                    .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = providerShortLabel(profile, index),
-                    color = if (activeFocus) Color(0xFFEAFBFF) else if (selected) Accent else Color(0xFFEAECEF),
-                    fontSize = 11.sp,
+                    text = if (selected) "* ${providerShortLabel(profile, index)}" else providerShortLabel(profile, index),
+                    color = if (activeFocus) Color.White else if (selected) Color(0xFFFFE8A3) else Color(0xFFEAECEF),
+                    fontSize = 12.sp,
                     fontWeight = if (activeFocus || selected) FontWeight.Black else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2101,84 +2059,6 @@ private fun AudioTrackPickerOverlay(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun AdultPinDialog(
-    visible: Boolean,
-    title: String,
-    error: String,
-    pinLength: Int,
-    focusedDigit: Int,
-    modifier: Modifier = Modifier
-) {
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .width(360.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xF0181D24))
-                .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(8.dp))
-                .padding(horizontal = 26.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(4) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(width = 42.dp, height = 48.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (index < pinLength) Accent.copy(alpha = 0.75f) else Color(0x22FFFFFF))
-                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(6.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (index < pinLength) "*" else "",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                repeat(10) { digit ->
-                    val focused = digit == focusedDigit
-                    Box(
-                        modifier = Modifier
-                            .size(width = 26.dp, height = 30.dp)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(if (focused) Color(0xFFFFC247) else Color(0x18FFFFFF))
-                            .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(5.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = digit.toString(),
-                            color = if (focused) Color(0xFF101317) else Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
-            Text(
-                text = error,
-                color = Color(0xFFFF8A8A),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                minLines = 1
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
 private fun MediaOptionRow(
     label: String,
     value: String,
@@ -2499,15 +2379,6 @@ private fun buildGuideCategories(
         count = realGroups.sumOf { it.channels.size },
         selected = selectedGroup == null && selectedGroups.isEmpty()
     )
-    val playlistItems = playlists.map { profile ->
-        GuideCategoryItem(
-            type = GuideCategoryType.PLAYLIST,
-            label = profile.name.ifBlank { profile.sourceLabel },
-            playlist = profile,
-            selected = profile.id == activePlaylistId,
-            active = profile.id == activePlaylistId
-        )
-    }
     val groupItems = groups.map { group ->
         GuideCategoryItem(
             type = GuideCategoryType.GROUP,
@@ -2517,7 +2388,7 @@ private fun buildGuideCategories(
             selected = group.name in selectedGroups || selectedGroup == group.name
         )
     }
-    return playlistItems + listOf(allItem) + groupItems
+    return listOf(allItem) + groupItems
 }
 
 private fun selectedGuideCategoryIndex(
@@ -2603,5 +2474,5 @@ private fun providerShortLabel(profile: PlaylistProfile, index: Int): String {
         .replace(Regex("\\s+"), " ")
         .trim()
         .ifBlank { "IPTV ${index + 1}" }
-    return cleaned.take(6).uppercase()
+    return cleaned.take(12).uppercase()
 }

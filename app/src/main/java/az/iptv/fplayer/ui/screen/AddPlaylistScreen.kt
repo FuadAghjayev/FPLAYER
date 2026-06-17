@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
-import az.iptv.fplayer.data.preferences.AdultAccessMode
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
 import az.iptv.fplayer.data.preferences.AppThemeMode
@@ -93,8 +92,6 @@ fun AddPlaylistScreen(
     val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
     val themeMode by vm.appThemeMode.collectAsState()
-    val adultPin by vm.adultPin.collectAsState()
-    val adultAccessMode by vm.adultAccessMode.collectAsState()
     val t = appTexts(language)
 
     var selectedTab by remember { mutableStateOf(SourceTab.M3U) }
@@ -104,7 +101,6 @@ fun AddPlaylistScreen(
     var xtreamServer by remember { mutableStateOf("") }
     var xtreamUser by remember { mutableStateOf("") }
     var xtreamPass by remember { mutableStateOf("") }
-    var adultPinInput by remember { mutableStateOf(adultPin) }
     var pendingPlayerReturn by remember { mutableStateOf(false) }
 
     fun clearForm() {
@@ -152,10 +148,6 @@ fun AddPlaylistScreen(
 
     LaunchedEffect(activePlaylist?.id) {
         activePlaylist?.let(::editProfile)
-    }
-
-    LaunchedEffect(adultPin) {
-        adultPinInput = adultPin
     }
 
     BoxWithConstraints(
@@ -355,18 +347,6 @@ fun AddPlaylistScreen(
                         onClick = { vm.setThemeMode(AppThemeMode.DRM_PLAY) }
                     )
                 }
-
-                Spacer(Modifier.height(34.dp))
-                AdditionalOptionsPanel(
-                    title = if (language == AppLanguage.EN.name) "Additional options" else "Elave secimler",
-                    texts = t,
-                    pin = adultPinInput,
-                    selectedMode = adultAccessMode,
-                    isWide = isWide,
-                    onPinChange = { adultPinInput = it.filter(Char::isDigit).take(4) },
-                    onSavePin = { vm.setAdultPin(adultPinInput) },
-                    onModeSelect = vm::setAdultAccessMode
-                )
 
                 Spacer(Modifier.height(40.dp))
             }
@@ -696,170 +676,6 @@ private fun PlaylistChip(
             )
         }
     }
-}
-
-@Composable
-private fun AdditionalOptionsPanel(
-    title: String,
-    texts: AppTexts,
-    pin: String,
-    selectedMode: String,
-    isWide: Boolean,
-    onPinChange: (String) -> Unit,
-    onSavePin: () -> Unit,
-    onModeSelect: (AdultAccessMode) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(0x241C2228), Color(0x18101418), Color(0x14FFFFFF))
-                )
-            )
-            .border(1.dp, Color(0x18FFFFFF), RoundedCornerShape(8.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(if (expanded) 12.dp else 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title.uppercase(),
-                color = Color(0x72FFFFFF),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.4.sp,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = if (expanded) "Close" else texts.adultMode,
-                color = Color(0x5EFFFFFF),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-        }
-        if (expanded) {
-            AdultPinSettings(
-                texts = texts,
-                pin = pin,
-                onPinChange = onPinChange,
-                onSave = onSavePin
-            )
-            AdultAccessModeSettings(
-                texts = texts,
-                selectedMode = selectedMode,
-                isWide = isWide,
-                onModeSelect = onModeSelect
-            )
-        }
-    }
-}
-
-@Composable
-private fun AdultPinSettings(
-    texts: AppTexts,
-    pin: String,
-    onPinChange: (String) -> Unit,
-    onSave: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x3412252F))
-            .border(1.dp, Color(0x20FFFFFF), RoundedCornerShape(8.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(text = texts.adultPinHint, color = Color(0xA8FFFFFF), fontSize = 12.sp)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(modifier = Modifier.width(180.dp)) {
-                FormField(
-                    value = pin,
-                    onValueChange = onPinChange,
-                    placeholder = AppPreferences.DEFAULT_ADULT_PIN,
-                    keyboardType = KeyboardType.Number
-                )
-            }
-            SmallActionButton(
-                label = texts.savePin,
-                enabled = pin.isNotBlank(),
-                onClick = onSave
-            )
-        }
-    }
-}
-
-@Composable
-private fun AdultAccessModeSettings(
-    texts: AppTexts,
-    selectedMode: String,
-    isWide: Boolean,
-    onModeSelect: (AdultAccessMode) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x3412252F))
-            .border(1.dp, Color(0x20FFFFFF), RoundedCornerShape(8.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(text = texts.adultMode, color = Color(0xA8FFFFFF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        if (isWide) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AdultModeChip(texts.adultModePerChannel, texts.adultModePerChannelHint, selectedMode == AdultAccessMode.PER_CHANNEL.name, Modifier.weight(1f)) {
-                    onModeSelect(AdultAccessMode.PER_CHANNEL)
-                }
-                AdultModeChip(texts.adultModeSession, texts.adultModeSessionHint, selectedMode == AdultAccessMode.SESSION.name, Modifier.weight(1f)) {
-                    onModeSelect(AdultAccessMode.SESSION)
-                }
-                AdultModeChip(texts.adultModeHidden, texts.adultModeHiddenHint, selectedMode == AdultAccessMode.HIDDEN.name, Modifier.weight(1f)) {
-                    onModeSelect(AdultAccessMode.HIDDEN)
-                }
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AdultModeChip(texts.adultModePerChannel, texts.adultModePerChannelHint, selectedMode == AdultAccessMode.PER_CHANNEL.name, Modifier.fillMaxWidth()) {
-                    onModeSelect(AdultAccessMode.PER_CHANNEL)
-                }
-                AdultModeChip(texts.adultModeSession, texts.adultModeSessionHint, selectedMode == AdultAccessMode.SESSION.name, Modifier.fillMaxWidth()) {
-                    onModeSelect(AdultAccessMode.SESSION)
-                }
-                AdultModeChip(texts.adultModeHidden, texts.adultModeHiddenHint, selectedMode == AdultAccessMode.HIDDEN.name, Modifier.fillMaxWidth()) {
-                    onModeSelect(AdultAccessMode.HIDDEN)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AdultModeChip(
-    label: String,
-    subtitle: String,
-    selected: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    PlayerChip(
-        label = label,
-        subtitle = subtitle,
-        selected = selected,
-        onClick = onClick,
-        modifier = modifier
-    )
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
