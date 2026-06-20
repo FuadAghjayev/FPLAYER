@@ -18,10 +18,15 @@ object M3uParser {
             if (line.startsWith("#EXTINF:")) {
                 var j = i + 1
                 val headers = linkedMapOf<String, String>()
+                var extGroup: String? = null
                 while (j < lines.size) {
                     val nextLine = lines[j].trim()
                     when {
                         nextLine.isBlank() -> j++
+                        nextLine.startsWith("#EXTGRP:", ignoreCase = true) -> {
+                            extGroup = nextLine.substringAfter("#EXTGRP:", "").trim().ifBlank { null }
+                            j++
+                        }
                         nextLine.startsWith("#EXTVLCOPT:", ignoreCase = true) -> {
                             parseVlcOption(nextLine)?.let { (key, value) -> headers[key] = value }
                             j++
@@ -36,7 +41,7 @@ object M3uParser {
                 }
                 val url = lines.getOrNull(j)?.trim()
                 if (!url.isNullOrEmpty() && !url.startsWith("#")) {
-                    val channel = parseExtInf(line, appendHeaders(url, headers))
+                    val channel = parseExtInf(line, appendHeaders(url, headers), extGroup)
                     channels.add(channel)
                     i = j + 1
                     continue
@@ -48,26 +53,27 @@ object M3uParser {
         return groupChannels(channels)
     }
 
-    private fun parseExtInf(extinf: String, url: String): Channel {
-        val name = extinf.substringAfterLast(",").trim()
+    private fun parseExtInf(extinf: String, url: String, extGroup: String?): Channel {
+        val name = extinf.extinfName()
         val attrs = parseAttributes(extinf)
+        val group = attrs["group-title"].orEmpty().ifBlank { extGroup.orEmpty() }
         val id = attrs["tvg-id"] ?: attrs["tvg-name"] ?: name
         return Channel(
             id = id,
             name = name,
             url = url,
             logoUrl = attrs["tvg-logo"] ?: "",
-            group = attrs["group-title"] ?: "",
+            group = group,
             epgId = attrs["tvg-id"] ?: "",
-            isAdult = isAdultContent(name, url, attrs["group-title"].orEmpty(), attrs["tvg-name"].orEmpty()),
+            isAdult = isAdultContent(name, url, group, attrs["tvg-name"].orEmpty()),
             frameRate = parseFrameRate(attrs),
-            contentType = classifyContentType(name, url, attrs)
+            contentType = ChannelContentType.TV
         )
     }
 
     private fun parseAttributes(line: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
-        val attrSection = line.substringAfter("#EXTINF:").substringBefore(",")
+        val attrSection = line.extinfMetadata()
         val regex = Regex("""(\w[\w-]*)="([^"]*?)"""")
         regex.findAll(attrSection).forEach { match ->
             result[match.groupValues[1]] = match.groupValues[2]
@@ -136,17 +142,19 @@ object M3uParser {
     private fun classifyContentType(
         name: String,
         url: String,
-        attrs: Map<String, String>
+        attrs: Map<String, String>,
+        fallbackGroup: String
     ): ChannelContentType {
         val haystack = buildString {
             append(name)
             append(' ')
             append(url)
             append(' ')
-            append(attrs["group-title"] ?: "")
+            append(attrs["group-title"].orEmpty().ifBlank { fallbackGroup })
             append(' ')
             append(attrs["tvg-name"] ?: "")
         }.lowercase()
+        val groupHaystack = attrs["group-title"].orEmpty().ifBlank { fallbackGroup }.lowercase()
 
         val seriesWords = listOf(
             "series", "serial", "serials", "dizi", "diziler", "dizilər", "show", "shows",
@@ -158,6 +166,8 @@ object M3uParser {
         )
 
         return when {
+            seriesWords.any { groupHaystack.contains(it) } -> ChannelContentType.SERIES
+            movieWords.any { groupHaystack.contains(it) } -> ChannelContentType.MOVIE
             seriesWords.any { haystack.contains(it) } -> ChannelContentType.SERIES
             movieWords.any { haystack.contains(it) } -> ChannelContentType.MOVIE
             else -> ChannelContentType.TV
@@ -180,6 +190,29 @@ object M3uParser {
     private fun String.toPositiveFrameRate(): Float? {
         val value = Regex("""\d+(?:\.\d+)?""").find(this)?.value?.toFloatOrNull()
         return value?.takeIf { it > 0f }
+    }
+
+    private fun String.extinfMetadata(): String {
+        val payload = substringAfter("#EXTINF:", "")
+        val commaIndex = payload.indexOfUnquotedComma()
+        return if (commaIndex >= 0) payload.substring(0, commaIndex) else payload
+    }
+
+    private fun String.extinfName(): String {
+        val payload = substringAfter("#EXTINF:", "")
+        val commaIndex = payload.indexOfUnquotedComma()
+        return if (commaIndex >= 0) payload.substring(commaIndex + 1).trim() else substringAfterLast(",").trim()
+    }
+
+    private fun String.indexOfUnquotedComma(): Int {
+        var quoted = false
+        forEachIndexed { index, char ->
+            when (char) {
+                '"' -> quoted = !quoted
+                ',' -> if (!quoted) return index
+            }
+        }
+        return -1
     }
 
     private fun groupChannels(channels: List<Channel>): List<ChannelGroup> {

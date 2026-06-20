@@ -82,16 +82,16 @@ fun ChannelItem(
     onClick: () -> Unit
 ) {
     val background = when {
-        isFocused -> Brush.linearGradient(listOf(Color(0x6623353C), Color(0x55304E57), Color(0x441FD8E8)))
-        isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x441FD8E8)))
+        isFocused -> Brush.linearGradient(listOf(Color(0x66342D22), Color(0x553D3324), Color(0x44FFC247)))
+        isPlaying -> Brush.linearGradient(listOf(Color(0x882B333B), Color(0x6610181F), Color(0x44FFC247)))
         else -> Brush.linearGradient(listOf(Color(0x14FFFFFF), Color(0x06000000)))
     }
     val primaryText = Color.White
-    val secondaryText = if (isFocused) Color(0xFFCFE3EA) else Color(0xDDEAF7FF)
-    val progressColor = if (isFocused) Color(0xFF8CCBFF) else ProgressFill
+    val secondaryText = if (isFocused) Color(0xFFE8D5B0) else Color(0xDDEDE7DC)
+    val progressColor = if (isFocused) Color(0xFFFFC247) else ProgressFill
     val borderColor = when {
-        isFocused -> Color(0xFF8CCBFF)
-        isPlaying -> Color(0x8A1FD8E8)
+        isFocused -> Color(0xFFFFC247)
+        isPlaying -> Color(0x8AFFC247)
         else -> Color(0x20FFFFFF)
     }
 

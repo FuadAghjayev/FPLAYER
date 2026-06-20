@@ -61,10 +61,8 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
-import az.iptv.fplayer.data.preferences.AppThemeMode
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.data.preferences.PlaylistType
-import az.iptv.fplayer.player.PlayerType
 import az.iptv.fplayer.ui.text.AppTexts
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
@@ -91,7 +89,6 @@ fun AddPlaylistScreen(
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
-    val themeMode by vm.appThemeMode.collectAsState()
     val t = appTexts(language)
 
     var selectedTab by remember { mutableStateOf(SourceTab.M3U) }
@@ -297,22 +294,10 @@ fun AddPlaylistScreen(
                     Status(loadState = loadState, texts = t)
                 }
 
-                Spacer(Modifier.height(32.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(26.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1CFFFFFF)))
+                Spacer(Modifier.height(18.dp))
 
-                SectionTitle(t.videoPlayer)
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PlayerChip(
-                        label = "ExoPlayer",
-                        subtitle = t.recommended,
-                        selected = true,
-                        onClick = { vm.setPlayerType(PlayerType.EXOPLAYER) }
-                    )
-                }
-
-                Spacer(Modifier.height(22.dp))
                 SectionTitle(t.language)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -327,24 +312,6 @@ fun AddPlaylistScreen(
                         subtitle = t.en,
                         selected = language == AppLanguage.EN.name,
                         onClick = { vm.setLanguage(AppLanguage.EN) }
-                    )
-                }
-
-                Spacer(Modifier.height(22.dp))
-                SectionTitle(t.theme)
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PlayerChip(
-                        label = t.themeClassic,
-                        subtitle = t.themeClassicHint,
-                        selected = themeMode == AppThemeMode.CLASSIC.name,
-                        onClick = { vm.setThemeMode(AppThemeMode.CLASSIC) }
-                    )
-                    PlayerChip(
-                        label = t.themeDrmPlay,
-                        subtitle = t.themeDrmPlayHint,
-                        selected = themeMode == AppThemeMode.DRM_PLAY.name,
-                        onClick = { vm.setThemeMode(AppThemeMode.DRM_PLAY) }
                     )
                 }
 
@@ -444,7 +411,7 @@ private fun PlaylistLibraryPanel(
                     .fillMaxWidth()
                     .height(74.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0x3012252F))
+                    .background(Color(0x30241F16))
                     .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -483,7 +450,7 @@ private fun ActivePlaylistCard(profile: PlaylistProfile?, emptyLabel: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xD714505A))
+            .background(Color(0xD730281A))
             .border(1.dp, Accent.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -619,8 +586,8 @@ private fun PlaylistChip(
 ) {
     var focused by remember { mutableStateOf(false) }
     val bg = when {
-        focused -> Color(0xFFEAF7FF)
-        selected -> Color(0xDD14505A)
+        focused -> Color(0xFFFFF4D0)
+        selected -> Color(0xDD30281A)
         else -> Color(0xD72B323A)
     }
     val border = when {
@@ -685,7 +652,7 @@ private fun FPlayerLogo(size: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(size.dp)
             .clip(RoundedCornerShape((size / 5).dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF0B2A35), Color(0xFF061014))))
+            .background(Brush.linearGradient(listOf(Color(0xFF231F18), Color(0xFF090908))))
             .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape((size / 5).dp)),
         contentAlignment = Alignment.Center
     ) {
@@ -713,8 +680,8 @@ private fun SourceCard(
         else -> Color(0x66FFFFFF)
     }
     val bgColor = when {
-        focused -> Color(0xFFEAF7FF)
-        selected -> Color(0xDD14505A)
+        focused -> Color(0xFFFFF4D0)
+        selected -> Color(0xDD30281A)
         else -> Color(0xD72B323A)
     }
     val titleColor = if (focused) Color(0xFF071116) else if (selected) Color.White else Color(0xFFF2F5F7)
@@ -738,7 +705,7 @@ private fun SourceCard(
             ) {
                 Text(
                     icon,
-                    color = if (focused) Color(0xFF0C5E65) else if (selected) Accent else Color(0xFFD4DBE0),
+                    color = if (focused) Color(0xFF5A3E00) else if (selected) Accent else Color(0xFFD4DBE0),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black
                 )
@@ -809,7 +776,7 @@ private fun FormField(
                 }
             }
             .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) Color(0x99304A55) else Color(0x8012252F))
+            .background(if (focused) Color(0x99342D22) else Color(0x801E1B16))
             .border(
                 if (focused) 2.dp else 1.dp,
                 if (focused) Color(0xFFFFC247) else Color(0x66FFFFFF),
@@ -875,7 +842,7 @@ private fun SmallActionButton(label: String, enabled: Boolean, onClick: () -> Un
             .background(
                 when {
                     focused && enabled -> Color(0xFFFFC247)
-                    enabled -> Color(0x6620D8C6)
+                    enabled -> Color(0x66FFC247)
                     else -> Color(0x18FFFFFF)
                 }
             )
@@ -937,8 +904,8 @@ private fun PlayerChip(
 ) {
     var focused by remember { mutableStateOf(false) }
     val bg = when {
-        focused -> Color(0xFFEAF7FF)
-        selected -> Color(0xDD14505A)
+        focused -> Color(0xFFFFF4D0)
+        selected -> Color(0xDD30281A)
         else -> Color(0xD72B323A)
     }
     Box(

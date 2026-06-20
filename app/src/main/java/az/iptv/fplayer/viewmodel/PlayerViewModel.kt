@@ -131,6 +131,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val allChannels: StateFlow<List<Channel>> = combine(
+        _groups,
+        favoriteChannelKeys
+    ) { groups, favorites ->
+        groups.flatMap { it.channels }.markFavorites(favorites)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     init {
         viewModelScope.launch {
             prefs.playerType.collect { saved ->
@@ -281,6 +288,31 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         revealSidebar: Boolean = false
     ) {
         _loadState.value = LoadState.Loading
+        val result = repo.loadM3u(url)
+        result.onSuccess {
+            onGroupsLoaded(
+                groups = it,
+                fromCache = false,
+                preferredChannelKey = preferredChannelKey,
+                revealSidebar = revealSidebar
+            )
+            return
+        }
+
+        val networkError = result.exceptionOrNull()
+        repo.loadCachedM3u(url)
+            .onSuccess {
+                onGroupsLoaded(
+                    groups = it,
+                    fromCache = true,
+                    preferredChannelKey = preferredChannelKey,
+                    revealSidebar = revealSidebar
+                )
+            }
+            .onFailure {
+                _loadState.value = LoadState.Error(networkError?.message ?: "Xeta bas verdi")
+            }
+        if (false) {
         repo.loadM3u(url)
             .onSuccess {
                 onGroupsLoaded(
@@ -291,6 +323,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
             .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
+        }
     }
 
     private suspend fun loadXtreamFromNetwork(

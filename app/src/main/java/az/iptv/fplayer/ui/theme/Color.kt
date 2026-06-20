@@ -32,11 +32,11 @@ data class FPlayerColors(
 )
 
 private val ClassicColors = FPlayerColors(
-    accent = Color(0xFF46E6FF),
-    accentDim = Color(0xCC46E6FF),
+    accent = Color(0xFFFFC247),
+    accentDim = Color(0xCCFFC247),
     warmAccent = Color(0xFFFFD166),
     appBg = Color(0xFF070B10),
-    appBgMid = Color(0xFF0B222B),
+    appBgMid = Color(0xFF16130D),
     appBgEnd = Color(0xFF020507),
     panelBg = Color(0xF018222A),
     panelBgSoft = Color(0xC0162028),
@@ -46,7 +46,7 @@ private val ClassicColors = FPlayerColors(
     textPrimary = Color(0xFFFFFFFF),
     textSecondary = Color(0xFFD5DBE0),
     focusBorder = Color(0xFFFFD166),
-    badgeBg = Color(0xB846E6FF),
+    badgeBg = Color(0xB8FFC247),
     dividerColor = Color(0x33FFFFFF),
     selectionBg = Color(0xF7F7FBFF),
     selectionText = Color(0xFF111417),

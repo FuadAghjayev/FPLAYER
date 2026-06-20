@@ -246,7 +246,7 @@ private fun DecoderChip(
     onClick: () -> Unit
 ) {
     val selected = mode == current
-    val bg = if (selected) Color(0xFF0D2035) else CardBg
+    val bg = if (selected) Color(0xFF30281A) else CardBg
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -257,7 +257,7 @@ private fun DecoderChip(
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = label,
-                color = if (selected) Color(0xFF7EB8E8) else Color.White,
+                color = if (selected) Accent else Color.White,
                 fontSize = 14.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
             )

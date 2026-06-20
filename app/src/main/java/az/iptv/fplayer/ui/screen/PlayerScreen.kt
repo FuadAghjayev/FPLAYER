@@ -113,6 +113,7 @@ fun PlayerScreen(
     val selectorVisible by vm.sidebarVisible.collectAsState()
     val osdVisible by vm.osdVisible.collectAsState()
     val visibleChannels by vm.visibleChannels.collectAsState()
+    val allChannels by vm.allChannels.collectAsState()
     val selectedGroup by vm.selectedGroup.collectAsState()
     val selectedGroups by vm.selectedGroups.collectAsState()
     val selectedContentType by vm.selectedContentType.collectAsState()
@@ -215,10 +216,10 @@ fun PlayerScreen(
     }
 
     val currentChannelKey = currentChannel?.stableKey
-    val currentChannelIndex = remember(visibleChannels, currentChannelKey) {
+    val currentVisibleChannelIndex = remember(visibleChannels, currentChannelKey) {
         visibleChannels.indexOfFirst { it.stableKey == currentChannelKey }
     }
-    val channelIndex = currentChannelIndex + 1
+    val channelIndex = currentVisibleChannelIndex + 1
     val preferredGuideIndex = remember(guideCategories, selectedGroup, selectedGroups, currentChannel?.group) {
         selectedGuideCategoryIndex(
             categories = guideCategories,
@@ -237,6 +238,10 @@ fun PlayerScreen(
     var audioTrackPanelVisible by remember { mutableStateOf(false) }
     var recentOverlayVisible by remember { mutableStateOf(false) }
     var channelOnlyGuideVisible by remember { mutableStateOf(false) }
+    val guideChannels = if (channelOnlyGuideVisible) allChannels else visibleChannels
+    val currentGuideChannelIndex = remember(guideChannels, currentChannelKey) {
+        guideChannels.indexOfFirst { it.stableKey == currentChannelKey }
+    }
     var focusedRecentIndex by remember { mutableIntStateOf(0) }
     var focusedAudioTrackIndex by remember { mutableIntStateOf(0) }
     var exitPromptVisible by remember { mutableStateOf(false) }
@@ -302,14 +307,14 @@ fun PlayerScreen(
 
     LaunchedEffect(selectorVisible) {
         if (selectorVisible) {
-            focusedChannelIndex = currentChannelIndex.coerceAtLeast(0)
+            focusedChannelIndex = currentGuideChannelIndex.coerceAtLeast(0)
             focusedGroupIndex = preferredGuideIndex
             focusedContentTypeIndex = selectedContentTypeIndex(guideContentTypes, selectedContentType)
         }
     }
 
-    LaunchedEffect(visibleChannels, currentChannelKey) {
-        focusedChannelIndex = currentChannelIndex.coerceAtLeast(0)
+    LaunchedEffect(guideChannels, currentChannelKey) {
+        focusedChannelIndex = currentGuideChannelIndex.coerceAtLeast(0)
     }
 
     LaunchedEffect(guideContentTypes, selectedContentType, guideRailItemCount) {
@@ -350,6 +355,13 @@ fun PlayerScreen(
         if (exitHintVisible) {
             delay(2200)
             exitHintVisible = false
+        }
+    }
+    LaunchedEffect(channelOnlyGuideVisible, selectorVisible, focusedChannelIndex, guideChannels.size) {
+        if (channelOnlyGuideVisible && selectorVisible) {
+            delay(10_000)
+            channelOnlyGuideVisible = false
+            vm.hideSidebar()
         }
     }
 
@@ -420,12 +432,11 @@ fun PlayerScreen(
                             true
                         }
                         Key.DirectionUp -> {
-                            focusedRecentIndex = (focusedRecentIndex - 1).coerceAtLeast(0)
+                            focusedRecentIndex = wrapIndex(focusedRecentIndex, -1, recentList.size)
                             true
                         }
                         Key.DirectionDown -> {
-                            focusedRecentIndex = (focusedRecentIndex + 1)
-                                .coerceAtMost((recentList.size - 1).coerceAtLeast(0))
+                            focusedRecentIndex = wrapIndex(focusedRecentIndex, 1, recentList.size)
                             true
                         }
                         Key.DirectionLeft -> {
@@ -570,7 +581,7 @@ fun PlayerScreen(
                                             vm.hideSidebar()
                                             vm.hideOsd()
                                         } else {
-                                            visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
+                                            guideChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
                                         }
                                     }
                                 }
@@ -611,13 +622,13 @@ fun PlayerScreen(
                             if (selectorVisible) {
                                 when (selectorPane) {
                                     SelectorPane.CONTENT_TYPES -> {
-                                        focusedContentTypeIndex = (focusedContentTypeIndex - 1).coerceAtLeast(0)
+                                        focusedContentTypeIndex = wrapIndex(focusedContentTypeIndex, -1, guideRailItemCount)
                                     }
                                     SelectorPane.GROUPS -> {
-                                        focusedGroupIndex = (focusedGroupIndex - 1).coerceAtLeast(0)
+                                        focusedGroupIndex = wrapIndex(focusedGroupIndex, -1, guideCategories.size)
                                     }
                                     SelectorPane.CHANNELS -> {
-                                        focusedChannelIndex = (focusedChannelIndex - 1).coerceAtLeast(0)
+                                        focusedChannelIndex = wrapIndex(focusedChannelIndex, -1, guideChannels.size)
                                     }
                                 }
                                 true
@@ -631,16 +642,13 @@ fun PlayerScreen(
                             if (selectorVisible) {
                                 when (selectorPane) {
                                     SelectorPane.CONTENT_TYPES -> {
-                                        focusedContentTypeIndex = (focusedContentTypeIndex + 1)
-                                            .coerceAtMost((guideRailItemCount - 1).coerceAtLeast(0))
+                                        focusedContentTypeIndex = wrapIndex(focusedContentTypeIndex, 1, guideRailItemCount)
                                     }
                                     SelectorPane.GROUPS -> {
-                                        focusedGroupIndex = (focusedGroupIndex + 1)
-                                            .coerceAtMost((guideCategories.size - 1).coerceAtLeast(0))
+                                        focusedGroupIndex = wrapIndex(focusedGroupIndex, 1, guideCategories.size)
                                     }
                                     SelectorPane.CHANNELS -> {
-                                        focusedChannelIndex = (focusedChannelIndex + 1)
-                                            .coerceAtMost((visibleChannels.size - 1).coerceAtLeast(0))
+                                        focusedChannelIndex = wrapIndex(focusedChannelIndex, 1, guideChannels.size)
                                     }
                                 }
                                 true
@@ -674,7 +682,7 @@ fun PlayerScreen(
                                         guideCategories.getOrNull(focusedGroupIndex)?.let(::activateGuideCategory)
                                     }
                                     SelectorPane.CHANNELS -> {
-                                        visibleChannels.getOrNull(focusedChannelIndex)?.let {
+                                        guideChannels.getOrNull(focusedChannelIndex)?.let {
                                             mediaOptionsVisible = false
                                             audioTrackPanelVisible = false
                                             selectOrRequestAdultPin(it)
@@ -699,7 +707,7 @@ fun PlayerScreen(
 
                         Key.Info -> {
                             if (selectorVisible && selectorPane == SelectorPane.CHANNELS) {
-                                visibleChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
+                                guideChannels.getOrNull(focusedChannelIndex)?.let(vm::toggleFavorite)
                             } else if (hasSelectableMediaTracks(mediaTracks)) {
                                 focusedMediaOption = if (mediaTracks.audioTracks.isNotEmpty()) 0 else 1
                                 mediaOptionsVisible = true
@@ -750,7 +758,7 @@ fun PlayerScreen(
                 selectedGroup = selectedGroup,
                 selectedGroups = selectedGroups,
                 focusedGroupIndex = focusedGroupIndex,
-                channels = visibleChannels,
+                channels = guideChannels,
                 currentChannel = currentChannel,
                 focusedChannelIndex = focusedChannelIndex,
                 focusedPane = if (channelOnlyGuideVisible) SelectorPane.CHANNELS else selectorPane,
@@ -920,7 +928,7 @@ private fun StartupLoadingOverlay(
                 .clip(RoundedCornerShape(8.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xF2070B10), Color(0xE8122530), Color(0xB214AFC0))
+                        listOf(Color(0xF2070B10), Color(0xE81D1912), Color(0xB2A87820))
                     )
                 )
                 .border(1.dp, Accent.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
@@ -1063,7 +1071,7 @@ private fun RecentChannelsOverlay(
                 .clip(RoundedCornerShape(6.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xE6090B0F), Color(0xC2141C24), Color(0x5C1FD8E8))
+                        listOf(Color(0xE6090B0F), Color(0xC21E1A14), Color(0x5CFFC247))
                     )
                 )
                 .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
@@ -1173,18 +1181,18 @@ private fun ReceiverGuideOverlay(
                             listOf(
                                 Color(0xB8050A10),
                                 Color(0x940B1824),
-                                Color(0x4F14AFC0)
+                                Color(0x4FFFC247)
                             )
                         } else {
                             listOf(
                                 Color(0xEA050A10),
                                 Color(0xC70B1824),
-                                Color(0x7214AFC0)
+                                Color(0x72FFC247)
                             )
                         }
                     )
                 )
-                .border(1.dp, if (channelsOnly) Color(0x661FD8E8) else Color(0x881FD8E8), panelShape)
+                .border(1.dp, if (channelsOnly) Color(0x66FFC247) else Color(0x88FFC247), panelShape)
         ) {
             Box(
                 modifier = Modifier
@@ -1192,7 +1200,7 @@ private fun ReceiverGuideOverlay(
                     .height(3.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0x00F04468), Color(0xFFF04468), Color(0x881FD8E8))
+                            listOf(Color(0x00F04468), Color(0xFFF04468), Color(0x88FFC247))
                         )
                     )
             )
@@ -1312,10 +1320,10 @@ private fun ContentTypeColumn(
                     .fillMaxWidth()
                     .height(36.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(if (activeFocus) Color(0x331FD8E8) else Color.Transparent)
+                    .background(if (activeFocus) Color(0x33FFC247) else Color.Transparent)
                     .border(
                         width = if (activeFocus) 2.dp else 0.dp,
-                        color = Color(0xFF8CCBFF),
+                        color = Color(0xFFFFC247),
                         shape = RoundedCornerShape(6.dp)
                     )
                     .clickable { onContentTypeClick(type) }
@@ -1324,7 +1332,7 @@ private fun ContentTypeColumn(
             ) {
                 Text(
                     text = contentTypeShortLabel(type),
-                    color = if (activeFocus || selected) Color(0xFFEAFBFF) else Color(0xFFEAECEF),
+                    color = if (activeFocus || selected) Color(0xFFFFF4D0) else Color(0xFFEAECEF),
                     fontSize = 14.sp,
                     fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
@@ -1348,7 +1356,7 @@ private fun ContentTypeColumn(
                         when {
                             activeFocus -> Color(0x66304E57)
                             selected -> Color(0x3DFFD166)
-                            else -> Color(0x221AADB1)
+                            else -> Color(0x22FFC247)
                         }
                     )
                     .border(
@@ -1406,10 +1414,10 @@ private fun RailActionButton(
             .fillMaxWidth()
             .height(34.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(if (activeFocus) Color(0x4423353C) else Color(0x201AADB1))
+            .background(if (activeFocus) Color(0x44342D22) else Color(0x20FFC247))
             .border(
                 width = if (activeFocus) 2.dp else 1.dp,
-                color = if (activeFocus) Color(0xFF8CCBFF) else Accent.copy(alpha = 0.42f),
+                color = if (activeFocus) Color(0xFFFFC247) else Accent.copy(alpha = 0.42f),
                 shape = RoundedCornerShape(4.dp)
             )
             .clickable { onClick() }
@@ -1418,7 +1426,7 @@ private fun RailActionButton(
     ) {
         Text(
             text = label,
-            color = if (activeFocus) Color(0xFFEAFBFF) else Accent,
+            color = if (activeFocus) Color(0xFFFFF4D0) else Accent,
             fontSize = 12.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
@@ -1491,12 +1499,12 @@ private fun ReceiverCategoryColumn(
                 val rowShape = RoundedCornerShape(6.dp)
                 val rowBg = when {
                     activeFocus -> Color(0x4423353C)
-                    selected -> Color(0x3D1FD8E8)
+                    selected -> Color(0x3DFFC247)
                     else -> Color(0x0BFFFFFF)
                 }
                 val textColor = when {
-                    activeFocus -> Color(0xFFEAFBFF)
-                    selected -> Color(0xFFE8FCFF)
+                    activeFocus -> Color(0xFFFFF4D0)
+                    selected -> Color(0xFFFFF0BF)
                     else -> Color(0xFFEAF4FA)
                 }
                 Row(
@@ -1509,8 +1517,8 @@ private fun ReceiverCategoryColumn(
                         .border(
                             width = if (activeFocus || selected) 2.dp else 1.dp,
                             color = when {
-                                activeFocus -> Color(0xFF8CCBFF)
-                                selected -> Color(0xFF1FD8E8)
+                                activeFocus -> Color(0xFFFFC247)
+                                selected -> Color(0xFFFFC247)
                                 else -> Color(0x18FFFFFF)
                             },
                             shape = rowShape
@@ -1532,15 +1540,15 @@ private fun ReceiverCategoryColumn(
                             .background(
                                 when {
                                     activeFocus -> Color(0x3323353C)
-                                    selected -> Color(0xFF1FD8E8)
-                                    else -> Color(0x231FD8E8)
+                                    selected -> Color(0xFFFFC247)
+                                    else -> Color(0x23FFC247)
                                 }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = prefix,
-                            color = if (activeFocus) Color(0xFFEAFBFF) else if (selected) Color(0xFF061217) else Color(0xFF8CCBFF),
+                            color = if (activeFocus) Color(0xFFFFF4D0) else if (selected) Color(0xFF18130B) else Color(0xFFFFC247),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
@@ -1569,7 +1577,7 @@ private fun ReceiverCategoryColumn(
                         ) {
                             Text(
                                 text = meta,
-                                color = if (activeFocus) Color(0xFFDCEFF6) else if (selected) Color(0xFFE8FCFF) else Color(0xFFCED3D8),
+                                color = if (activeFocus) Color(0xFFE8D5B0) else if (selected) Color(0xFFFFF0BF) else Color(0xFFCED3D8),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black,
                                 maxLines = 1
@@ -1677,18 +1685,18 @@ private fun ReceiverChannelRow(
 ) {
     val shape = RoundedCornerShape(4.dp)
     val rowBrush = when {
-        isFocused -> Brush.linearGradient(listOf(Color(0x6623353C), Color(0x55304E57), Color(0x441FD8E8)))
-        isPlaying -> Brush.linearGradient(listOf(Color(0x65353E48), Color(0x54101A24), Color(0x361FD8E8)))
+        isFocused -> Brush.linearGradient(listOf(Color(0x66342D22), Color(0x553D3324), Color(0x44FFC247)))
+        isPlaying -> Brush.linearGradient(listOf(Color(0x65353E48), Color(0x54101A24), Color(0x36FFC247)))
         else -> Brush.linearGradient(listOf(Color(0x12FFFFFF), Color(0x06071318)))
     }
     val rowBorder = when {
-        isFocused -> Color(0xFF8CCBFF)
-        isPlaying -> Color(0x951FD8E8)
+        isFocused -> Color(0xFFFFC247)
+        isPlaying -> Color(0x95FFC247)
         else -> Color(0x18FFFFFF)
     }
     val textColor = if (isFocused) Color(0xFFFFFFFF) else Color.White
-    val numberColor = if (isFocused) Color(0xFFD8F5FF) else Color(0xFFEFF5FA)
-    val groupColor = if (isFocused) Color(0xFFCFE3EA) else Color(0xFFC7D2DA)
+    val numberColor = if (isFocused) Color(0xFFFFF0BF) else Color(0xFFEFF5FA)
+    val groupColor = if (isFocused) Color(0xFFE8D5B0) else Color(0xFFC7D2DA)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1757,7 +1765,7 @@ private fun ReceiverChannelRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (isFocused) 2.dp else 1.dp)
-                .background(if (isFocused) Color(0xFF8CCBFF) else Color(0xB21FD8E8))
+                .background(if (isFocused) Color(0xFFFFC247) else Color(0xB2FFC247))
         )
     }
 }
@@ -1797,13 +1805,13 @@ private fun ReceiverFooter(
             .fillMaxWidth()
             .height(38.dp)
             .background(Color(0xB0060D14))
-            .border(1.dp, Color(0x661FD8E8))
+            .border(1.dp, Color(0x66FFC247))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = contentTypeLabel(selectedContentType),
-            color = Color(0xFF8CEEFF),
+            color = Color(0xFFFFD166),
             fontSize = 13.sp,
             fontWeight = FontWeight.Black,
             modifier = Modifier.width(72.dp)
@@ -2014,7 +2022,7 @@ private fun AudioTrackPickerOverlay(
                             .background(
                                 when {
                                     focused -> Color(0xFFE9EDF1)
-                                    selected -> Color(0x331AADB1)
+                                    selected -> Color(0x33FFC247)
                                     else -> Color(0x16FFFFFF)
                                 }
                             )
@@ -2111,7 +2119,7 @@ private fun ContentTypeTabs(
                     .weight(1f)
                     .height(36.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(if (selected) Accent else Color(0x241AADB1))
+                    .background(if (selected) Accent else Color(0x24FFC247))
                     .border(
                         width = if (selected) 0.dp else 1.dp,
                         color = Color(0x26FFFFFF),
@@ -2414,6 +2422,11 @@ private fun selectedContentTypeIndex(
     contentTypes: List<ChannelContentType>,
     selectedContentType: ChannelContentType
 ): Int = contentTypes.indexOf(selectedContentType).takeIf { it >= 0 } ?: 0
+
+private fun wrapIndex(current: Int, delta: Int, size: Int): Int {
+    if (size <= 0) return 0
+    return (current + delta + size) % size
+}
 
 private fun hasSelectableMediaTracks(tracks: MediaTracks): Boolean =
     tracks.audioTracks.size > 1 || tracks.subtitleTracks.isNotEmpty()

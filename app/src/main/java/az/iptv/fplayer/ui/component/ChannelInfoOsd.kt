@@ -96,10 +96,10 @@ fun ChannelInfoOsd(
                 .clip(RoundedCornerShape(4.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xE8050A10), Color(0xC20B1824), Color(0x6620D8EA))
+                        listOf(Color(0xF0060709), Color(0xD0161512), Color(0x703A2B12))
                     )
                 )
-                .border(1.dp, Color(0xAA1FD8E8), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xAAFFC247), RoundedCornerShape(4.dp))
         ) {
             Box(
                 modifier = Modifier
@@ -107,7 +107,7 @@ fun ChannelInfoOsd(
                     .height(3.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0x00F04468), Color(0xFFF04468), Color(0xFF1FD8E8), Color(0x001FD8E8))
+                            listOf(Color(0x00FFC247), Color(0xFFFFC247), Color(0xFFFFD166), Color(0x00FFC247))
                         )
                     )
             )
@@ -142,7 +142,7 @@ fun ChannelInfoOsd(
                     )
                     Text(
                         text = "/ ${totalChannels.coerceAtLeast(0)}",
-                        color = Color(0xFFBFEFF6),
+                        color = Color(0xFFE8D5B0),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1
@@ -177,7 +177,7 @@ fun ChannelInfoOsd(
                         LiveStatusBadge(isLive = isLive)
                         Text(
                             text = channel.group.ifBlank { allChannelsLabel },
-                            color = Color(0xFFE8FCFF),
+                            color = Color(0xFFFFF0BF),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1,
