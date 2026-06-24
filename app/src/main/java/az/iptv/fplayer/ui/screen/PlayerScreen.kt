@@ -113,7 +113,6 @@ fun PlayerScreen(
     val selectorVisible by vm.sidebarVisible.collectAsState()
     val osdVisible by vm.osdVisible.collectAsState()
     val visibleChannels by vm.visibleChannels.collectAsState()
-    val allChannels by vm.allChannels.collectAsState()
     val selectedGroup by vm.selectedGroup.collectAsState()
     val selectedGroups by vm.selectedGroups.collectAsState()
     val selectedContentType by vm.selectedContentType.collectAsState()
@@ -216,8 +215,15 @@ fun PlayerScreen(
     }
 
     val currentChannelKey = currentChannel?.stableKey
-    val currentVisibleChannelIndex = remember(visibleChannels, currentChannelKey) {
-        visibleChannels.indexOfFirst { it.stableKey == currentChannelKey }
+    val currentChannelGroupChannels = remember(groups, currentChannel?.group, currentChannelKey) {
+        val groupName = currentChannel?.group?.takeIf { it.isNotBlank() }
+        groups.find { it.name == groupName }?.channels.orEmpty()
+    }
+    val osdChannels = currentChannelGroupChannels
+        .takeIf { channels -> currentChannelKey != null && channels.any { it.stableKey == currentChannelKey } }
+        ?: visibleChannels
+    val currentVisibleChannelIndex = remember(osdChannels, currentChannelKey) {
+        osdChannels.indexOfFirst { it.stableKey == currentChannelKey }
     }
     val channelIndex = currentVisibleChannelIndex + 1
     val preferredGuideIndex = remember(guideCategories, selectedGroup, selectedGroups, currentChannel?.group) {
@@ -238,7 +244,7 @@ fun PlayerScreen(
     var audioTrackPanelVisible by remember { mutableStateOf(false) }
     var recentOverlayVisible by remember { mutableStateOf(false) }
     var channelOnlyGuideVisible by remember { mutableStateOf(false) }
-    val guideChannels = if (channelOnlyGuideVisible) allChannels else visibleChannels
+    val guideChannels = visibleChannels
     val currentGuideChannelIndex = remember(guideChannels, currentChannelKey) {
         guideChannels.indexOfFirst { it.stableKey == currentChannelKey }
     }
@@ -270,6 +276,17 @@ fun PlayerScreen(
 
     fun selectOrRequestAdultPin(channel: Channel) {
         vm.selectChannel(channel)
+    }
+
+    fun focusCurrentChannelCategory() {
+        val groupName = currentChannel?.group?.takeIf { name ->
+            name.isNotBlank() && groups.any { it.name == name }
+        }
+        vm.selectGroup(groupName)
+        focusedGroupIndex = groupName
+            ?.let { name -> guideCategories.indexOfFirst { it.groupName == name }.takeIf { it >= 0 } }
+            ?: guideCategories.indexOfFirst { it.type == GuideCategoryType.ALL }.takeIf { it >= 0 }
+            ?: 0
     }
 
     fun selectFocusedRailItem() {
@@ -555,7 +572,7 @@ fun PlayerScreen(
                                     return@onPreviewKeyEvent true
                                 }
                                 channelOnlyGuideVisible = false
-                                focusedGroupIndex = preferredGuideIndex
+                                focusCurrentChannelCategory()
                                 selectorPane = SelectorPane.GROUPS
                                 vm.showSidebar()
                             }
@@ -693,6 +710,7 @@ fun PlayerScreen(
                             } else {
                                 recentOverlayVisible = false
                                 mediaOptionsVisible = false
+                                focusCurrentChannelCategory()
                                 channelOnlyGuideVisible = true
                                 selectorPane = SelectorPane.CHANNELS
                                 vm.showSidebar()
@@ -820,7 +838,7 @@ fun PlayerScreen(
             programInfo = currentProgram,
             playbackState = playbackState,
             channelIndex = channelIndex,
-            totalChannels = visibleChannels.size,
+            totalChannels = osdChannels.size,
             allChannelsLabel = t.allChannels,
             programLabel = t.program,
             audioLabel = t.audio,
