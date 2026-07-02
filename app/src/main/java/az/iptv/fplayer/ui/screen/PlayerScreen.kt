@@ -3,8 +3,12 @@ package az.iptv.fplayer.ui.screen
 import android.app.Activity
 import android.view.SurfaceView
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -76,7 +80,6 @@ import az.iptv.fplayer.player.PlayerEventListener
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.component.ChannelInfoOsd
 import az.iptv.fplayer.ui.component.ChannelLogo
-import az.iptv.fplayer.ui.component.TechBadge
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
@@ -760,8 +763,14 @@ fun PlayerScreen(
 
         AnimatedVisibility(
             visible = selectorVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(220)) + slideInHorizontally(
+                animationSpec = tween(260, easing = FastOutSlowInEasing),
+                initialOffsetX = { -it / 12 }
+            ),
+            exit = fadeOut(tween(160)) + slideOutHorizontally(
+                animationSpec = tween(200, easing = FastOutSlowInEasing),
+                targetOffsetX = { -it / 12 }
+            ),
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(10f)
@@ -940,16 +949,16 @@ private fun StartupLoadingOverlay(
     subtitle: String,
     modifier: Modifier = Modifier
 ) {
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(tween(220)), exit = fadeOut(tween(180)), modifier = modifier) {
         Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xF2070B10), Color(0xE81D1912), Color(0xB2A87820))
+                    Brush.verticalGradient(
+                        listOf(Color(0xF20A0E14), Color(0xF6090C11))
                     )
                 )
-                .border(1.dp, Accent.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
+                .border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(14.dp))
                 .padding(horizontal = 38.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1030,44 +1039,6 @@ private fun ExitConfirmDialog(visible: Boolean, title: String, subtitle: String,
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun PlaybackScrim(playlist: String, group: String, visible: Boolean) {
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color(0x66000000),
-                        0.16f to Color.Transparent,
-                        0.74f to Color.Transparent,
-                        1f to Color(0x88000000)
-                    )
-                )
-        ) {
-            Text(
-                text = "$playlist  •  $group",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 32.dp, top = 24.dp)
-            )
-            Text(
-                text = "Wed, Apr 17, 12:25 PM",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(end = 32.dp, top = 24.dp)
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
 private fun RecentChannelsOverlay(
     visible: Boolean,
     channels: List<Channel>,
@@ -1086,13 +1057,13 @@ private fun RecentChannelsOverlay(
             modifier = Modifier
                 .widthIn(min = 430.dp, max = 540.dp)
                 .fillMaxHeight(0.86f)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xE6090B0F), Color(0xC21E1A14), Color(0x5CFFC247))
+                    Brush.verticalGradient(
+                        listOf(Color(0xF20A0E14), Color(0xF6090C11))
                     )
                 )
-                .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
+                .border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 12.dp)
         ) {
             Row(
@@ -1175,7 +1146,7 @@ private fun ReceiverGuideOverlay(
     onCategoryClick: (GuideCategoryItem) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
-    val panelShape = RoundedCornerShape(8.dp)
+    val panelShape = RoundedCornerShape(14.dp)
     val panelWidth = if (channelsOnly) (guideWidth * 0.52f).coerceIn(460.dp, 640.dp) else guideWidth
     val railWidth = if (guideWidth >= 900.dp) 132.dp else 116.dp
     val groupWidth = if (guideWidth >= 1000.dp) 332.dp else 270.dp
@@ -1184,7 +1155,7 @@ private fun ReceiverGuideOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (channelsOnly) Color(0x18000000) else Color(0x30000000)),
+            .background(if (channelsOnly) Color(0x20000000) else Color(0x59000000)),
         contentAlignment = if (channelsOnly) Alignment.CenterStart else Alignment.Center
     ) {
         Column(
@@ -1194,31 +1165,23 @@ private fun ReceiverGuideOverlay(
                 .fillMaxHeight(0.82f)
                 .clip(panelShape)
                 .background(
-                    Brush.linearGradient(
+                    Brush.verticalGradient(
                         if (channelsOnly) {
-                            listOf(
-                                Color(0xB8050A10),
-                                Color(0x940B1824),
-                                Color(0x4FFFC247)
-                            )
+                            listOf(Color(0xD90A0E14), Color(0xE0090C11))
                         } else {
-                            listOf(
-                                Color(0xEA050A10),
-                                Color(0xC70B1824),
-                                Color(0x72FFC247)
-                            )
+                            listOf(Color(0xF20A0E14), Color(0xF6090C11))
                         }
                     )
                 )
-                .border(1.dp, if (channelsOnly) Color(0x66FFC247) else Color(0x88FFC247), panelShape)
+                .border(1.dp, Color(0x2EFFFFFF), panelShape)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(3.dp)
+                    .height(2.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0x00F04468), Color(0xFFF04468), Color(0x88FFC247))
+                            listOf(Color(0x00FFC247), Accent, Color(0x00FFC247))
                         )
                     )
             )
@@ -1514,16 +1477,16 @@ private fun ReceiverCategoryColumn(
                 val selected = item.selected ||
                     (item.groupName != null && item.groupName in selectedGroups) ||
                     index == selectedIndex
-                val rowShape = RoundedCornerShape(6.dp)
+                val rowShape = RoundedCornerShape(8.dp)
                 val rowBg = when {
-                    activeFocus -> Color(0x4423353C)
-                    selected -> Color(0x3DFFC247)
-                    else -> Color(0x0BFFFFFF)
+                    activeFocus -> Color(0x3DFFC247)
+                    selected -> Color(0x1FFFC247)
+                    else -> Color(0x0AFFFFFF)
                 }
                 val textColor = when {
                     activeFocus -> Color(0xFFFFF4D0)
-                    selected -> Color(0xFFFFF0BF)
-                    else -> Color(0xFFEAF4FA)
+                    selected -> Color(0xFFFFE8A3)
+                    else -> Color(0xFFDCE4EB)
                 }
                 Row(
                     modifier = Modifier
@@ -1533,11 +1496,11 @@ private fun ReceiverCategoryColumn(
                         .clip(rowShape)
                         .background(rowBg)
                         .border(
-                            width = if (activeFocus || selected) 2.dp else 1.dp,
+                            width = if (activeFocus) 2.dp else 1.dp,
                             color = when {
                                 activeFocus -> Color(0xFFFFC247)
-                                selected -> Color(0xFFFFC247)
-                                else -> Color(0x18FFFFFF)
+                                selected -> Color(0x66FFC247)
+                                else -> Color(0x12FFFFFF)
                             },
                             shape = rowShape
                         )
@@ -1701,20 +1664,20 @@ private fun ReceiverChannelRow(
     isAdultLocked: Boolean,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(4.dp)
+    val shape = RoundedCornerShape(8.dp)
     val rowBrush = when {
-        isFocused -> Brush.linearGradient(listOf(Color(0x66342D22), Color(0x553D3324), Color(0x44FFC247)))
-        isPlaying -> Brush.linearGradient(listOf(Color(0x65353E48), Color(0x54101A24), Color(0x36FFC247)))
-        else -> Brush.linearGradient(listOf(Color(0x12FFFFFF), Color(0x06071318)))
+        isFocused -> Brush.horizontalGradient(listOf(Color(0x3DFFC247), Color(0x14FFC247)))
+        isPlaying -> Brush.horizontalGradient(listOf(Color(0x29FFFFFF), Color(0x0FFFFFFF)))
+        else -> Brush.horizontalGradient(listOf(Color(0x0DFFFFFF), Color(0x08FFFFFF)))
     }
     val rowBorder = when {
         isFocused -> Color(0xFFFFC247)
-        isPlaying -> Color(0x95FFC247)
-        else -> Color(0x18FFFFFF)
+        isPlaying -> Color(0x66FFC247)
+        else -> Color(0x14FFFFFF)
     }
-    val textColor = if (isFocused) Color(0xFFFFFFFF) else Color.White
-    val numberColor = if (isFocused) Color(0xFFFFF0BF) else Color(0xFFEFF5FA)
-    val groupColor = if (isFocused) Color(0xFFE8D5B0) else Color(0xFFC7D2DA)
+    val textColor = Color.White
+    val numberColor = if (isFocused) Color(0xFFFFDF9E) else Color(0xFF9AA7B2)
+    val groupColor = if (isFocused) Color(0xFFE8D5B0) else Color(0xFF8E9AA5)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1783,7 +1746,13 @@ private fun ReceiverChannelRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (isFocused) 2.dp else 1.dp)
-                .background(if (isFocused) Color(0xFFFFC247) else Color(0xB2FFC247))
+                .background(
+                    when {
+                        isFocused -> Color(0xFFFFC247)
+                        isPlaying -> Color(0x66FFC247)
+                        else -> Color.Transparent
+                    }
+                )
         )
     }
 }
@@ -1822,8 +1791,8 @@ private fun ReceiverFooter(
         modifier = Modifier
             .fillMaxWidth()
             .height(38.dp)
-            .background(Color(0xB0060D14))
-            .border(1.dp, Color(0x66FFC247))
+            .background(Color(0xCC070B10))
+            .border(1.dp, Color(0x1FFFFFFF))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1856,83 +1825,6 @@ private fun ReceiverFooter(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun CategoryOverlay(
-    groups: List<Pair<String, Int>>,
-    selectedGroup: String?,
-    focusedIndex: Int,
-    guideWidth: androidx.compose.ui.unit.Dp,
-    availableContentTypes: List<ChannelContentType>,
-    selectedContentType: ChannelContentType,
-    categoriesLabel: String,
-    allChannelsLabel: String,
-    onContentTypeClick: (ChannelContentType) -> Unit,
-    onGroupClick: (String?) -> Unit
-) {
-    val panelShape = RoundedCornerShape(8.dp)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0x4D000000)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .width(guideWidth)
-                .fillMaxHeight(0.82f)
-                .clip(panelShape)
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xD00B0D10), Color(0xA0161A20), Color(0x36FFFFFF))
-                    )
-                )
-                .border(1.dp, Color(0x58FFFFFF), panelShape)
-                .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 14.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 6.dp, end = 6.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = categoriesLabel,
-                    color = Color.White,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "${groups.size + 1}",
-                    color = Color(0xFFB9C0C8),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            ContentTypeTabs(
-                contentTypes = availableContentTypes,
-                selectedContentType = selectedContentType,
-                onContentTypeClick = onContentTypeClick,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp)
-            )
-
-            CategoryList(
-                groups = groups,
-                selectedGroup = selectedGroup,
-                focusedIndex = focusedIndex,
-                allChannelsLabel = allChannelsLabel,
-                onGroupClick = onGroupClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-        }
     }
 }
 
@@ -2113,242 +2005,6 @@ private fun MediaOptionRow(
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun ContentTypeTabs(
-    contentTypes: List<ChannelContentType>,
-    selectedContentType: ChannelContentType,
-    onContentTypeClick: (ChannelContentType) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (contentTypes.isEmpty()) return
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        contentTypes.forEach { type ->
-            val selected = type == selectedContentType
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (selected) Accent else Color(0x24FFC247))
-                    .border(
-                        width = if (selected) 0.dp else 1.dp,
-                        color = Color(0x26FFFFFF),
-                        shape = RoundedCornerShape(6.dp)
-                    )
-                    .clickable { onContentTypeClick(type) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = contentTypeLabel(type),
-                    color = if (selected) Color.White else Color(0xFFC8D0D6),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun CategoryList(
-    groups: List<Pair<String, Int>>,
-    selectedGroup: String?,
-    focusedIndex: Int,
-    allChannelsLabel: String,
-    onGroupClick: (String?) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val allGroups = listOf(null to groups.sumOf { it.second }) + groups
-    val selectedIndex = if (selectedGroup == null) 0 else groups.indexOfFirst { it.first == selectedGroup } + 1
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(focusedIndex) {
-        if (focusedIndex in allGroups.indices) {
-            listState.animateScrollToItem(maxOf(0, focusedIndex - 4))
-        }
-    }
-
-    LazyColumn(
-        state = listState,
-        modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)
-    ) {
-        itemsIndexed(allGroups) { index, item ->
-            val name = item.first
-            val count = item.second
-            val selected = index == selectedIndex
-            val focused = index == focusedIndex
-            val bg = when {
-                focused -> Color(0xFFE6E7EA)
-                selected -> Color(0x331F252B)
-                else -> Color.Transparent
-            }
-            val textColor = if (focused) Color(0xFF101317) else Color.White
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(bg)
-                    .clickable { onGroupClick(name) }
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = name ?: allChannelsLabel,
-                    color = textColor,
-                    fontSize = 16.sp,
-                    fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "$count",
-                    color = if (focused) Color(0xFF33363A) else Color(0xFFB7BAC0),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun ProgramTimeline(
-    channel: Channel,
-    channelIndex: Int,
-    modifier: Modifier = Modifier
-) {
-    val times = listOf(
-        "08:00 AM" to "No information",
-        "09:00 AM" to "No information",
-        "09:08 AM" to "Program",
-        "10:05 AM" to "Program",
-        "11:02 AM" to "Program",
-        "11:58 AM" to "Program",
-        "12:51 PM" to "Program",
-        "01:51 PM" to "Program",
-        "02:50 PM" to "Program",
-        "03:57 PM" to "Program"
-    )
-
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ChannelLogo(channel.logoUrl, size = 72)
-            Column(Modifier.padding(start = 18.dp)) {
-                Text(
-                    text = "$channelIndex  ${channel.name}",
-                    color = Color.White,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = channel.group.ifBlank { "All channels" },
-                    color = Color(0xFFB9BBC0),
-                    fontSize = 17.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        Spacer(Modifier.height(34.dp))
-
-        times.forEach { (time, title) ->
-            val active = time == "11:58 AM"
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(75.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    time,
-                    color = if (active) Accent else Color.White,
-                    fontSize = 22.sp,
-                    modifier = Modifier.width(150.dp)
-                )
-                Text(
-                    title,
-                    color = if (active) Accent else Color.White,
-                    fontSize = 22.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun ProgramInfoCard(
-    channel: Channel,
-    channelIndex: Int,
-    videoInfo: VideoInfo,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xB821252C))
-            .padding(horizontal = 32.dp, vertical = 26.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                "$channelIndex  ${channel.name}",
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text("Program", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                Text("11:58 - 12:51 PM", color = Color(0xFFC4C6CA), fontSize = 19.sp)
-                ProgressLine(width = 74.dp, progress = 0.36f)
-                Text("26 min", color = Color(0xFFC4C6CA), fontSize = 19.sp)
-                if (videoInfo.label.isNotEmpty()) TechBadge(videoInfo.label)
-            }
-            Text("Program description", color = Color(0xFFB7B9BD), fontSize = 18.sp)
-        }
-    }
-}
-
-@Composable
-private fun ProgressLine(width: androidx.compose.ui.unit.Dp, progress: Float) {
-    Box(
-        modifier = Modifier
-            .width(width)
-            .height(5.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0x66FFFFFF))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .background(Color(0xFFDADDE1))
         )
     }
 }

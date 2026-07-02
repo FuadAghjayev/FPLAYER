@@ -18,7 +18,7 @@ data class Channel(
     val frameRate: Float = 0f,
     val contentType: ChannelContentType = ChannelContentType.TV
 ) {
-    val stableKey: String get() = "$id|$url"
+    val stableKey: String = "$id|$url"
 }
 
 data class ChannelGroup(

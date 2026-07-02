@@ -205,7 +205,7 @@ fun SettingsScreen(
             )
 
             SectionLabel("Версия")
-            Text("FPLAYER v1.0  •  ExoPlayer", color = TextSecondary, fontSize = 12.sp)
+            Text("FTV v1.1  •  ExoPlayer", color = TextSecondary, fontSize = 12.sp)
         }
     }
 }

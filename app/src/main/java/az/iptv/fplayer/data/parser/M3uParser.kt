@@ -8,6 +8,17 @@ import java.nio.charset.StandardCharsets
 
 object M3uParser {
 
+    private val ATTR_REGEX = Regex("""(\w[\w-]*)="([^"]*?)"""")
+    private val NUMBER_REGEX = Regex("""\d+(?:\.\d+)?""")
+    private val NON_ALNUM_REGEX = Regex("[^a-z0-9+]+")
+    private val ADULT_WORDS = listOf(
+        "adult", "adults", "adulte", "adulto", "adulti", "xxx", "x-x-x", "18+", "+18",
+        "18 plus", "18plus", "18 only", "x adult", "xadult", "porno", "porn",
+        "erotic", "erotica", "erotik", "erotika", "erotico", "erotique", "sex",
+        "sexe", "seks", "sexy", "mature", "playboy", "penthouse", "hustler",
+        "venus", "redlight", "brazzers", "babes", "onlyfans", "yetiskin"
+    )
+
     fun parse(content: String): List<ChannelGroup> {
         val channels = mutableListOf<Channel>()
         val lines = content.lines()
@@ -74,8 +85,7 @@ object M3uParser {
     private fun parseAttributes(line: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
         val attrSection = line.extinfMetadata()
-        val regex = Regex("""(\w[\w-]*)="([^"]*?)"""")
-        regex.findAll(attrSection).forEach { match ->
+        ATTR_REGEX.findAll(attrSection).forEach { match ->
             result[match.groupValues[1]] = match.groupValues[2]
         }
         return result
@@ -139,56 +149,14 @@ object M3uParser {
         } ?: 0f
     }
 
-    private fun classifyContentType(
-        name: String,
-        url: String,
-        attrs: Map<String, String>,
-        fallbackGroup: String
-    ): ChannelContentType {
-        val haystack = buildString {
-            append(name)
-            append(' ')
-            append(url)
-            append(' ')
-            append(attrs["group-title"].orEmpty().ifBlank { fallbackGroup })
-            append(' ')
-            append(attrs["tvg-name"] ?: "")
-        }.lowercase()
-        val groupHaystack = attrs["group-title"].orEmpty().ifBlank { fallbackGroup }.lowercase()
-
-        val seriesWords = listOf(
-            "series", "serial", "serials", "dizi", "diziler", "dizilər", "show", "shows",
-            "season", "sezon", "saison", "s01", "s02", "episode", "epizod"
-        )
-        val movieWords = listOf(
-            "movie", "movies", "film", "films", "kino", "sinema", "cinema", "vod",
-            "video club", "videoclub", "pelicula", "peliculas"
-        )
-
-        return when {
-            seriesWords.any { groupHaystack.contains(it) } -> ChannelContentType.SERIES
-            movieWords.any { groupHaystack.contains(it) } -> ChannelContentType.MOVIE
-            seriesWords.any { haystack.contains(it) } -> ChannelContentType.SERIES
-            movieWords.any { haystack.contains(it) } -> ChannelContentType.MOVIE
-            else -> ChannelContentType.TV
-        }
-    }
-
     private fun isAdultContent(vararg values: String): Boolean {
         val raw = values.joinToString(" ").lowercase()
-        val haystack = raw.replace(Regex("[^a-z0-9+]+"), " ")
-        val words = listOf(
-            "adult", "adults", "adulte", "adulto", "adulti", "xxx", "x-x-x", "18+", "+18",
-            "18 plus", "18plus", "18 only", "x adult", "xadult", "porno", "porn",
-            "erotic", "erotica", "erotik", "erotika", "erotico", "erotique", "sex",
-            "sexe", "seks", "sexy", "mature", "playboy", "penthouse", "hustler",
-            "venus", "redlight", "brazzers", "babes", "onlyfans", "yetiskin"
-        )
-        return words.any { raw.contains(it) || haystack.contains(it) }
+        val haystack = raw.replace(NON_ALNUM_REGEX, " ")
+        return ADULT_WORDS.any { raw.contains(it) || haystack.contains(it) }
     }
 
     private fun String.toPositiveFrameRate(): Float? {
-        val value = Regex("""\d+(?:\.\d+)?""").find(this)?.value?.toFloatOrNull()
+        val value = NUMBER_REGEX.find(this)?.value?.toFloatOrNull()
         return value?.takeIf { it > 0f }
     }
 

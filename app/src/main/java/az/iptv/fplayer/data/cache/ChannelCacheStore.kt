@@ -10,40 +10,71 @@ import java.io.File
 
 class ChannelCacheStore(context: Context) {
 
-    private val cacheFile = File(context.filesDir, CACHE_FILE_NAME)
+    private val cacheDir = File(context.filesDir, CACHE_DIR_NAME)
+    private val legacyCacheFile = File(context.filesDir, CACHE_FILE_NAME)
 
     fun load(cacheKey: String): List<ChannelGroup>? = runCatching {
-        if (!cacheFile.exists()) return null
-
-        val root = JSONObject(cacheFile.readText())
-        root.optJSONObject(KEY_ENTRIES)?.optJSONObject(cacheKey)?.let { entry ->
+        val entryFile = entryFile(cacheKey)
+        if (entryFile.exists()) {
+            val entry = JSONObject(entryFile.readText())
             return entry.getJSONArray(KEY_GROUPS).toChannelGroups()
         }
-
-        if (root.optString(KEY_CACHE_KEY) != cacheKey) return null
-
-        root.getJSONArray(KEY_GROUPS).toChannelGroups()
+        loadLegacy(cacheKey)
     }.getOrNull()
 
     fun save(cacheKey: String, groups: List<ChannelGroup>) {
-        val root = if (cacheFile.exists()) {
-            runCatching { JSONObject(cacheFile.readText()) }.getOrDefault(JSONObject())
-        } else {
-            JSONObject()
-        }
-        val entries = root.optJSONObject(KEY_ENTRIES) ?: JSONObject()
-        entries.put(
-            cacheKey,
-            JSONObject()
+        runCatching {
+            if (!cacheDir.exists()) cacheDir.mkdirs()
+            val entry = JSONObject()
+                .put(KEY_CACHE_KEY, cacheKey)
                 .put(KEY_CACHED_AT, System.currentTimeMillis())
                 .put(KEY_GROUPS, groups.toGroupsJson())
-        )
+            val entryFile = entryFile(cacheKey)
+            val tmpFile = File(entryFile.parentFile, "${entryFile.name}.tmp")
+            tmpFile.writeText(entry.toString())
+            if (!tmpFile.renameTo(entryFile)) {
+                entryFile.writeText(entry.toString())
+                tmpFile.delete()
+            }
+            migrateLegacyEntries()
+        }
+    }
 
-        root.put(KEY_ENTRIES, entries)
-            .put(KEY_CACHE_KEY, cacheKey)
-            .put(KEY_CACHED_AT, System.currentTimeMillis())
-            .put(KEY_GROUPS, groups.toGroupsJson())
-        cacheFile.writeText(root.toString())
+    // Köhnə birləşik cache faylındakı digər playlistləri per-key fayllara köçürüb sil
+    private fun migrateLegacyEntries() {
+        if (!legacyCacheFile.exists()) return
+        runCatching {
+            val root = JSONObject(legacyCacheFile.readText())
+            val entries = root.optJSONObject(KEY_ENTRIES) ?: JSONObject()
+            entries.keys().forEach { key ->
+                val target = entryFile(key)
+                if (!target.exists()) {
+                    entries.optJSONObject(key)?.let { entry ->
+                        entry.put(KEY_CACHE_KEY, key)
+                        target.writeText(entry.toString())
+                    }
+                }
+            }
+        }
+        legacyCacheFile.delete()
+    }
+
+    private fun loadLegacy(cacheKey: String): List<ChannelGroup>? {
+        if (!legacyCacheFile.exists()) return null
+        val root = JSONObject(legacyCacheFile.readText())
+        root.optJSONObject(KEY_ENTRIES)?.optJSONObject(cacheKey)?.let { entry ->
+            return entry.getJSONArray(KEY_GROUPS).toChannelGroups()
+        }
+        if (root.optString(KEY_CACHE_KEY) != cacheKey) return null
+        return root.getJSONArray(KEY_GROUPS).toChannelGroups()
+    }
+
+    private fun entryFile(cacheKey: String): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(cacheKey.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+            .take(32)
+        return File(cacheDir, "$digest.json")
     }
 
     private fun List<ChannelGroup>.toGroupsJson(): JSONArray = JSONArray().also { arr ->
@@ -111,6 +142,7 @@ class ChannelCacheStore(context: Context) {
         runCatching { ChannelContentType.valueOf(this) }.getOrDefault(ChannelContentType.TV)
 
     companion object {
+        private const val CACHE_DIR_NAME = "channel_cache"
         private const val CACHE_FILE_NAME = "channel_cache.json"
         private const val KEY_ENTRIES = "entries"
         private const val KEY_CACHE_KEY = "cacheKey"

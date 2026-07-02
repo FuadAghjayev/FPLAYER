@@ -6,6 +6,8 @@ import az.iptv.fplayer.data.model.ChannelGroup
 import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.model.XtreamConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -21,21 +23,47 @@ object XtreamApi {
     private const val MAX_SERIES_TO_EXPAND = 12
     private const val SERIES_INFO_TIMEOUT_SECONDS = 8L
 
+    private val NUMBER_REGEX = Regex("""\d+(?:\.\d+)?""")
+    private val NON_ALNUM_REGEX = Regex("[^a-z0-9+]+")
+    private val TIME_REGEX = Regex("""\b\d{1,2}:\d{2}\b""")
+    private val BASE64_REGEX = Regex("""[A-Za-z0-9+/=]+""")
+    private val WHITESPACE_REGEX = Regex("\\s+")
+    private val ADULT_WORDS = listOf(
+        "adult", "adults", "adulte", "adulto", "adulti", "xxx", "x-x-x", "18+", "+18",
+        "18 plus", "18plus", "18 only", "x adult", "xadult", "porno", "porn",
+        "erotic", "erotica", "erotik", "erotika", "erotico", "erotique", "sex",
+        "sexe", "seks", "sexy", "mature", "playboy", "penthouse", "hustler",
+        "venus", "redlight", "brazzers", "babes", "onlyfans", "yetiskin"
+    )
+
     suspend fun loadChannels(config: XtreamConfig, client: OkHttpClient): List<ChannelGroup> =
         withContext(Dispatchers.IO) {
-            val liveCategories = fetchCategories(config, client, "get_live_categories")
-            val liveCatMap = liveCategories.associate { it.id to it.name }
-            val liveChannels = fetchLiveStreams(config, liveCatMap, client)
+            coroutineScope {
+                val liveDeferred = async {
+                    val categories = fetchCategories(config, client, "get_live_categories")
+                    val catMap = categories.associate { it.id to it.name }
+                    categories to fetchLiveStreams(config, catMap, client)
+                }
+                val movieDeferred = async {
+                    val categories = fetchCategories(config, client, "get_vod_categories")
+                    val catMap = categories.associate { it.id to it.name }
+                    categories to fetchMovieStreams(config, catMap, client)
+                }
+                val seriesDeferred = async {
+                    val categories = fetchCategories(config, client, "get_series_categories")
+                    val catMap = categories.associate { it.id to it.name }
+                    categories to fetchSeriesEpisodes(config, catMap, client)
+                }
 
-            val movieCategories = fetchCategories(config, client, "get_vod_categories")
-            val movieCatMap = movieCategories.associate { it.id to it.name }
-            val movieChannels = fetchMovieStreams(config, movieCatMap, client)
+                val (liveCategories, liveChannels) = liveDeferred.await()
+                val (movieCategories, movieChannels) = movieDeferred.await()
+                val (seriesCategories, seriesChannels) = seriesDeferred.await()
 
-            val seriesCategories = fetchCategories(config, client, "get_series_categories")
-            val seriesCatMap = seriesCategories.associate { it.id to it.name }
-            val seriesChannels = fetchSeriesEpisodes(config, seriesCatMap, client)
-
-            groupChannels(liveCategories + movieCategories + seriesCategories, liveChannels + movieChannels + seriesChannels)
+                groupChannels(
+                    liveCategories + movieCategories + seriesCategories,
+                    liveChannels + movieChannels + seriesChannels
+                )
+            }
         }
 
     fun fetchCurrentProgram(config: XtreamConfig, streamId: Int, client: OkHttpClient): ProgramInfo? =
@@ -268,21 +296,14 @@ object XtreamApi {
     }
 
     private fun String.toPositiveFrameRate(): Float? {
-        val value = Regex("""\d+(?:\.\d+)?""").find(this)?.value?.toFloatOrNull()
+        val value = NUMBER_REGEX.find(this)?.value?.toFloatOrNull()
         return value?.takeIf { it > 0f }
     }
 
     private fun isAdultContent(vararg values: String): Boolean {
         val raw = values.joinToString(" ").lowercase()
-        val haystack = raw.replace(Regex("[^a-z0-9+]+"), " ")
-        val words = listOf(
-            "adult", "adults", "adulte", "adulto", "adulti", "xxx", "x-x-x", "18+", "+18",
-            "18 plus", "18plus", "18 only", "x adult", "xadult", "porno", "porn",
-            "erotic", "erotica", "erotik", "erotika", "erotico", "erotique", "sex",
-            "sexe", "seks", "sexy", "mature", "playboy", "penthouse", "hustler",
-            "venus", "redlight", "brazzers", "babes", "onlyfans", "yetiskin"
-        )
-        return words.any { raw.contains(it) || haystack.contains(it) }
+        val haystack = raw.replace(NON_ALNUM_REGEX, " ")
+        return ADULT_WORDS.any { raw.contains(it) || haystack.contains(it) }
     }
 
     private fun get(client: OkHttpClient, url: String, timeoutSeconds: Long? = null): String {
@@ -321,7 +342,7 @@ object XtreamApi {
 
     private fun JSONObject.epgText(key: String): String =
         decodeMaybeBase64(optString(key, ""))
-            .replace(Regex("\\s+"), " ")
+            .replace(WHITESPACE_REGEX, " ")
             .trim()
 
     private fun JSONObject.epgEpoch(timestampKey: String, fallbackKey: String): Long {
@@ -345,7 +366,7 @@ object XtreamApi {
     }
 
     private fun epgTimeLabel(raw: String, epochSeconds: Long): String {
-        val fromRaw = Regex("""\b\d{1,2}:\d{2}\b""").find(raw)?.value
+        val fromRaw = TIME_REGEX.find(raw)?.value
         if (!fromRaw.isNullOrBlank()) return fromRaw
         if (epochSeconds <= 0L) return ""
         return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochSeconds * 1000L))
@@ -354,7 +375,7 @@ object XtreamApi {
     private fun decodeMaybeBase64(value: String): String {
         val cleaned = value.trim()
         if (cleaned.isBlank()) return ""
-        val looksBase64 = cleaned.length % 4 == 0 && cleaned.matches(Regex("""[A-Za-z0-9+/=]+"""))
+        val looksBase64 = cleaned.length % 4 == 0 && cleaned.matches(BASE64_REGEX)
         if (!looksBase64) return cleaned
         return runCatching {
             String(Base64.getDecoder().decode(cleaned), Charsets.UTF_8)

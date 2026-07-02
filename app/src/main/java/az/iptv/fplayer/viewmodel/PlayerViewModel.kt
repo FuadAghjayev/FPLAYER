@@ -19,6 +19,7 @@ import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.PlayerType
 import az.iptv.fplayer.player.VideoInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -56,7 +57,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             .flatMap { group -> group.channels.map { it.contentType } }
             .toSet()
         contentTypeOrder.filter { it in present }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, listOf(ChannelContentType.TV))
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, listOf(ChannelContentType.TV))
 
     val groups: StateFlow<List<ChannelGroup>> = combine(
         _groups,
@@ -75,7 +77,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             .filter { it.stableKey in favorites }
         if (favoriteChannels.isEmpty()) filteredGroups
         else listOf(ChannelGroup(FAVORITE_GROUP_NAME, favoriteChannels)) + filteredGroups
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _selectedGroup = MutableStateFlow<String?>(null)
     val selectedGroup: StateFlow<String?> = _selectedGroup
@@ -129,14 +132,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             group == null -> groups.flatMap { it.channels }
             else -> groups.find { it.name == group }?.channels ?: emptyList()
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allChannels: StateFlow<List<Channel>> = combine(
         _groups,
         favoriteChannelKeys
     ) { groups, favorites ->
         groups.flatMap { it.channels }.markFavorites(favorites)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
         viewModelScope.launch {
@@ -312,18 +317,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure {
                 _loadState.value = LoadState.Error(networkError?.message ?: "Xeta bas verdi")
             }
-        if (false) {
-        repo.loadM3u(url)
-            .onSuccess {
-                onGroupsLoaded(
-                    groups = it,
-                    fromCache = false,
-                    preferredChannelKey = preferredChannelKey,
-                    revealSidebar = revealSidebar
-                )
-            }
-            .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
-        }
     }
 
     private suspend fun loadXtreamFromNetwork(
@@ -561,16 +554,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun List<Channel>.markFavorites(favorites: Set<String>): List<Channel> =
-        map { channel -> channel.copy(isFavorite = channel.stableKey in favorites) }
+        map { channel ->
+            val isFavorite = channel.stableKey in favorites
+            if (channel.isFavorite == isFavorite) channel else channel.copy(isFavorite = isFavorite)
+        }
 
     private fun Channel.isPlayable(): Boolean = isChannelPlayable(this)
 
     private fun isChannelPlayable(channel: Channel): Boolean {
         return channel.url.isNotBlank()
     }
-
-    private fun firstPlayableVisibleChannel(): Channel? =
-        groupsForSelectedContent().flatMap { it.channels }.firstOrNull { isChannelPlayable(it) }
 
     private fun String.redactForPlaybackLog(): String {
         val withoutCredentials = replace(Regex("(?i)(username|user|password|pass|token|auth|key)=([^&|]+)")) {

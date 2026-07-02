@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <!-- Tünd fon -->
+    <path
+        android:fillColor="#0B0F14"
+        android:pathData="M0,0h320v180h-320z" />
+    <!-- FTV yazısı: F (amber), T və V (ağ) -->
+    <path
+        android:fillColor="#FFC247"
+        android:pathData="M90,58 L132,58 L132,71 L103,71 L103,83 L127,83 L127,96 L103,96 L103,122 L90,122 Z" />
+    <path
+        android:fillColor="#EAF0F5"
+        android:pathData="M142,58 L184,58 L184,71 L169,71 L169,122 L156,122 L156,71 L142,71 Z" />
+    <path
+        android:fillColor="#EAF0F5"
+        android:pathData="M192,58 L206,58 L214,101 L222,58 L236,58 L221,122 L207,122 Z" />
+    <!-- Alt xətt -->
+    <path
+        android:fillColor="#59FFC247"
+        android:pathData="M90,132h146v4h-146z" />
+</vector>

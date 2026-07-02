@@ -335,7 +335,7 @@ private fun BrandPanel(texts: AppTexts) {
         FPlayerLogo(size = 92)
         Spacer(Modifier.height(22.dp))
         Text(
-            text = "PLAYER",
+            text = "FTV",
             color = Color.White,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
@@ -381,7 +381,7 @@ private fun PlaylistLibraryPanel(
             FPlayerLogo(size = 58)
             Column {
                 Text(
-                    text = "FPLAYER",
+                    text = "FTV",
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
@@ -652,14 +652,11 @@ private fun FPlayerLogo(size: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(size.dp)
             .clip(RoundedCornerShape((size / 5).dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF231F18), Color(0xFF090908))))
-            .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape((size / 5).dp)),
+            .background(Color(0xFF0B0F14))
+            .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape((size / 5).dp)),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("F", color = Accent, fontSize = (size * 0.48f).sp, fontWeight = FontWeight.Black)
-            Text("▶", color = WarmAccent, fontSize = (size * 0.25f).sp, fontWeight = FontWeight.Bold)
-        }
+        Text("F", color = Accent, fontSize = (size * 0.52f).sp, fontWeight = FontWeight.Black)
     }
 }
 

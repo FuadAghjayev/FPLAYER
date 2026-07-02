@@ -34,11 +34,11 @@ class ChannelRepository(context: Context) {
                 if (!resp.isSuccessful) error("HTTP ${resp.code}")
                 val body = resp.body ?: error("Bos cavab")
                 val expectedLength = body.contentLength()
-                val content = body.string()
-                val actualLength = content.toByteArray(Charsets.UTF_8).size.toLong()
-                if (expectedLength > 0 && actualLength < expectedLength) {
+                val bytes = body.bytes()
+                if (expectedLength > 0 && bytes.size < expectedLength) {
                     error("M3U cavabi yarim endi")
                 }
+                val content = String(bytes, Charsets.UTF_8)
                 M3uParser.parse(content).also { groups ->
                     if (groups.sumOf { it.channels.size } == 0) error("M3U kanal tapilmadi")
                     cache.save(m3uCacheKey(url), groups)
