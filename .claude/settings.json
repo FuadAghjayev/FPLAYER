@@ -3,7 +3,12 @@
     "allow": [
       "Bash(Get-ChildItem -Path \"d:\\\\FPLAYER\" -Recurse -Force)",
       "Bash(Select-Object -Property FullName, PSIsContainer)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "PowerShell(.\\\\gradlew.bat assembleRelease --console=plain -q)",
+      "PowerShell($candidates = @\\(\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Java\", \"$env:LOCALAPPDATA\\\\Android\\\\Studio\\\\jbr\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { Write-Output \"FOUND: $c\" } })",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat assembleRelease --console=plain)",
+      "PowerShell(\\(Get-FileHash \"d:\\\\FPLAYER\\\\FTV-release.apk\" -Algorithm SHA256\\).Hash)",
+      "PowerShell(\\(Get-FileHash \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" -Algorithm SHA256\\).Hash)"
     ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"

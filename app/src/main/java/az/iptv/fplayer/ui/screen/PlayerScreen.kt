@@ -144,7 +144,7 @@ fun PlayerScreen(
         )
     }
     var mediaTracks by remember { mutableStateOf(MediaTracks()) }
-    var recoveryChannelKey by remember { mutableStateOf<String?>(null) }
+    var channelOffKey by remember { mutableStateOf<String?>(null) }
 
     val engine: PlayerEngine = remember(audioDecoderMode, context) {
         ExoPlayerEngine(context, audioDecoderMode)
@@ -166,10 +166,14 @@ fun PlayerScreen(
     }
 
     val playbackUrl = currentChannel?.url
+    val playRequestNonce by vm.playRequestNonce.collectAsState()
     var recoveryAttemptKey by remember { mutableStateOf<String?>(null) }
     var recoveryAttemptCount by remember { mutableIntStateOf(0) }
-    LaunchedEffect(engine, playbackUrl) {
+    LaunchedEffect(engine, playbackUrl, playRequestNonce) {
         playbackUrl?.let {
+            channelOffKey = null
+            recoveryAttemptKey = null
+            recoveryAttemptCount = 0
             vm.onVideoInfoChanged(VideoInfo())
             engine.play(it)
         }
@@ -181,39 +185,29 @@ fun PlayerScreen(
         if (playbackState is PlaybackState.Playing) {
             recoveryAttemptKey = null
             recoveryAttemptCount = 0
-            recoveryChannelKey = null
+            channelOffKey = null
             return@LaunchedEffect
         }
-        if (playbackState is PlaybackState.Buffering) {
-            if (recoveryAttemptKey != key) {
-                recoveryAttemptKey = key
-                recoveryAttemptCount = 0
-            }
-            delay(18_000)
-            if (recoveryAttemptCount < 2 && playbackUrl != null) {
-                recoveryAttemptCount += 1
-                vm.onVideoInfoChanged(VideoInfo())
-                engine.play(playbackUrl)
-            } else if (recoveryChannelKey != key) {
-                recoveryChannelKey = key
-                vm.refreshPlaylist(revealSidebar = false)
-            }
-            return@LaunchedEffect
+        // OFF elan olunmuş kanal üçün nə təkrar cəhd, nə də siyahı yeniləməsi olmur
+        if (channelOffKey == key) return@LaunchedEffect
+        val waitMs = when (playbackState) {
+            is PlaybackState.Buffering -> 18_000L
+            is PlaybackState.Error -> 1_400L
+            is PlaybackState.Idle -> 2_200L
+            else -> return@LaunchedEffect
         }
-        if (playbackState is PlaybackState.Error || playbackState is PlaybackState.Idle) {
-            if (recoveryAttemptKey != key) {
-                recoveryAttemptKey = key
-                recoveryAttemptCount = 0
-            }
-            delay(if (playbackState is PlaybackState.Error) 1400 else 2200)
-            if (recoveryAttemptCount < 2 && playbackUrl != null) {
-                recoveryAttemptCount += 1
-                vm.onVideoInfoChanged(VideoInfo())
-                engine.play(playbackUrl)
-            } else if (recoveryChannelKey != key) {
-                recoveryChannelKey = key
-                vm.refreshPlaylist(revealSidebar = false)
-            }
+        if (recoveryAttemptKey != key) {
+            recoveryAttemptKey = key
+            recoveryAttemptCount = 0
+        }
+        delay(waitMs)
+        if (recoveryAttemptCount < 2 && playbackUrl != null) {
+            recoveryAttemptCount += 1
+            vm.onVideoInfoChanged(VideoInfo())
+            engine.play(playbackUrl)
+        } else {
+            channelOffKey = key
+            engine.stop()
         }
     }
 
@@ -746,7 +740,7 @@ fun PlayerScreen(
             }
     ) {
         val isWide = maxWidth > 700.dp
-        val guideWidth = if (isWide) (maxWidth * 0.92f).coerceIn(820.dp, 1240.dp) else maxWidth * 0.98f
+        val guideWidth = if (isWide) (maxWidth * 0.76f).coerceIn(700.dp, 1000.dp) else maxWidth * 0.98f
         val startupLoadingVisible = !selectorVisible &&
             currentChannel == null &&
             loadState !is LoadState.Error
@@ -818,6 +812,14 @@ fun PlayerScreen(
                 onChannelClick = ::selectOrRequestAdultPin
             )
         }
+
+        ChannelOffOverlay(
+            visible = channelOffKey != null && channelOffKey == currentChannelKey && !selectorVisible,
+            channelName = currentChannel?.name.orEmpty(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(4f)
+        )
 
         AnimatedVisibility(
             visible = playbackState is PlaybackState.Error,
@@ -991,6 +993,51 @@ private fun StartupLoadingOverlay(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+private fun ChannelOffOverlay(
+    visible: Boolean,
+    channelName: String,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(tween(220)), exit = fadeOut(tween(160)), modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xEB0D1116))
+                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(14.dp))
+                .padding(horizontal = 46.dp, vertical = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(64.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFFF5D5D))
+            )
+            Text(
+                text = "CHANNEL OFF",
+                color = Color(0xFFFF6B6B),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            if (channelName.isNotBlank()) {
+                Text(
+                    text = channelName,
+                    color = Color(0xFFCBD4DB),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 private fun ExitHint(visible: Boolean, text: String, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Box(
@@ -1146,114 +1193,77 @@ private fun ReceiverGuideOverlay(
     onCategoryClick: (GuideCategoryItem) -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
-    val panelShape = RoundedCornerShape(14.dp)
-    val panelWidth = if (channelsOnly) (guideWidth * 0.52f).coerceIn(460.dp, 640.dp) else guideWidth
-    val railWidth = if (guideWidth >= 900.dp) 132.dp else 116.dp
-    val groupWidth = if (guideWidth >= 1000.dp) 332.dp else 270.dp
-    val footerChannel = channels.getOrNull(focusedChannelIndex) ?: currentChannel
+    val panelWidth = if (channelsOnly) (guideWidth * 0.55f).coerceIn(420.dp, 560.dp) else guideWidth
+    val railWidth = if (guideWidth >= 900.dp) 118.dp else 104.dp
+    val groupWidth = if (guideWidth >= 1000.dp) 290.dp else 244.dp
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (channelsOnly) Color(0x20000000) else Color(0x59000000)),
-        contentAlignment = if (channelsOnly) Alignment.CenterStart else Alignment.Center
+            .background(if (channelsOnly) Color(0x33000000) else Color(0x73000000)),
+        contentAlignment = Alignment.CenterStart
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .padding(start = if (channelsOnly) 30.dp else 0.dp)
                 .width(panelWidth)
-                .fillMaxHeight(0.82f)
-                .clip(panelShape)
-                .background(
-                    Brush.verticalGradient(
-                        if (channelsOnly) {
-                            listOf(Color(0xD90A0E14), Color(0xE0090C11))
-                        } else {
-                            listOf(Color(0xF20A0E14), Color(0xF6090C11))
-                        }
-                    )
-                )
-                .border(1.dp, Color(0x2EFFFFFF), panelShape)
+                .fillMaxHeight()
+                .background(Color(0xF510141B))
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color(0x00FFC247), Accent, Color(0x00FFC247))
-                        )
-                    )
-            )
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 10.dp)
-            ) {
-                if (!channelsOnly) {
-                    ContentTypeColumn(
-                        contentTypes = contentTypes,
-                        selectedContentType = selectedContentType,
-                        playlists = playlists,
-                        activePlaylistId = activePlaylistId,
-                        focusedIndex = focusedContentTypeIndex,
-                        focused = focusedPane == SelectorPane.CONTENT_TYPES,
-                        onContentTypeClick = onContentTypeClick,
-                        onPlaylistClick = onPlaylistClick,
-                        menuLabel = "Menu",
-                        onMenuClick = onMenuClick,
-                        refreshLabel = refreshLabel,
-                        onRefreshClick = onRefreshClick,
-                        modifier = Modifier
-                            .width(railWidth)
-                            .fillMaxHeight()
-                    )
-
-                    ReceiverGuideDivider()
-
-                    ReceiverCategoryColumn(
-                        categories = categories,
-                        selectedGroup = selectedGroup,
-                        selectedGroups = selectedGroups,
-                        focusedIndex = focusedGroupIndex,
-                        focused = focusedPane == SelectorPane.GROUPS,
-                        categoriesLabel = categoriesLabel,
-                        allChannelsLabel = allChannelsLabel,
-                        activeLabel = activeLabel,
-                        onCategoryClick = onCategoryClick,
-                        modifier = Modifier
-                            .width(groupWidth)
-                            .fillMaxHeight()
-                    )
-
-                    ReceiverGuideDivider()
-                }
-
-                ReceiverChannelColumn(
-                    channels = channels,
-                    currentChannel = currentChannel,
-                    focusedIndex = focusedChannelIndex,
-                    focused = focusedPane == SelectorPane.CHANNELS,
-                    isLoading = isLoading,
-                    emptyLabel = emptyLabel,
-                    favoriteLabel = favoriteLabel,
-                    lockedLabel = lockedLabel,
-                    isAdultLocked = isAdultLocked,
-                    onChannelClick = onChannelClick,
+            if (!channelsOnly) {
+                ContentTypeColumn(
+                    contentTypes = contentTypes,
+                    selectedContentType = selectedContentType,
+                    playlists = playlists,
+                    activePlaylistId = activePlaylistId,
+                    focusedIndex = focusedContentTypeIndex,
+                    focused = focusedPane == SelectorPane.CONTENT_TYPES,
+                    onContentTypeClick = onContentTypeClick,
+                    onPlaylistClick = onPlaylistClick,
+                    menuLabel = "Menu",
+                    onMenuClick = onMenuClick,
+                    refreshLabel = refreshLabel,
+                    onRefreshClick = onRefreshClick,
                     modifier = Modifier
-                        .weight(1f)
+                        .width(railWidth)
                         .fillMaxHeight()
+                        .background(Color(0xF50B0E14))
+                        .padding(horizontal = 8.dp)
                 )
+
+                ReceiverCategoryColumn(
+                    categories = categories,
+                    selectedGroup = selectedGroup,
+                    selectedGroups = selectedGroups,
+                    focusedIndex = focusedGroupIndex,
+                    focused = focusedPane == SelectorPane.GROUPS,
+                    categoriesLabel = categoriesLabel,
+                    allChannelsLabel = allChannelsLabel,
+                    activeLabel = activeLabel,
+                    onCategoryClick = onCategoryClick,
+                    modifier = Modifier
+                        .width(groupWidth)
+                        .fillMaxHeight()
+                        .padding(horizontal = 8.dp)
+                )
+
+                ReceiverGuideDivider()
             }
 
-            ReceiverFooter(
-                channel = footerChannel,
-                selectedContentType = selectedContentType,
-                selectedGroup = selectedGroup,
-                selectedGroups = selectedGroups,
-                categoriesLabel = categoriesLabel,
-                allChannelsLabel = allChannelsLabel
+            ReceiverChannelColumn(
+                channels = channels,
+                currentChannel = currentChannel,
+                focusedIndex = focusedChannelIndex,
+                focused = focusedPane == SelectorPane.CHANNELS,
+                isLoading = isLoading,
+                emptyLabel = emptyLabel,
+                favoriteLabel = favoriteLabel,
+                lockedLabel = lockedLabel,
+                isAdultLocked = isAdultLocked,
+                onChannelClick = onChannelClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = 8.dp)
             )
         }
     }
@@ -1288,95 +1298,47 @@ private fun ContentTypeColumn(
 
     LazyColumn(
         state = listState,
-        modifier = modifier.padding(top = 22.dp),
-        contentPadding = PaddingValues(bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = modifier.padding(top = 18.dp),
+        contentPadding = PaddingValues(bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         itemsIndexed(contentTypes, key = { _, type -> "type-${type.name}" }) { index, type ->
-            val selected = type == selectedContentType
-            val activeFocus = focused && index == focusedIndex
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (activeFocus) Color(0x33FFC247) else Color.Transparent)
-                    .border(
-                        width = if (activeFocus) 2.dp else 0.dp,
-                        color = Color(0xFFFFC247),
-                        shape = RoundedCornerShape(6.dp)
-                    )
-                    .clickable { onContentTypeClick(type) }
-                    .padding(horizontal = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = contentTypeShortLabel(type),
-                    color = if (activeFocus || selected) Color(0xFFFFF4D0) else Color(0xFFEAECEF),
-                    fontSize = 14.sp,
-                    fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            RailItem(
+                label = contentTypeShortLabel(type),
+                selected = type == selectedContentType,
+                activeFocus = focused && index == focusedIndex,
+                onClick = { onContentTypeClick(type) }
+            )
         }
         if (playlists.isNotEmpty()) {
-            item(key = "playlist_gap") { Spacer(Modifier.height(3.dp)) }
+            item(key = "playlist_gap") { Spacer(Modifier.height(10.dp)) }
         }
         itemsIndexed(playlists, key = { index, profile -> "playlist-${profile.id}-$index" }) { index, profile ->
-            val railIndex = contentTypes.size + index
-            val selected = profile.id == activePlaylistId
-            val activeFocus = focused && focusedIndex == railIndex
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(
-                        when {
-                            activeFocus -> Color(0x66304E57)
-                            selected -> Color(0x3DFFD166)
-                            else -> Color(0x22FFC247)
-                        }
-                    )
-                    .border(
-                        width = if (activeFocus || selected) 2.dp else 1.dp,
-                        color = when {
-                            activeFocus -> Color(0xFFFFD166)
-                            selected -> Color(0xFFFFD166)
-                            else -> Accent.copy(alpha = 0.35f)
-                        },
-                        shape = RoundedCornerShape(5.dp)
-                    )
-                    .clickable { onPlaylistClick(profile) }
-                    .padding(horizontal = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (selected) "* ${providerShortLabel(profile, index)}" else providerShortLabel(profile, index),
-                    color = if (activeFocus) Color.White else if (selected) Color(0xFFFFE8A3) else Color(0xFFEAECEF),
-                    fontSize = 12.sp,
-                    fontWeight = if (activeFocus || selected) FontWeight.Black else FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            RailItem(
+                label = providerShortLabel(profile, index),
+                selected = profile.id == activePlaylistId,
+                activeFocus = focused && focusedIndex == contentTypes.size + index,
+                small = true,
+                onClick = { onPlaylistClick(profile) }
+            )
         }
-        item(key = "rail_gap") { Spacer(Modifier.height(3.dp)) }
+        item(key = "rail_gap") { Spacer(Modifier.height(10.dp)) }
         item(key = "menu") {
-            val activeMenuFocus = focused && focusedIndex == menuIndex
-            RailActionButton(
+            RailItem(
                 label = menuLabel,
-                activeFocus = activeMenuFocus,
+                selected = false,
+                activeFocus = focused && focusedIndex == menuIndex,
+                small = true,
                 onClick = onMenuClick
             )
         }
         item(key = "refresh") {
-            val activeRefreshFocus = focused && focusedIndex == refreshIndex
-            RailActionButton(
+            RailItem(
                 label = refreshLabel,
-                activeFocus = activeRefreshFocus,
+                selected = false,
+                activeFocus = focused && focusedIndex == refreshIndex,
+                small = true,
                 onClick = onRefreshClick
             )
         }
@@ -1385,31 +1347,39 @@ private fun ContentTypeColumn(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun RailActionButton(
+private fun RailItem(
     label: String,
+    selected: Boolean,
     activeFocus: Boolean,
+    small: Boolean = false,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(6.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(34.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (activeFocus) Color(0x44342D22) else Color(0x20FFC247))
-            .border(
-                width = if (activeFocus) 2.dp else 1.dp,
-                color = if (activeFocus) Color(0xFFFFC247) else Accent.copy(alpha = 0.42f),
-                shape = RoundedCornerShape(4.dp)
+            .height(if (small) 34.dp else 38.dp)
+            .clip(shape)
+            .background(
+                when {
+                    activeFocus -> Accent
+                    selected -> Color(0x1FFFFFFF)
+                    else -> Color.Transparent
+                }
             )
             .clickable { onClick() }
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (activeFocus) Color(0xFFFFF4D0) else Accent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Black,
+            color = when {
+                activeFocus -> Color(0xFF14161A)
+                selected -> Accent
+                else -> Color(0xFFAFB8C2)
+            },
+            fontSize = if (small) 12.sp else 14.sp,
+            fontWeight = if (activeFocus || selected) FontWeight.Black else FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1420,10 +1390,9 @@ private fun RailActionButton(
 private fun ReceiverGuideDivider() {
     Box(
         modifier = Modifier
-            .padding(horizontal = 6.dp)
             .fillMaxHeight()
             .width(1.dp)
-            .background(Color(0x45D7DCE0))
+            .background(Color(0x1AFFFFFF))
     )
 }
 
@@ -1477,71 +1446,34 @@ private fun ReceiverCategoryColumn(
                 val selected = item.selected ||
                     (item.groupName != null && item.groupName in selectedGroups) ||
                     index == selectedIndex
-                val rowShape = RoundedCornerShape(8.dp)
-                val rowBg = when {
-                    activeFocus -> Color(0x3DFFC247)
-                    selected -> Color(0x1FFFC247)
-                    else -> Color(0x0AFFFFFF)
-                }
-                val textColor = when {
-                    activeFocus -> Color(0xFFFFF4D0)
-                    selected -> Color(0xFFFFE8A3)
-                    else -> Color(0xFFDCE4EB)
-                }
+                val rowShape = RoundedCornerShape(6.dp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                        .height(46.dp)
+                        .padding(vertical = 1.dp)
+                        .height(42.dp)
                         .clip(rowShape)
-                        .background(rowBg)
-                        .border(
-                            width = if (activeFocus) 2.dp else 1.dp,
-                            color = when {
-                                activeFocus -> Color(0xFFFFC247)
-                                selected -> Color(0x66FFC247)
-                                else -> Color(0x12FFFFFF)
-                            },
-                            shape = rowShape
+                        .background(
+                            when {
+                                activeFocus -> Accent
+                                selected -> Color(0x1FFFFFFF)
+                                else -> Color.Transparent
+                            }
                         )
                         .clickable { onCategoryClick(item) }
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val prefix = when (item.type) {
-                        GuideCategoryType.PLAYLIST -> "IP"
-                        GuideCategoryType.ALL -> "ALL"
-                        GuideCategoryType.GROUP -> (index - firstChannelCategoryIndex + 1).toString().padStart(2, '0')
-                    }
-                    Box(
-                        modifier = Modifier
-                            .width(34.dp)
-                            .height(22.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                when {
-                                    activeFocus -> Color(0x3323353C)
-                                    selected -> Color(0xFFFFC247)
-                                    else -> Color(0x23FFC247)
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = prefix,
-                            color = if (activeFocus) Color(0xFFFFF4D0) else if (selected) Color(0xFF18130B) else Color(0xFFFFC247),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            maxLines = 1
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = item.label,
-                        color = textColor,
+                        color = when {
+                            activeFocus -> Color(0xFF14161A)
+                            selected -> Accent
+                            else -> Color(0xFFD7DEE5)
+                        },
                         fontSize = 15.sp,
                         lineHeight = 16.sp,
-                        fontWeight = if (activeFocus || selected) FontWeight.Black else FontWeight.Bold,
+                        fontWeight = if (activeFocus || selected) FontWeight.Bold else FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -1549,21 +1481,14 @@ private fun ReceiverCategoryColumn(
                     val meta = if (item.active && item.type == GuideCategoryType.PLAYLIST) activeLabel
                     else item.count?.toString().orEmpty()
                     if (meta.isNotEmpty()) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (activeFocus) Color(0x3323353C) else Color(0x1FFFFFFF))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = meta,
-                                color = if (activeFocus) Color(0xFFE8D5B0) else if (selected) Color(0xFFFFF0BF) else Color(0xFFCED3D8),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 1
-                            )
-                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = meta,
+                            color = if (activeFocus) Color(0xB314161A) else Color(0xFF7C8894),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                     }
                 }
             }
@@ -1575,13 +1500,13 @@ private fun ReceiverCategoryColumn(
 @Composable
 private fun ReceiverCategorySectionHeader(text: String) {
     Text(
-        text = text,
-        color = Color(0xFFEAECEF),
-        fontSize = 12.sp,
+        text = text.uppercase(),
+        color = Color(0xFF6E7A87),
+        fontSize = 11.sp,
         fontWeight = FontWeight.Black,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.padding(start = 3.dp, top = 6.dp, bottom = 5.dp)
+        modifier = Modifier.padding(start = 12.dp, top = 10.dp, bottom = 6.dp)
     )
 }
 
@@ -1664,167 +1589,86 @@ private fun ReceiverChannelRow(
     isAdultLocked: Boolean,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(8.dp)
-    val rowBrush = when {
-        isFocused -> Brush.horizontalGradient(listOf(Color(0x3DFFC247), Color(0x14FFC247)))
-        isPlaying -> Brush.horizontalGradient(listOf(Color(0x29FFFFFF), Color(0x0FFFFFFF)))
-        else -> Brush.horizontalGradient(listOf(Color(0x0DFFFFFF), Color(0x08FFFFFF)))
+    val shape = RoundedCornerShape(6.dp)
+    val accent = Accent
+    val nameColor = when {
+        isFocused -> Color(0xFF14161A)
+        isPlaying -> accent
+        else -> Color.White
     }
-    val rowBorder = when {
-        isFocused -> Color(0xFFFFC247)
-        isPlaying -> Color(0x66FFC247)
-        else -> Color(0x14FFFFFF)
-    }
-    val textColor = Color.White
-    val numberColor = if (isFocused) Color(0xFFFFDF9E) else Color(0xFF9AA7B2)
-    val groupColor = if (isFocused) Color(0xFFE8D5B0) else Color(0xFF8E9AA5)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .clip(shape)
-            .background(rowBrush)
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = rowBorder,
-                shape = shape
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = index.toString().padStart(4, '0'),
-                color = numberColor,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.width(48.dp)
-            )
-            ChannelLogo(channel.logoUrl, size = 34)
-            Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = channel.name,
-                    color = textColor,
-                    fontSize = 17.sp,
-                    fontWeight = if (isFocused || isPlaying) FontWeight.Black else FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = channel.group.ifBlank { groupFallbackLabel },
-                    color = groupColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (channel.isFavorite) {
-                ReceiverHdBadge(
-                    text = favoriteLabel,
-                    active = isFocused || isPlaying
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            if (isAdultLocked) {
-                ReceiverHdBadge(
-                    text = lockedLabel,
-                    active = isFocused || isPlaying
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            ReceiverHdBadge(
-                text = if (channel.name.contains("HD", ignoreCase = true)) "HD" else "SD",
-                active = isFocused || isPlaying
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isFocused) 2.dp else 1.dp)
-                .background(
-                    when {
-                        isFocused -> Color(0xFFFFC247)
-                        isPlaying -> Color(0x66FFC247)
-                        else -> Color.Transparent
-                    }
-                )
-        )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun ReceiverHdBadge(text: String, active: Boolean) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(3.dp))
-            .border(1.dp, if (active) Color.White else Color(0x70FFFFFF), RoundedCornerShape(3.dp))
-            .background(if (active) Color(0xE8FFFFFF) else Color(0x18FFFFFF))
-            .padding(horizontal = 3.dp, vertical = 1.dp)
-    ) {
-        Text(
-            text = text,
-            color = if (active) Color.Black else Color.White,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Black,
-            maxLines = 1
-        )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun ReceiverFooter(
-    channel: Channel?,
-    selectedContentType: ChannelContentType,
-    selectedGroup: String?,
-    selectedGroups: Set<String>,
-    categoriesLabel: String,
-    allChannelsLabel: String
-) {
+    val numberColor = if (isFocused) Color(0xB314161A) else Color(0xFF7C8894)
+    val groupColor = if (isFocused) Color(0x9914161A) else Color(0xFF7C8894)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(38.dp)
-            .background(Color(0xCC070B10))
-            .border(1.dp, Color(0x1FFFFFFF))
-            .padding(horizontal = 16.dp),
+            .padding(vertical = 1.dp)
+            .height(48.dp)
+            .clip(shape)
+            .background(
+                when {
+                    isFocused -> accent
+                    isPlaying -> Color(0x1FFFFFFF)
+                    else -> Color.Transparent
+                }
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = contentTypeLabel(selectedContentType),
-            color = Color(0xFFFFD166),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Black,
-            modifier = Modifier.width(72.dp)
-        )
-        Text(
-            text = when {
-                selectedGroups.size > 1 -> "${selectedGroups.size} $categoriesLabel"
-                selectedGroups.size == 1 -> selectedGroups.first()
-                else -> selectedGroup ?: channel?.group?.takeIf { it.isNotBlank() } ?: allChannelsLabel
-            },
-            color = Color(0xFFE3E6EA),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(190.dp)
-        )
-        Text(
-            text = channel?.name.orEmpty(),
-            color = Color(0xFFFFF4B7),
+            text = index.toString(),
+            color = numberColor,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.width(42.dp)
         )
+        ChannelLogo(channel.logoUrl, size = 32)
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = channel.name,
+                color = nameColor,
+                fontSize = 16.sp,
+                fontWeight = if (isFocused || isPlaying) FontWeight.Bold else FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = channel.group.ifBlank { groupFallbackLabel },
+                color = groupColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (isAdultLocked) {
+            Text(
+                text = lockedLabel,
+                color = if (isFocused) Color(0xB314161A) else Color(0xFF7C8894),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        if (channel.isFavorite) {
+            Text(
+                text = "★",
+                color = if (isFocused) Color(0xFF14161A) else accent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Black
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        if (isPlaying) {
+            Text(
+                text = "▶",
+                color = if (isFocused) Color(0xFF14161A) else accent,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black
+            )
+        }
     }
 }
 
@@ -2141,13 +1985,6 @@ private fun nextTrack(options: List<MediaTrackOption>, delta: Int): MediaTrackOp
     val selectedIndex = options.indexOfFirst { it.selected }.takeIf { it >= 0 } ?: 0
     return options[(selectedIndex + delta + options.size) % options.size]
 }
-
-private fun contentTypeLabel(type: ChannelContentType): String =
-    when (type) {
-        ChannelContentType.TV -> "TV"
-        ChannelContentType.MOVIE -> "Kino"
-        ChannelContentType.SERIES -> "Series"
-    }
 
 private fun contentTypeShortLabel(type: ChannelContentType): String =
     when (type) {

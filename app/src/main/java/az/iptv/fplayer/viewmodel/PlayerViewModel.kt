@@ -88,6 +88,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _currentChannel = MutableStateFlow<Channel?>(null)
     val currentChannel: StateFlow<Channel?> = _currentChannel
 
+    // Kanal yenidən seçiləndə (eyni kanal olsa belə) oynatmanı yenidən başlatmaq üçün
+    private val _playRequestNonce = MutableStateFlow(0)
+    val playRequestNonce: StateFlow<Int> = _playRequestNonce
+
     private val _recentChannels = MutableStateFlow<List<Channel>>(emptyList())
     val recentChannels: StateFlow<List<Channel>> = _recentChannels
 
@@ -396,6 +400,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         )
         _selectedContentType.value = channel.contentType
         _currentChannel.value = channel
+        _playRequestNonce.value += 1
         loadCurrentProgram(channel)
         rememberRecentChannel(channel)
         _sidebarVisible.value = false
