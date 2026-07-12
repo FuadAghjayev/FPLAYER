@@ -80,6 +80,8 @@ import az.iptv.fplayer.player.PlayerEventListener
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.component.ChannelInfoOsd
 import az.iptv.fplayer.ui.component.ChannelLogo
+import az.iptv.fplayer.ui.component.ChannelPoster
+import az.iptv.fplayer.ui.component.RatingBadge
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
@@ -1591,6 +1593,7 @@ private fun ReceiverChannelRow(
 ) {
     val shape = RoundedCornerShape(6.dp)
     val accent = Accent
+    val isVod = channel.contentType != ChannelContentType.TV
     val nameColor = when {
         isFocused -> Color(0xFF14161A)
         isPlaying -> accent
@@ -1602,7 +1605,7 @@ private fun ReceiverChannelRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 1.dp)
-            .height(48.dp)
+            .height(if (isVod) 68.dp else 48.dp)
             .clip(shape)
             .background(
                 when {
@@ -1622,7 +1625,17 @@ private fun ReceiverChannelRow(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(42.dp)
         )
-        ChannelLogo(channel.logoUrl, size = 32)
+        if (isVod) {
+            ChannelPoster(
+                posterUrl = channel.logoUrl,
+                name = channel.name,
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(60.dp)
+            )
+        } else {
+            ChannelLogo(channel.logoUrl, size = 32)
+        }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -1630,17 +1643,25 @@ private fun ReceiverChannelRow(
                 color = nameColor,
                 fontSize = 16.sp,
                 fontWeight = if (isFocused || isPlaying) FontWeight.Bold else FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = if (isVod) 2 else 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = channel.group.ifBlank { groupFallbackLabel },
-                color = groupColor,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (isVod && channel.rating > 0f) {
+                    RatingBadge(rating = channel.rating, compact = true, onDark = !isFocused)
+                }
+                Text(
+                    text = channel.group.ifBlank { groupFallbackLabel },
+                    color = groupColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         if (isAdultLocked) {
             Text(

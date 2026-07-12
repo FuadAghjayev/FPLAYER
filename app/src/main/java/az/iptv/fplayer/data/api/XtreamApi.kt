@@ -161,6 +161,7 @@ object XtreamApi {
                         group = catMap[catId] ?: catId,
                         isAdult = isAdultContent(obj.optString("name"), catMap[catId].orEmpty(), catId),
                         frameRate = parseFrameRate(obj),
+                        rating = parseRating(obj),
                         contentType = ChannelContentType.MOVIE
                     )
                 )
@@ -192,6 +193,7 @@ object XtreamApi {
                         seriesName = seriesName,
                         group = group,
                         cover = cover,
+                        rating = parseRating(series),
                         isAdult = isAdultContent(seriesName, group, catId)
                     )
                 )
@@ -206,6 +208,7 @@ object XtreamApi {
         seriesName: String,
         group: String,
         cover: String,
+        rating: Float,
         isAdult: Boolean
     ): List<Channel> = runCatching {
         val body = get(
@@ -220,10 +223,10 @@ object XtreamApi {
                 is JSONObject -> {
                     episodes.keys().asSequence().forEach { season ->
                         val arr = episodes.optJSONArray(season) ?: return@forEach
-                        addEpisodes(seriesId, seriesName, group, cover, season, arr, config, isAdult)
+                        addEpisodes(seriesId, seriesName, group, cover, rating, season, arr, config, isAdult)
                     }
                 }
-                is JSONArray -> addEpisodes(seriesId, seriesName, group, cover, "", episodes, config, isAdult)
+                is JSONArray -> addEpisodes(seriesId, seriesName, group, cover, rating, "", episodes, config, isAdult)
             }
         }
     }.getOrDefault(emptyList())
@@ -233,6 +236,7 @@ object XtreamApi {
         seriesName: String,
         group: String,
         cover: String,
+        rating: Float,
         season: String,
         episodes: JSONArray,
         config: XtreamConfig,
@@ -254,6 +258,7 @@ object XtreamApi {
                     logoUrl = episode.optJSONObject("info")?.optString("movie_image")?.takeIf { it.isNotBlank() } ?: cover,
                     group = group,
                     isAdult = isAdult || isAdultContent(seriesName, title, group),
+                    rating = episode.optJSONObject("info")?.let(::parseRating)?.takeIf { it > 0f } ?: rating,
                     contentType = ChannelContentType.SERIES
                 )
             )
@@ -298,6 +303,15 @@ object XtreamApi {
     private fun String.toPositiveFrameRate(): Float? {
         val value = NUMBER_REGEX.find(this)?.value?.toFloatOrNull()
         return value?.takeIf { it > 0f }
+    }
+
+    private fun parseRating(obj: JSONObject): Float {
+        NUMBER_REGEX.find(obj.optString("rating", ""))?.value?.toFloatOrNull()
+            ?.takeIf { it > 0f }
+            ?.let { return it.coerceAtMost(10f) }
+        val fiveBased = obj.optDouble("rating_5based", 0.0)
+        if (fiveBased > 0.0) return (fiveBased * 2).toFloat().coerceAtMost(10f)
+        return 0f
     }
 
     private fun isAdultContent(vararg values: String): Boolean {

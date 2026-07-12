@@ -214,6 +214,7 @@ fun ChannelInfoOsd(
                         OsdInfoPill(fps)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RatingBadge(rating = channel.rating)
                         OsdInfoPill(codec)
                         OsdInfoPill(resolution)
                     }
@@ -395,6 +396,62 @@ private fun OsdProgressLine(progress: Float, modifier: Modifier = Modifier) {
                     )
                 )
         )
+    }
+}
+
+@Composable
+fun RatingBadge(
+    rating: Float,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    onDark: Boolean = true
+) {
+    if (rating <= 0f) return
+    val label = "IMDb " + String.format(java.util.Locale.US, "%.1f", rating)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (onDark) Color(0xFFF5C518) else Color(0xFF14161A))
+            .padding(horizontal = if (compact) 5.dp else 7.dp, vertical = if (compact) 1.dp else 2.dp)
+    ) {
+        Text(
+            text = label,
+            color = if (onDark) Color(0xFF14161A) else Color(0xFFF5C518),
+            fontSize = if (compact) 10.sp else 11.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+fun ChannelPoster(
+    posterUrl: String,
+    name: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(Color(0x1FFFFFFF))
+            .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(5.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (posterUrl.isNotEmpty()) {
+            AsyncImage(
+                model = posterUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Text(
+                text = name.trim().take(1).uppercase().ifBlank { "?" },
+                color = Color(0xFFEAF0F5),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black
+            )
+        }
     }
 }
 

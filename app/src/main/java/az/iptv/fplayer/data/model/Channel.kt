@@ -16,6 +16,7 @@ data class Channel(
     val isFavorite: Boolean = false,
     val isAdult: Boolean = false,
     val frameRate: Float = 0f,
+    val rating: Float = 0f,
     val contentType: ChannelContentType = ChannelContentType.TV
 ) {
     val stableKey: String = "$id|$url"

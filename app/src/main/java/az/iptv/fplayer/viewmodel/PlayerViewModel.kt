@@ -173,7 +173,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         playlistLoadJob = viewModelScope.launch {
             val profile = prefs.activePlaylist.first() ?: return@launch
             val lastChannelKey = prefs.lastChannelId.first()
-            loadPlaylist(profile, preferredChannelKey = lastChannelKey)
+            loadPlaylist(profile, preferredChannelKey = lastChannelKey, restoreCategory = true)
         }
     }
 
@@ -262,7 +262,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         profile: PlaylistProfile,
         preferredChannelKey: String? = null,
         revealSidebar: Boolean = false,
-        preferNetwork: Boolean = false
+        preferNetwork: Boolean = false,
+        restoreCategory: Boolean = false
     ) {
         when (profile.type) {
             PlaylistType.M3U -> {
@@ -270,11 +271,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 if (!preferNetwork) {
                     repo.loadCachedM3u(profile.m3uUrl)
                         .onSuccess {
-                            onGroupsLoaded(it, fromCache = true, preferredChannelKey, revealSidebar)
+                            onGroupsLoaded(it, fromCache = true, preferredChannelKey, revealSidebar, restoreCategory)
                             return
                         }
                 }
-                loadM3uFromNetwork(profile.m3uUrl, preferredChannelKey, revealSidebar)
+                loadM3uFromNetwork(profile.m3uUrl, preferredChannelKey, revealSidebar, restoreCategory)
             }
             PlaylistType.XTREAM -> {
                 if (profile.xtreamServer.isBlank() || profile.xtreamUser.isBlank()) return
@@ -282,11 +283,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 if (!preferNetwork) {
                     repo.loadCachedXtream(config)
                         .onSuccess {
-                            onGroupsLoaded(it, fromCache = true, preferredChannelKey, revealSidebar)
+                            onGroupsLoaded(it, fromCache = true, preferredChannelKey, revealSidebar, restoreCategory)
                             return
                         }
                 }
-                loadXtreamFromNetwork(config, preferredChannelKey, revealSidebar)
+                loadXtreamFromNetwork(config, preferredChannelKey, revealSidebar, restoreCategory)
             }
         }
     }
@@ -294,7 +295,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun loadM3uFromNetwork(
         url: String,
         preferredChannelKey: String? = null,
-        revealSidebar: Boolean = false
+        revealSidebar: Boolean = false,
+        restoreCategory: Boolean = false
     ) {
         _loadState.value = LoadState.Loading
         val result = repo.loadM3u(url)
@@ -303,7 +305,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 groups = it,
                 fromCache = false,
                 preferredChannelKey = preferredChannelKey,
-                revealSidebar = revealSidebar
+                revealSidebar = revealSidebar,
+                restoreCategory = restoreCategory
             )
             return
         }
@@ -315,7 +318,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     groups = it,
                     fromCache = true,
                     preferredChannelKey = preferredChannelKey,
-                    revealSidebar = revealSidebar
+                    revealSidebar = revealSidebar,
+                    restoreCategory = restoreCategory
                 )
             }
             .onFailure {
@@ -326,7 +330,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun loadXtreamFromNetwork(
         config: XtreamConfig,
         preferredChannelKey: String? = null,
-        revealSidebar: Boolean = false
+        revealSidebar: Boolean = false,
+        restoreCategory: Boolean = false
     ) {
         _loadState.value = LoadState.Loading
         repo.loadXtream(config)
@@ -335,7 +340,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     groups = it,
                     fromCache = false,
                     preferredChannelKey = preferredChannelKey,
-                    revealSidebar = revealSidebar
+                    revealSidebar = revealSidebar,
+                    restoreCategory = restoreCategory
                 )
             }
             .onFailure { _loadState.value = LoadState.Error(it.message ?: "Xəta baş verdi") }
@@ -345,7 +351,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         groups: List<ChannelGroup>,
         fromCache: Boolean,
         preferredChannelKey: String? = null,
-        revealSidebar: Boolean = false
+        revealSidebar: Boolean = false,
+        restoreCategory: Boolean = false
     ) {
         _groups.value = groups
         _loadState.value = LoadState.Success(groups.sumOf { it.channels.size }, fromCache)
@@ -372,7 +379,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         val channelsByKey = channels.associateBy { it.stableKey }
         _recentChannels.value = _recentChannels.value.mapNotNull { channelsByKey[it.stableKey] }
         _currentChannel.value?.let(::rememberRecentChannel)
-        _currentChannel.value?.group?.takeIf { it.isNotBlank() && revealSidebar }?.let { channelGroup ->
+        // Açılışda son kanalın kateqoriyası bərpa olunur ki, yuxarı/aşağı zap başqa kateqoriyaya keçməsin
+        _currentChannel.value?.group?.takeIf { it.isNotBlank() && (revealSidebar || restoreCategory) }?.let { channelGroup ->
             if (groups.any { it.name == channelGroup }) {
                 _selectedGroup.value = channelGroup
                 _selectedGroups.value = setOf(channelGroup)

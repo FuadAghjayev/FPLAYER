@@ -60,7 +60,13 @@ data class AppTexts(
     val version: String,
     val load: String,
     val loading: String,
-    val channelsCount: (Int) -> String
+    val channelsCount: (Int) -> String,
+    val back: String,
+    val edit: String,
+    val chooseSource: String,
+    val connectionDetails: String,
+    val welcomeSetup: String,
+    val stepLabel: (Int, Int) -> String
 )
 
 fun appTexts(language: String): AppTexts =
@@ -124,7 +130,13 @@ private val azTexts = AppTexts(
     version = "Versiya",
     load = "Yüklə",
     loading = "Yüklənir...",
-    channelsCount = { count -> "✓ $count kanal" }
+    channelsCount = { count -> "✓ $count kanal" },
+    back = "Geri",
+    edit = "Düzəliş",
+    chooseSource = "Mənbə növünü seçin",
+    connectionDetails = "Bağlantı məlumatları",
+    welcomeSetup = "Başlamaq üçün kanal mənbəyi əlavə edin",
+    stepLabel = { current, total -> "Addım $current / $total" }
 )
 
 private val enTexts = AppTexts(
@@ -185,5 +197,11 @@ private val enTexts = AppTexts(
     version = "Version",
     load = "Load",
     loading = "Loading...",
-    channelsCount = { count -> "✓ $count channels" }
+    channelsCount = { count -> "✓ $count channels" },
+    back = "Back",
+    edit = "Edit",
+    chooseSource = "Choose source type",
+    connectionDetails = "Connection details",
+    welcomeSetup = "Add a channel source to get started",
+    stepLabel = { current, total -> "Step $current / $total" }
 )

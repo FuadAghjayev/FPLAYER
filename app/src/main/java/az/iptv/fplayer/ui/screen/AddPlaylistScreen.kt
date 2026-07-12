@@ -77,6 +77,7 @@ import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 
 private enum class SourceTab { M3U, XTREAM }
+private enum class WizardStep { SOURCE, DETAILS }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -92,6 +93,7 @@ fun AddPlaylistScreen(
     val t = appTexts(language)
 
     var selectedTab by remember { mutableStateOf(SourceTab.M3U) }
+    var wizardStep by remember { mutableStateOf(WizardStep.SOURCE) }
     var editingPlaylistId by remember { mutableStateOf<String?>(null) }
     var playlistName by remember { mutableStateOf("") }
     var m3uUrl by remember { mutableStateOf("") }
@@ -108,6 +110,7 @@ fun AddPlaylistScreen(
         xtreamServer = ""
         xtreamUser = ""
         xtreamPass = ""
+        wizardStep = WizardStep.SOURCE
     }
 
     fun editProfile(profile: PlaylistProfile) {
@@ -118,6 +121,7 @@ fun AddPlaylistScreen(
         xtreamServer = profile.xtreamServer
         xtreamUser = profile.xtreamUser
         xtreamPass = profile.xtreamPass
+        wizardStep = WizardStep.DETAILS
     }
 
     fun switchProfile(profile: PlaylistProfile) {
@@ -187,16 +191,6 @@ fun AddPlaylistScreen(
             ) {
                 if (!isWide) CompactBrand()
 
-                Text(
-                    text = t.playlistSource,
-                    color = Color.White,
-                    fontSize = if (isWide) 24.sp else 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(text = t.playlistSubtitle, color = TextSecondary, fontSize = 13.sp)
-                Spacer(Modifier.height(24.dp))
-
                 if (!isWide && playlists.isNotEmpty()) {
                     SectionTitle(t.savedPlaylists)
                     Spacer(Modifier.height(10.dp))
@@ -213,85 +207,102 @@ fun AddPlaylistScreen(
                             )
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(20.dp))
                 }
 
-                if (!isWide) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        SmallActionButton(
-                            label = t.addPlaylist,
-                            enabled = playlists.size < AppPreferences.MAX_PLAYLISTS,
-                            onClick = { clearForm() }
-                        )
-                        Text(t.playlistLimit, color = TextSecondary, fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.height(22.dp))
-                } else {
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                SourceTabs(selectedTab = selectedTab, texts = t, onSelect = { selectedTab = it })
-                Spacer(Modifier.height(24.dp))
-
-                AnimatedContent(
-                    targetState = selectedTab,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "playlist_form"
-                ) { tab ->
-                    PlaylistForm(
-                        tab = tab,
-                        texts = t,
-                        playlistName = playlistName,
-                        onPlaylistNameChange = { playlistName = it },
-                        m3uUrl = m3uUrl,
-                        onM3uUrlChange = { m3uUrl = it },
-                        xtreamServer = xtreamServer,
-                        onXtreamServerChange = { xtreamServer = it },
-                        xtreamUser = xtreamUser,
-                        onXtreamUserChange = { xtreamUser = it },
-                        xtreamPass = xtreamPass,
-                        onXtreamPassChange = { xtreamPass = it },
-                        isWide = isWide
-                    )
-                }
-
+                StepHeader(
+                    step = wizardStep,
+                    isEditing = editingPlaylistId != null,
+                    texts = t
+                )
                 Spacer(Modifier.height(20.dp))
 
                 val isLoading = loadState is LoadState.Loading
                 val hasSlot = editingPlaylistId != null || playlists.size < AppPreferences.MAX_PLAYLISTS
-                val canLoad = hasSlot && !isLoading && when (selectedTab) {
+                val detailsValid = when (selectedTab) {
                     SourceTab.M3U -> m3uUrl.isNotBlank()
                     SourceTab.XTREAM -> xtreamServer.isNotBlank() && xtreamUser.isNotBlank()
                 }
+                val canLoad = hasSlot && !isLoading && detailsValid
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    LoadButton(
-                        label = if (isLoading) t.loading else t.loadRefresh,
-                        enabled = canLoad,
-                        onClick = {
-                            val type = if (selectedTab == SourceTab.XTREAM) PlaylistType.XTREAM else PlaylistType.M3U
-                            val fallbackName = if (type == PlaylistType.XTREAM) t.sourceXtream else t.sourceM3u
-                            pendingPlayerReturn = true
-                            vm.savePlaylistAndLoad(
-                                PlaylistProfile(
-                                    id = editingPlaylistId ?: "playlist_${System.currentTimeMillis()}",
-                                    name = playlistName.trim().ifBlank { fallbackName },
-                                    type = type,
-                                    m3uUrl = if (type == PlaylistType.M3U) m3uUrl.trim() else "",
-                                    xtreamServer = if (type == PlaylistType.XTREAM) xtreamServer.trim() else "",
-                                    xtreamUser = if (type == PlaylistType.XTREAM) xtreamUser.trim() else "",
-                                    xtreamPass = if (type == PlaylistType.XTREAM) xtreamPass.trim() else ""
-                                )
+                AnimatedContent(
+                    targetState = wizardStep,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "wizard_step"
+                ) { step ->
+                    when (step) {
+                        WizardStep.SOURCE -> Column {
+                            SourceStepGrid(
+                                selectedTab = selectedTab,
+                                texts = t,
+                                onSelect = { tab ->
+                                    selectedTab = tab
+                                    wizardStep = WizardStep.DETAILS
+                                }
                             )
+                            Spacer(Modifier.height(20.dp))
+                            if (!isWide) {
+                                Text(t.playlistLimit, color = TextSecondary, fontSize = 12.sp)
+                                Spacer(Modifier.height(16.dp))
+                            }
                         }
-                    )
-                    Status(loadState = loadState, texts = t)
+                        WizardStep.DETAILS -> Column {
+                            SelectedSourceBar(
+                                selectedTab = selectedTab,
+                                texts = t,
+                                onChangeSource = { wizardStep = WizardStep.SOURCE }
+                            )
+                            Spacer(Modifier.height(18.dp))
+                            PlaylistForm(
+                                tab = selectedTab,
+                                texts = t,
+                                playlistName = playlistName,
+                                onPlaylistNameChange = { playlistName = it },
+                                m3uUrl = m3uUrl,
+                                onM3uUrlChange = { m3uUrl = it },
+                                xtreamServer = xtreamServer,
+                                onXtreamServerChange = { xtreamServer = it },
+                                xtreamUser = xtreamUser,
+                                onXtreamUserChange = { xtreamUser = it },
+                                xtreamPass = xtreamPass,
+                                onXtreamPassChange = { xtreamPass = it },
+                                isWide = isWide
+                            )
+                            Spacer(Modifier.height(22.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                SmallActionButton(
+                                    label = t.back,
+                                    enabled = true,
+                                    onClick = { wizardStep = WizardStep.SOURCE }
+                                )
+                                LoadButton(
+                                    label = if (isLoading) t.loading else t.loadRefresh,
+                                    enabled = canLoad,
+                                    onClick = {
+                                        val type = if (selectedTab == SourceTab.XTREAM) PlaylistType.XTREAM else PlaylistType.M3U
+                                        val fallbackName = if (type == PlaylistType.XTREAM) t.sourceXtream else t.sourceM3u
+                                        pendingPlayerReturn = true
+                                        vm.savePlaylistAndLoad(
+                                            PlaylistProfile(
+                                                id = editingPlaylistId ?: "playlist_${System.currentTimeMillis()}",
+                                                name = playlistName.trim().ifBlank { fallbackName },
+                                                type = type,
+                                                m3uUrl = if (type == PlaylistType.M3U) m3uUrl.trim() else "",
+                                                xtreamServer = if (type == PlaylistType.XTREAM) xtreamServer.trim() else "",
+                                                xtreamUser = if (type == PlaylistType.XTREAM) xtreamUser.trim() else "",
+                                                xtreamPass = if (type == PlaylistType.XTREAM) xtreamPass.trim() else ""
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Status(loadState = loadState, texts = t)
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(26.dp))
@@ -318,6 +329,135 @@ fun AddPlaylistScreen(
                 Spacer(Modifier.height(40.dp))
             }
         }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun StepHeader(step: WizardStep, isEditing: Boolean, texts: AppTexts) {
+    val stepNumber = if (step == WizardStep.SOURCE) 1 else 2
+    val title = when (step) {
+        WizardStep.SOURCE -> texts.chooseSource
+        WizardStep.DETAILS -> texts.connectionDetails
+    }
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            StepDot(active = true, done = stepNumber > 1)
+            Box(
+                Modifier
+                    .width(28.dp)
+                    .height(2.dp)
+                    .background(if (stepNumber > 1) Accent else Color(0x33FFFFFF))
+            )
+            StepDot(active = stepNumber >= 2, done = false)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = texts.stepLabel(stepNumber, 2),
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = if (step == WizardStep.SOURCE) texts.welcomeSetup else texts.playlistSubtitle,
+            color = TextSecondary,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+private fun StepDot(active: Boolean, done: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(20.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (active) Accent else Color(0x33FFFFFF)),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.Text(
+            text = if (done) "✓" else "",
+            color = Color(0xFF081116),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black
+        )
+    }
+}
+
+@Composable
+private fun SourceStepGrid(
+    selectedTab: SourceTab,
+    texts: AppTexts,
+    onSelect: (SourceTab) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SourceCard(
+            icon = "M3U",
+            title = texts.sourceM3u,
+            subtitle = texts.m3uSubtitle,
+            selected = selectedTab == SourceTab.M3U,
+            onClick = { onSelect(SourceTab.M3U) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        SourceCard(
+            icon = "XC",
+            title = texts.sourceXtream,
+            subtitle = texts.xtreamSubtitle,
+            selected = selectedTab == SourceTab.XTREAM,
+            onClick = { onSelect(SourceTab.XTREAM) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun SelectedSourceBar(
+    selectedTab: SourceTab,
+    texts: AppTexts,
+    onChangeSource: () -> Unit
+) {
+    val title = if (selectedTab == SourceTab.XTREAM) texts.sourceXtream else texts.sourceM3u
+    val icon = if (selectedTab == SourceTab.XTREAM) "XC" else "M3U"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xD730281A))
+            .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(5.dp))
+                .background(Accent.copy(alpha = 0.18f))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(icon, color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Black)
+        }
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        SmallActionButton(label = texts.edit, enabled = true, onClick = onChangeSource)
     }
 }
 
@@ -489,28 +629,6 @@ private fun CompactBrand() {
         }
     }
     Spacer(Modifier.height(24.dp))
-}
-
-@Composable
-private fun SourceTabs(selectedTab: SourceTab, texts: AppTexts, onSelect: (SourceTab) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        SourceCard(
-            icon = "M3U",
-            title = texts.sourceM3u,
-            subtitle = texts.m3uSubtitle,
-            selected = selectedTab == SourceTab.M3U,
-            onClick = { onSelect(SourceTab.M3U) },
-            modifier = Modifier.weight(1f)
-        )
-        SourceCard(
-            icon = "XC",
-            title = texts.sourceXtream,
-            subtitle = texts.xtreamSubtitle,
-            selected = selectedTab == SourceTab.XTREAM,
-            onClick = { onSelect(SourceTab.XTREAM) },
-            modifier = Modifier.weight(1f)
-        )
-    }
 }
 
 @Composable
