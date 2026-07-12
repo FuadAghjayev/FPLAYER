@@ -93,7 +93,7 @@ fun ChannelInfoOsd(
         val fps = when {
             videoInfo.frameRate > 0f -> "${videoInfo.frameRate.toInt()} fps"
             channel.frameRate > 0f -> "${channel.frameRate.toInt()} fps"
-            else -> "-- fps"
+            else -> ""
         }
         val isLive = playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering
         val selectedAudioLabel = mediaTracks.audioTracks
@@ -205,13 +205,15 @@ fun ChannelInfoOsd(
                 }
 
                 Column(
-                    modifier = Modifier.widthIn(min = 196.dp, max = 260.dp),
+                    modifier = Modifier.widthIn(min = 150.dp, max = 232.dp),
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OsdInfoPill(qualityLabel, highlight = true)
-                        OsdInfoPill(fps)
+                        if (fps.isNotBlank()) {
+                            OsdInfoPill(fps)
+                        }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         RatingBadge(rating = channel.rating)
@@ -270,18 +272,19 @@ private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
         .ifBlank { programLabel }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (progress != null) {
-            OsdProgressLine(progress = progress, modifier = Modifier.width(150.dp))
+            OsdProgressLine(progress = progress, modifier = Modifier.width(84.dp))
         }
         Text(
             text = programText,
             color = Color(0xFFDDE4EA),
-            fontSize = 13.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -290,17 +293,16 @@ private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
 private fun AudioTrackPill(label: String, value: String) {
     Row(
         modifier = Modifier
-            .widthIn(min = 190.dp, max = 260.dp)
+            .widthIn(max = 200.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(Color(0x1AFFFFFF))
             .border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(6.dp))
-            .padding(horizontal = 9.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         SpeakerIcon(color = Accent)
         Column(
-            modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.Start
         ) {
             Text(
@@ -316,7 +318,8 @@ private fun AudioTrackPill(label: String, value: String) {
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 140.dp)
             )
         }
         Text(

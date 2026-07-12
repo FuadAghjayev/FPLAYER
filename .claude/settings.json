@@ -8,7 +8,11 @@
       "PowerShell($candidates = @\\(\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Java\", \"$env:LOCALAPPDATA\\\\Android\\\\Studio\\\\jbr\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { Write-Output \"FOUND: $c\" } })",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat assembleRelease --console=plain)",
       "PowerShell(\\(Get-FileHash \"d:\\\\FPLAYER\\\\FTV-release.apk\" -Algorithm SHA256\\).Hash)",
-      "PowerShell(\\(Get-FileHash \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" -Algorithm SHA256\\).Hash)"
+      "PowerShell(\\(Get-FileHash \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" -Algorithm SHA256\\).Hash)",
+      "Bash(./gradlew assembleRelease)",
+      "PowerShell($c = @\\(\"$env:JAVA_HOME\",\"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\",\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\",\"$env:ProgramFiles\\\\Java\",\"$env:LOCALAPPDATA\\\\Programs\\\\Eclipse Adoptium\"\\); foreach\\($p in $c\\){ if\\($p -and \\(Test-Path $p\\)\\){ Write-Output \"EXISTS: $p\" } }; Get-Command java -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; & .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 70)",
+      "PowerShell($apk = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if\\(Test-Path $apk\\){ Copy-Item $apk \"d:\\\\FPLAYER\\\\FTV-release.apk\" -Force; $f = Get-Item \"d:\\\\FPLAYER\\\\FTV-release.apk\"; Write-Output \\(\"OK  {0:N2} MB  {1}\" -f \\($f.Length/1MB\\), $f.LastWriteTime\\) } else { Write-Output \"APK NOT FOUND\" })"
     ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"

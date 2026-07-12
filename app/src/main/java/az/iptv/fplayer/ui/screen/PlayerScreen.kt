@@ -34,6 +34,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -244,6 +249,8 @@ fun PlayerScreen(
     var recentOverlayVisible by remember { mutableStateOf(false) }
     var channelOnlyGuideVisible by remember { mutableStateOf(false) }
     val guideChannels = visibleChannels
+    val isVodGuide = selectedContentType != ChannelContentType.TV
+    val guideColumns = if (isVodGuide) 3 else 1
     val currentGuideChannelIndex = remember(guideChannels, currentChannelKey) {
         guideChannels.indexOfFirst { it.stableKey == currentChannelKey }
     }
@@ -553,8 +560,12 @@ fun PlayerScreen(
                                 } else {
                                     when (selectorPane) {
                                         SelectorPane.CHANNELS -> {
-                                            focusedGroupIndex = preferredGuideIndex
-                                            selectorPane = SelectorPane.GROUPS
+                                            if (guideColumns > 1 && focusedChannelIndex % guideColumns != 0) {
+                                                focusedChannelIndex -= 1
+                                            } else {
+                                                focusedGroupIndex = preferredGuideIndex
+                                                selectorPane = SelectorPane.GROUPS
+                                            }
                                         }
                                         SelectorPane.GROUPS -> {
                                             selectorPane = SelectorPane.CONTENT_TYPES
@@ -589,7 +600,13 @@ fun PlayerScreen(
                                         }
                                     }
                                     SelectorPane.GROUPS -> selectorPane = SelectorPane.CHANNELS
-                                    SelectorPane.CHANNELS -> {
+                                    SelectorPane.CHANNELS -> if (
+                                        guideColumns > 1 &&
+                                        focusedChannelIndex % guideColumns != guideColumns - 1 &&
+                                        focusedChannelIndex + 1 < guideChannels.size
+                                    ) {
+                                        focusedChannelIndex += 1
+                                    } else {
                                         if (hasSelectableMediaTracks(mediaTracks)) {
                                             focusedMediaOption = if (mediaTracks.audioTracks.isNotEmpty()) 0 else 1
                                             mediaOptionsVisible = true
@@ -644,7 +661,12 @@ fun PlayerScreen(
                                         focusedGroupIndex = wrapIndex(focusedGroupIndex, -1, guideCategories.size)
                                     }
                                     SelectorPane.CHANNELS -> {
-                                        focusedChannelIndex = wrapIndex(focusedChannelIndex, -1, guideChannels.size)
+                                        focusedChannelIndex = if (guideColumns > 1) {
+                                            (focusedChannelIndex - guideColumns)
+                                                .takeIf { it >= 0 } ?: focusedChannelIndex
+                                        } else {
+                                            wrapIndex(focusedChannelIndex, -1, guideChannels.size)
+                                        }
                                     }
                                 }
                                 true
@@ -664,7 +686,13 @@ fun PlayerScreen(
                                         focusedGroupIndex = wrapIndex(focusedGroupIndex, 1, guideCategories.size)
                                     }
                                     SelectorPane.CHANNELS -> {
-                                        focusedChannelIndex = wrapIndex(focusedChannelIndex, 1, guideChannels.size)
+                                        focusedChannelIndex = if (guideColumns > 1) {
+                                            (focusedChannelIndex + guideColumns)
+                                                .takeIf { it < guideChannels.size }
+                                                ?: focusedChannelIndex
+                                        } else {
+                                            wrapIndex(focusedChannelIndex, 1, guideChannels.size)
+                                        }
                                     }
                                 }
                                 true
@@ -782,6 +810,7 @@ fun PlayerScreen(
                 selectedGroups = selectedGroups,
                 focusedGroupIndex = focusedGroupIndex,
                 channels = guideChannels,
+                columns = guideColumns,
                 currentChannel = currentChannel,
                 focusedChannelIndex = focusedChannelIndex,
                 focusedPane = if (channelOnlyGuideVisible) SelectorPane.CHANNELS else selectorPane,
@@ -1174,6 +1203,7 @@ private fun ReceiverGuideOverlay(
     selectedGroups: Set<String>,
     focusedGroupIndex: Int,
     channels: List<Channel>,
+    columns: Int = 1,
     currentChannel: Channel?,
     focusedChannelIndex: Int,
     focusedPane: SelectorPane,
@@ -1253,6 +1283,7 @@ private fun ReceiverGuideOverlay(
 
             ReceiverChannelColumn(
                 channels = channels,
+                columns = columns,
                 currentChannel = currentChannel,
                 focusedIndex = focusedChannelIndex,
                 focused = focusedPane == SelectorPane.CHANNELS,
@@ -1516,6 +1547,7 @@ private fun ReceiverCategorySectionHeader(text: String) {
 @Composable
 private fun ReceiverChannelColumn(
     channels: List<Channel>,
+    columns: Int = 1,
     currentChannel: Channel?,
     focusedIndex: Int,
     focused: Boolean,
@@ -1528,10 +1560,15 @@ private fun ReceiverChannelColumn(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
 
-    LaunchedEffect(focusedIndex, channels.size) {
+    LaunchedEffect(focusedIndex, channels.size, columns) {
         if (focusedIndex in channels.indices) {
-            listState.scrollToItem(maxOf(0, focusedIndex - 5))
+            if (columns > 1) {
+                gridState.scrollToItem(maxOf(0, focusedIndex - columns * 2))
+            } else {
+                listState.scrollToItem(maxOf(0, focusedIndex - 5))
+            }
         }
     }
 
@@ -1552,6 +1589,28 @@ private fun ReceiverChannelColumn(
                     fontSize = 18.sp,
                     modifier = Modifier.align(Alignment.Center)
                 )
+            }
+            columns > 1 -> {
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Fixed(columns),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp, start = 4.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    gridItemsIndexed(channels, key = { index, channel -> "${channel.stableKey}#$index" }) { index, channel ->
+                        ReceiverChannelCard(
+                            channel = channel,
+                            isPlaying = currentChannel?.stableKey == channel.stableKey,
+                            isFocused = focused && index == focusedIndex,
+                            groupFallbackLabel = emptyLabel,
+                            lockedLabel = lockedLabel,
+                            isAdultLocked = isAdultLocked(channel),
+                            onClick = { onChannelClick(channel) }
+                        )
+                    }
+                }
             }
             else -> {
                 LazyColumn(
@@ -1690,6 +1749,119 @@ private fun ReceiverChannelRow(
                 fontWeight = FontWeight.Black
             )
         }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ReceiverChannelCard(
+    channel: Channel,
+    isPlaying: Boolean,
+    isFocused: Boolean,
+    groupFallbackLabel: String,
+    lockedLabel: String,
+    isAdultLocked: Boolean,
+    onClick: () -> Unit
+) {
+    val accent = Accent
+    val cardShape = RoundedCornerShape(10.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .background(if (isFocused) Color(0x1FFFFFFF) else Color.Transparent)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) accent else Color(0x14FFFFFF),
+                shape = cardShape
+            )
+            .clickable(onClick = onClick)
+            .padding(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+        ) {
+            ChannelPoster(
+                posterUrl = channel.logoUrl,
+                name = channel.name,
+                modifier = Modifier.fillMaxSize()
+            )
+            if (channel.rating > 0f) {
+                RatingBadge(
+                    rating = channel.rating,
+                    compact = true,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(5.dp)
+                )
+            }
+            if (isPlaying) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp)
+                        .size(22.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(accent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "▶",
+                        color = Color(0xFF14161A),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+            if (channel.isFavorite) {
+                Text(
+                    text = "★",
+                    color = accent,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                )
+            }
+            if (isAdultLocked) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(Color(0xB3000000)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = lockedLabel,
+                        color = Color(0xFFE6ECF1),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(
+            text = channel.name,
+            color = if (isFocused) Color.White else Color(0xFFD7DEE5),
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
+            fontWeight = if (isFocused || isPlaying) FontWeight.Bold else FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = channel.group.ifBlank { groupFallbackLabel },
+            color = if (isPlaying) accent else Color(0xFF7C8894),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
