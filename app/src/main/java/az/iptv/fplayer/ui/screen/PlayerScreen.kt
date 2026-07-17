@@ -45,6 +45,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -129,7 +130,8 @@ fun PlayerScreen(
     val selectedContentType by vm.selectedContentType.collectAsState()
     val availableContentTypes by vm.availableContentTypes.collectAsState()
     val loadState by vm.loadState.collectAsState()
-    val audioDecoderMode by vm.audioDecoderMode.collectAsState()
+    val playbackSettings by vm.playbackSettings.collectAsState()
+    val showFps by vm.showFps.collectAsState()
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
     val recentChannels by vm.recentChannels.collectAsState()
@@ -154,8 +156,8 @@ fun PlayerScreen(
     var mediaTracks by remember { mutableStateOf(MediaTracks()) }
     var channelOffKey by remember { mutableStateOf<String?>(null) }
 
-    val engine: PlayerEngine = remember(audioDecoderMode, context) {
-        ExoPlayerEngine(context, audioDecoderMode)
+    val engine: PlayerEngine = remember(playbackSettings, context) {
+        ExoPlayerEngine(context, playbackSettings)
     }
 
     DisposableEffect(engine) {
@@ -257,6 +259,10 @@ fun PlayerScreen(
     }
     var focusedRecentIndex by remember { mutableIntStateOf(0) }
     var focusedAudioTrackIndex by remember { mutableIntStateOf(0) }
+    var vodBrowserVisible by remember { mutableStateOf(false) }
+    var vodFocusedRow by remember { mutableIntStateOf(0) }
+    var vodFocusedCol by remember { mutableIntStateOf(0) }
+    val vodRowMemory = remember { mutableMapOf<Int, Int>() }
     var exitPromptVisible by remember { mutableStateOf(false) }
     var exitHintVisible by remember { mutableStateOf(false) }
     var pendingExitOnSelectRelease by remember { mutableStateOf(false) }
@@ -277,12 +283,32 @@ fun PlayerScreen(
         channelOnlyGuideVisible = false
         recentOverlayVisible = false
         mediaOptionsVisible = false
+        vodBrowserVisible = false
         vm.hideSidebar()
         onNavigateToPlaylist()
     }
 
     fun selectOrRequestAdultPin(channel: Channel) {
         vm.selectChannel(channel)
+    }
+
+    fun openVodBrowser(contentType: ChannelContentType) {
+        vm.browseContentType(contentType)
+        vodFocusedRow = 0
+        vodFocusedCol = 0
+        vodRowMemory.clear()
+        vodBrowserVisible = true
+        channelOnlyGuideVisible = false
+        recentOverlayVisible = false
+        mediaOptionsVisible = false
+        audioTrackPanelVisible = false
+        vm.hideSidebar()
+        vm.hideOsd()
+    }
+
+    fun closeVodBrowser() {
+        vodBrowserVisible = false
+        vm.syncContentTypeToCurrent()
     }
 
     fun focusCurrentChannelCategory() {
@@ -298,6 +324,10 @@ fun PlayerScreen(
 
     fun selectFocusedRailItem() {
         guideContentTypes.getOrNull(focusedContentTypeIndex)?.let {
+            if (it != ChannelContentType.TV) {
+                openVodBrowser(it)
+                return
+            }
             vm.selectContentType(it)
             focusedGroupIndex = preferredGuideIndex
             focusedChannelIndex = 0
@@ -355,6 +385,14 @@ fun PlayerScreen(
         focusedGroupIndex = focusedGroupIndex.coerceAtMost((guideCategories.size - 1).coerceAtLeast(0))
     }
 
+    LaunchedEffect(vodBrowserVisible, groups) {
+        if (vodBrowserVisible) {
+            vodFocusedRow = vodFocusedRow.coerceIn(0, (groups.size - 1).coerceAtLeast(0))
+            val rowSize = groups.getOrNull(vodFocusedRow)?.channels?.size ?: 0
+            vodFocusedCol = vodFocusedCol.coerceIn(0, (rowSize - 1).coerceAtLeast(0))
+        }
+    }
+
     LaunchedEffect(recentOverlayVisible, recentChannels.size) {
         if (recentOverlayVisible) {
             focusedRecentIndex = focusedRecentIndex.coerceIn(
@@ -406,7 +444,74 @@ fun PlayerScreen(
                 }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 val isExitKey = event.key == Key.Back
-                if (audioTrackPanelVisible) {
+                if (vodBrowserVisible) {
+                    val vodRows = groups
+                    fun rowSize(row: Int) = vodRows.getOrNull(row)?.channels?.size ?: 0
+                    when (event.key) {
+                        Key.Back -> {
+                            closeVodBrowser()
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            if (vodFocusedRow > 0) {
+                                vodRowMemory[vodFocusedRow] = vodFocusedCol
+                                vodFocusedRow -= 1
+                                vodFocusedCol = (vodRowMemory[vodFocusedRow] ?: 0)
+                                    .coerceIn(0, (rowSize(vodFocusedRow) - 1).coerceAtLeast(0))
+                            }
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            if (vodFocusedRow < vodRows.size - 1) {
+                                vodRowMemory[vodFocusedRow] = vodFocusedCol
+                                vodFocusedRow += 1
+                                vodFocusedCol = (vodRowMemory[vodFocusedRow] ?: 0)
+                                    .coerceIn(0, (rowSize(vodFocusedRow) - 1).coerceAtLeast(0))
+                            }
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            vodFocusedCol = (vodFocusedCol - 1).coerceAtLeast(0)
+                            true
+                        }
+                        Key.DirectionRight -> {
+                            vodFocusedCol = (vodFocusedCol + 1)
+                                .coerceAtMost((rowSize(vodFocusedRow) - 1).coerceAtLeast(0))
+                            true
+                        }
+                        Key.ChannelUp, Key.PageUp -> {
+                            vodRowMemory[vodFocusedRow] = vodFocusedCol
+                            vodFocusedRow = (vodFocusedRow - 4).coerceAtLeast(0)
+                            vodFocusedCol = (vodRowMemory[vodFocusedRow] ?: 0)
+                                .coerceIn(0, (rowSize(vodFocusedRow) - 1).coerceAtLeast(0))
+                            true
+                        }
+                        Key.ChannelDown, Key.PageDown -> {
+                            vodRowMemory[vodFocusedRow] = vodFocusedCol
+                            vodFocusedRow = (vodFocusedRow + 4).coerceAtMost((vodRows.size - 1).coerceAtLeast(0))
+                            vodFocusedCol = (vodRowMemory[vodFocusedRow] ?: 0)
+                                .coerceIn(0, (rowSize(vodFocusedRow) - 1).coerceAtLeast(0))
+                            true
+                        }
+                        Key.Info -> {
+                            vodRows.getOrNull(vodFocusedRow)?.channels?.getOrNull(vodFocusedCol)
+                                ?.let(vm::toggleFavorite)
+                            true
+                        }
+                        Key.Menu -> {
+                            openPlaylistMenu()
+                            true
+                        }
+                        Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                            vodRows.getOrNull(vodFocusedRow)?.channels?.getOrNull(vodFocusedCol)?.let {
+                                vodBrowserVisible = false
+                                selectOrRequestAdultPin(it)
+                            }
+                            true
+                        }
+                        else -> true
+                    }
+                } else if (audioTrackPanelVisible) {
                     when (event.key) {
                         Key.Back -> {
                             audioTrackPanelVisible = false
@@ -600,7 +705,12 @@ fun PlayerScreen(
                                             selectFocusedRailItem()
                                         }
                                     }
-                                    SelectorPane.GROUPS -> selectorPane = SelectorPane.CHANNELS
+                                    SelectorPane.GROUPS -> {
+                                        // Sağ ox fokuslanan kateqoriyanı dərhal aktivləşdirir — əlavə OK basmağa ehtiyac yoxdur
+                                        guideCategories.getOrNull(focusedGroupIndex)
+                                            ?.let(::activateGuideCategory)
+                                            ?: run { selectorPane = SelectorPane.CHANNELS }
+                                    }
                                     SelectorPane.CHANNELS -> if (
                                         guideColumns > 1 &&
                                         focusedChannelIndex % guideColumns != guideColumns - 1 &&
@@ -704,17 +814,40 @@ fun PlayerScreen(
                         }
 
                         Key.ChannelUp, Key.PageUp -> {
-                            if (!selectorVisible) {
+                            if (selectorVisible) {
+                                // Uzun siyahılarda sürətli keçid: 10 element geri
+                                when (selectorPane) {
+                                    SelectorPane.CONTENT_TYPES ->
+                                        focusedContentTypeIndex = (focusedContentTypeIndex - 4).coerceAtLeast(0)
+                                    SelectorPane.GROUPS ->
+                                        focusedGroupIndex = (focusedGroupIndex - 10).coerceAtLeast(0)
+                                    SelectorPane.CHANNELS ->
+                                        focusedChannelIndex = (focusedChannelIndex - 10 * guideColumns)
+                                            .coerceAtLeast(0)
+                                }
+                            } else {
                                 vm.nextChannel()
-                                true
-                            } else false
+                            }
+                            true
                         }
 
                         Key.ChannelDown, Key.PageDown -> {
-                            if (!selectorVisible) {
+                            if (selectorVisible) {
+                                when (selectorPane) {
+                                    SelectorPane.CONTENT_TYPES ->
+                                        focusedContentTypeIndex = (focusedContentTypeIndex + 4)
+                                            .coerceAtMost((guideRailItemCount - 1).coerceAtLeast(0))
+                                    SelectorPane.GROUPS ->
+                                        focusedGroupIndex = (focusedGroupIndex + 10)
+                                            .coerceAtMost((guideCategories.size - 1).coerceAtLeast(0))
+                                    SelectorPane.CHANNELS ->
+                                        focusedChannelIndex = (focusedChannelIndex + 10 * guideColumns)
+                                            .coerceAtMost((guideChannels.size - 1).coerceAtLeast(0))
+                                }
+                            } else {
                                 vm.prevChannel()
-                                true
-                            } else false
+                            }
+                            true
                         }
 
                         Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
@@ -772,10 +905,22 @@ fun PlayerScreen(
     ) {
         val isWide = maxWidth > 700.dp
         val guideWidth = if (isWide) (maxWidth * 0.76f).coerceIn(700.dp, 1000.dp) else maxWidth * 0.98f
+        // Kateqoriya sütununda gəzərkən sağ paneldə həmin kateqoriyanın kanalları önizlənir
+        val previewCategory = guideCategories.getOrNull(focusedGroupIndex)
+            ?.takeIf { selectorVisible && !channelOnlyGuideVisible && selectorPane == SelectorPane.GROUPS }
+        val guideDisplayChannels = remember(previewCategory, groups, guideChannels) {
+            when (previewCategory?.type) {
+                GuideCategoryType.GROUP ->
+                    groups.find { it.name == previewCategory.groupName }?.channels ?: emptyList()
+                GuideCategoryType.ALL -> groups.flatMap { it.channels }
+                else -> guideChannels
+            }
+        }
         val startupLoadingVisible = !selectorVisible &&
             currentChannel == null &&
             loadState !is LoadState.Error
-        VideoSurface(engine = engine)
+        // Ayar dəyişəndə mühərrik yenidən qurulur — səth də yenidən bağlanmalıdır
+        key(engine) { VideoSurface(engine = engine) }
 
         StartupLoadingOverlay(
             visible = startupLoadingVisible || loadState is LoadState.Loading,
@@ -810,7 +955,7 @@ fun PlayerScreen(
                 selectedGroup = selectedGroup,
                 selectedGroups = selectedGroups,
                 focusedGroupIndex = focusedGroupIndex,
-                channels = guideChannels,
+                channels = guideDisplayChannels,
                 columns = guideColumns,
                 currentChannel = currentChannel,
                 currentProgram = currentProgram,
@@ -828,10 +973,14 @@ fun PlayerScreen(
                 lockedLabel = t.locked,
                 isAdultLocked = ::isAdultLocked,
                 onContentTypeClick = {
-                    vm.selectContentType(it)
-                    focusedGroupIndex = preferredGuideIndex
-                    focusedChannelIndex = 0
-                    selectorPane = SelectorPane.GROUPS
+                    if (it != ChannelContentType.TV) {
+                        openVodBrowser(it)
+                    } else {
+                        vm.selectContentType(it)
+                        focusedGroupIndex = preferredGuideIndex
+                        focusedChannelIndex = 0
+                        selectorPane = SelectorPane.GROUPS
+                    }
                 },
                 onPlaylistClick = {
                     vm.switchPlaylist(it)
@@ -875,7 +1024,7 @@ fun PlayerScreen(
         }
 
         ChannelInfoOsd(
-            visible = osdVisible && !selectorVisible,
+            visible = osdVisible && !selectorVisible && !vodBrowserVisible,
             channel = currentChannel,
             videoInfo = videoInfo,
             mediaTracks = mediaTracks,
@@ -886,10 +1035,31 @@ fun PlayerScreen(
             allChannelsLabel = t.allChannels,
             programLabel = t.program,
             audioLabel = t.audio,
+            showFps = showFps && !playbackSettings.tunneledPlayback,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .zIndex(5f)
         )
+
+        if (vodBrowserVisible) {
+            VodBrowseOverlay(
+                title = if (selectedContentType == ChannelContentType.SERIES) t.series else t.movies,
+                rows = groups,
+                currentChannel = currentChannel,
+                focusedRow = vodFocusedRow,
+                focusedCol = vodFocusedCol,
+                watchLabel = t.watch,
+                nowPlayingLabel = t.nowPlaying,
+                emptyLabel = t.noInfo,
+                onChannelClick = {
+                    vodBrowserVisible = false
+                    selectOrRequestAdultPin(it)
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(16f)
+            )
+        }
 
         RecentChannelsOverlay(
             visible = recentOverlayVisible && !selectorVisible,

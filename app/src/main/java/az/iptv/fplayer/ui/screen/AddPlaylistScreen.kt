@@ -63,6 +63,7 @@ import az.iptv.fplayer.data.preferences.AppPreferences
 import az.iptv.fplayer.data.preferences.AppLanguage
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.data.preferences.PlaylistType
+import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.ui.text.AppTexts
 import az.iptv.fplayer.ui.text.appTexts
 import az.iptv.fplayer.ui.theme.Accent
@@ -90,6 +91,9 @@ fun AddPlaylistScreen(
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
     val language by vm.appLanguage.collectAsState()
+    val audioDecoderMode by vm.audioDecoderMode.collectAsState()
+    val playbackSettings by vm.playbackSettings.collectAsState()
+    val showFps by vm.showFps.collectAsState()
     val t = appTexts(language)
 
     var selectedTab by remember { mutableStateOf(SourceTab.M3U) }
@@ -323,6 +327,80 @@ fun AddPlaylistScreen(
                         subtitle = t.en,
                         selected = language == AppLanguage.EN.name,
                         onClick = { vm.setLanguage(AppLanguage.EN) }
+                    )
+                }
+
+                Spacer(Modifier.height(26.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1CFFFFFF)))
+                Spacer(Modifier.height(18.dp))
+
+                SectionTitle(t.playbackSettings)
+                Spacer(Modifier.height(10.dp))
+
+                FormLabel(t.audioDecoder)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PlayerChip(
+                        label = t.auto,
+                        subtitle = "AUTO",
+                        selected = audioDecoderMode == AudioDecoderMode.AUTO,
+                        onClick = { vm.setAudioDecoderMode(AudioDecoderMode.AUTO) }
+                    )
+                    PlayerChip(
+                        label = t.hardware,
+                        subtitle = "HW",
+                        selected = audioDecoderMode == AudioDecoderMode.HARDWARE,
+                        onClick = { vm.setAudioDecoderMode(AudioDecoderMode.HARDWARE) }
+                    )
+                    PlayerChip(
+                        label = t.software,
+                        subtitle = "SW",
+                        selected = audioDecoderMode == AudioDecoderMode.SOFTWARE,
+                        onClick = { vm.setAudioDecoderMode(AudioDecoderMode.SOFTWARE) }
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingToggleRow(
+                        label = t.showFps,
+                        hint = t.showFpsHint,
+                        checked = showFps,
+                        onLabel = t.on,
+                        offLabel = t.off,
+                        onToggle = { vm.setShowFps(!showFps) }
+                    )
+                    SettingToggleRow(
+                        label = t.frameRateMatching,
+                        hint = t.frameRateMatchingHint,
+                        checked = playbackSettings.frameRateMatching,
+                        onLabel = t.on,
+                        offLabel = t.off,
+                        onToggle = { vm.setFrameRateMatching(!playbackSettings.frameRateMatching) }
+                    )
+                    SettingToggleRow(
+                        label = t.rawAudioConvert,
+                        hint = t.rawAudioConvertHint,
+                        checked = playbackSettings.rawAudioConvert,
+                        onLabel = t.on,
+                        offLabel = t.off,
+                        onToggle = { vm.setRawAudioConvert(!playbackSettings.rawAudioConvert) }
+                    )
+                    SettingToggleRow(
+                        label = t.tunneledPlayback,
+                        hint = t.tunneledPlaybackHint,
+                        checked = playbackSettings.tunneledPlayback,
+                        onLabel = t.on,
+                        offLabel = t.off,
+                        onToggle = { vm.setTunneledPlayback(!playbackSettings.tunneledPlayback) }
+                    )
+                    SettingToggleRow(
+                        label = t.fix1080i,
+                        hint = t.fix1080iHint,
+                        checked = playbackSettings.fix1080i,
+                        onLabel = t.on,
+                        offLabel = t.off,
+                        onToggle = { vm.setFix1080i(!playbackSettings.fix1080i) }
                     )
                 }
 
@@ -1006,6 +1084,86 @@ private fun SectionTitle(text: String) {
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.5.sp
     )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun SettingToggleRow(
+    label: String,
+    hint: String,
+    checked: Boolean,
+    onLabel: String,
+    offLabel: String,
+    onToggle: () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                when {
+                    focused -> Color(0xFFFFF4D0)
+                    checked -> Color(0xDD30281A)
+                    else -> Color(0xD72B323A)
+                }
+            )
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> Color(0xFFFFC247)
+                    checked -> Accent.copy(alpha = 0.82f)
+                    else -> Color(0x44FFFFFF)
+                },
+                shape = shape
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                color = if (focused) Color(0xFF071116) else Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = hint,
+                color = if (focused) Color(0xFF2D3A42) else Color(0xFFC3CBD3),
+                fontSize = 10.sp,
+                lineHeight = 13.sp
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(
+                    when {
+                        checked -> Accent
+                        focused -> Color(0x33071116)
+                        else -> Color(0x22FFFFFF)
+                    }
+                )
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = if (checked) onLabel else offLabel,
+                color = if (checked) Color(0xFF14161A) else if (focused) Color(0xFF071116) else Color(0xFFB9C2CB),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)

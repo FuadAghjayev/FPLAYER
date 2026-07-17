@@ -52,6 +52,11 @@ class AppPreferences(private val context: Context) {
         private val KEY_LANGUAGE = stringPreferencesKey("language")
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_FAVORITE_CHANNELS = stringSetPreferencesKey("favorite_channels")
+        private val KEY_SHOW_FPS = stringPreferencesKey("show_fps")
+        private val KEY_FRAME_RATE_MATCHING = stringPreferencesKey("frame_rate_matching")
+        private val KEY_RAW_AUDIO_CONVERT = stringPreferencesKey("raw_audio_convert")
+        private val KEY_TUNNELED_PLAYBACK = stringPreferencesKey("tunneled_playback")
+        private val KEY_FIX_1080I = stringPreferencesKey("fix_1080i")
     }
 
     val playlists: Flow<List<PlaylistProfile>> = context.dataStore.data.map { readProfiles(it) }
@@ -80,6 +85,11 @@ class AppPreferences(private val context: Context) {
     val favoriteChannelKeys: Flow<Set<String>> = context.dataStore.data.map {
         it[KEY_FAVORITE_CHANNELS] ?: emptySet()
     }
+    val showFps: Flow<Boolean> = context.dataStore.data.map { it[KEY_SHOW_FPS] != "false" }
+    val frameRateMatching: Flow<Boolean> = context.dataStore.data.map { it[KEY_FRAME_RATE_MATCHING] == "true" }
+    val rawAudioConvert: Flow<Boolean> = context.dataStore.data.map { it[KEY_RAW_AUDIO_CONVERT] == "true" }
+    val tunneledPlayback: Flow<Boolean> = context.dataStore.data.map { it[KEY_TUNNELED_PLAYBACK] == "true" }
+    val fix1080i: Flow<Boolean> = context.dataStore.data.map { it[KEY_FIX_1080I] == "true" }
 
     suspend fun saveM3u(url: String) = context.dataStore.edit {
         val profiles = readProfiles(it)
@@ -161,6 +171,11 @@ class AppPreferences(private val context: Context) {
             .getOrDefault(AppThemeMode.CLASSIC)
             .name
     }
+    suspend fun setShowFps(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_FPS] = enabled.toString() }
+    suspend fun setFrameRateMatching(enabled: Boolean) = context.dataStore.edit { it[KEY_FRAME_RATE_MATCHING] = enabled.toString() }
+    suspend fun setRawAudioConvert(enabled: Boolean) = context.dataStore.edit { it[KEY_RAW_AUDIO_CONVERT] = enabled.toString() }
+    suspend fun setTunneledPlayback(enabled: Boolean) = context.dataStore.edit { it[KEY_TUNNELED_PLAYBACK] = enabled.toString() }
+    suspend fun setFix1080i(enabled: Boolean) = context.dataStore.edit { it[KEY_FIX_1080I] = enabled.toString() }
     suspend fun setFavoriteChannel(key: String, favorite: Boolean) = context.dataStore.edit {
         val current = it[KEY_FAVORITE_CHANNELS] ?: emptySet()
         it[KEY_FAVORITE_CHANNELS] = if (favorite) current + key else current - key

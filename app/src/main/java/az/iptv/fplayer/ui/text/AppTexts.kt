@@ -66,7 +66,23 @@ data class AppTexts(
     val chooseSource: String,
     val connectionDetails: String,
     val welcomeSetup: String,
-    val stepLabel: (Int, Int) -> String
+    val stepLabel: (Int, Int) -> String,
+    val playbackSettings: String,
+    val showFps: String,
+    val showFpsHint: String,
+    val frameRateMatching: String,
+    val frameRateMatchingHint: String,
+    val rawAudioConvert: String,
+    val rawAudioConvertHint: String,
+    val tunneledPlayback: String,
+    val tunneledPlaybackHint: String,
+    val fix1080i: String,
+    val fix1080iHint: String,
+    val on: String,
+    val watch: String,
+    val movies: String,
+    val series: String,
+    val nowPlaying: String
 )
 
 fun appTexts(language: String): AppTexts =
@@ -136,7 +152,23 @@ private val azTexts = AppTexts(
     chooseSource = "Mənbə növünü seçin",
     connectionDetails = "Bağlantı məlumatları",
     welcomeSetup = "Başlamaq üçün kanal mənbəyi əlavə edin",
-    stepLabel = { current, total -> "Addım $current / $total" }
+    stepLabel = { current, total -> "Addım $current / $total" },
+    playbackSettings = "Oynatma ayarları",
+    showFps = "FPS göstəricisi",
+    showFpsHint = "Kanal məlumat kartında yayının FPS dəyəri görünür",
+    frameRateMatching = "Kadr tezliyi uyğunlaşdırması",
+    frameRateMatchingHint = "Ekran yenilənmə tezliyi yayının FPS-inə uyğunlaşdırılır (Android 11+)",
+    rawAudioConvert = "RAW səs çevirmə",
+    rawAudioConvertHint = "Səs kəsik-kəsik gəlirsə aktiv edin — passthrough əvəzinə PCM istifadə olunur",
+    tunneledPlayback = "Tunel oynatma rejimi",
+    tunneledPlaybackHint = "Bəzi cihazlarda daha axıcı görüntü verir. Aktiv olanda FPS məlumatı görünmür",
+    fix1080i = "1080i axıcılıq düzəlişi",
+    fix1080iHint = "Android 14-də 1080i yayınların 15fps kimi görünmə xətasını aradan qaldırır",
+    on = "Aktiv",
+    watch = "İzlə",
+    movies = "Kino",
+    series = "Seriallar",
+    nowPlaying = "İndi oxudulur"
 )
 
 private val enTexts = AppTexts(
@@ -203,5 +235,21 @@ private val enTexts = AppTexts(
     chooseSource = "Choose source type",
     connectionDetails = "Connection details",
     welcomeSetup = "Add a channel source to get started",
-    stepLabel = { current, total -> "Step $current / $total" }
+    stepLabel = { current, total -> "Step $current / $total" },
+    playbackSettings = "Playback settings",
+    showFps = "FPS indicator",
+    showFpsHint = "Shows the stream FPS on the channel info card",
+    frameRateMatching = "Frame rate matching",
+    frameRateMatchingHint = "Matches the display refresh rate to the stream FPS (Android 11+)",
+    rawAudioConvert = "RAW audio conversion",
+    rawAudioConvertHint = "Enable if audio stutters — decodes to PCM instead of passthrough",
+    tunneledPlayback = "Tunneled playback",
+    tunneledPlaybackHint = "Smoother video on some devices. FPS info is hidden while active",
+    fix1080i = "1080i smoothness fix",
+    fix1080iHint = "Fixes 1080i streams looking like 15fps on Android 14",
+    on = "On",
+    watch = "Watch",
+    movies = "Movies",
+    series = "Series",
+    nowPlaying = "Now playing"
 )

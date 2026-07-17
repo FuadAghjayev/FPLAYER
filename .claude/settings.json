@@ -12,7 +12,27 @@
       "Bash(./gradlew assembleRelease)",
       "PowerShell($c = @\\(\"$env:JAVA_HOME\",\"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\",\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\",\"$env:ProgramFiles\\\\Java\",\"$env:LOCALAPPDATA\\\\Programs\\\\Eclipse Adoptium\"\\); foreach\\($p in $c\\){ if\\($p -and \\(Test-Path $p\\)\\){ Write-Output \"EXISTS: $p\" } }; Get-Command java -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; & .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 70)",
-      "PowerShell($apk = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if\\(Test-Path $apk\\){ Copy-Item $apk \"d:\\\\FPLAYER\\\\FTV-release.apk\" -Force; $f = Get-Item \"d:\\\\FPLAYER\\\\FTV-release.apk\"; Write-Output \\(\"OK  {0:N2} MB  {1}\" -f \\($f.Length/1MB\\), $f.LastWriteTime\\) } else { Write-Output \"APK NOT FOUND\" })"
+      "PowerShell($apk = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if\\(Test-Path $apk\\){ Copy-Item $apk \"d:\\\\FPLAYER\\\\FTV-release.apk\" -Force; $f = Get-Item \"d:\\\\FPLAYER\\\\FTV-release.apk\"; Write-Output \\(\"OK  {0:N2} MB  {1}\" -f \\($f.Length/1MB\\), $f.LastWriteTime\\) } else { Write-Output \"APK NOT FOUND\" })",
+      "Bash(Get-ChildItem -Path \"d:\\\\FPLAYER\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(./gradlew clean *)",
+      "Read(//c/Program Files/**)",
+      "PowerShell($javaPath = Get-Command java -ErrorAction SilentlyContinue; if \\($javaPath\\) { $javaPath.Source } else { \"Java not found\" })",
+      "Read(//c/Users/User/AppData/Local/**)",
+      "Read(//c/Users/User/AppData/Local/Android/**)",
+      "Read(//c/Program Files/Android/Android Studio/**)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; java -version 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; cd \"d:\\\\FPLAYER\"; .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 50)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; cd \"d:\\\\FPLAYER\"; .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 80)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; cd \"d:\\\\FPLAYER\"; .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 100)",
+      "PowerShell($apkPath = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if \\(Test-Path $apkPath\\) { Copy-Item $apkPath \"d:\\\\FPLAYER\\\\FTV-release-v1.2.apk\"; Get-Item \"d:\\\\FPLAYER\\\\FTV-release-v1.2.apk\" | Select-Object Name, @{Name=\"SizeMB\"; Expression={\"{0:F2}\" -f \\($_.Length / 1MB\\)}} } else { \"APK not found at $apkPath\" })",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "PowerShell($apkPath = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if \\(Test-Path $apkPath\\) { Copy-Item $apkPath \"d:\\\\FPLAYER\\\\FTV-release-v1.3-premium.apk\" -Force; Get-Item \"d:\\\\FPLAYER\\\\FTV-release-v1.3-premium.apk\" | Select-Object Name, @{Name=\"SizeMB\"; Expression={\"{0:F2}\" -f \\($_.Length / 1MB\\)}} } else { \"APK not found\" })",
+      "PowerShell($apkPath = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if \\(Test-Path $apkPath\\) { Copy-Item $apkPath \"d:\\\\FPLAYER\\\\FTV-release-v1.4-transparent.apk\" -Force; Get-Item \"d:\\\\FPLAYER\\\\FTV-release-v1.4-transparent.apk\" | Select-Object Name, @{Name=\"SizeMB\"; Expression={\"{0:F2}\" -f \\($_.Length / 1MB\\)}} } else { \"APK not found\" })",
+      "PowerShell($candidates = @\\(\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\", \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Java\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { Write-Output $c } }; Get-ChildItem \"C:\\\\Program Files\\\\Android\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)",
+      "PowerShell(cd D:\\\\FPLAYER; $env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; & .\\\\gradlew.bat \":app:compileReleaseKotlin\" --console=plain -q)",
+      "PowerShell(cd D:\\\\FPLAYER; $env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; & .\\\\gradlew.bat \":app:assembleRelease\" --console=plain -q; Write-Output \"EXIT=$LASTEXITCODE\"; Get-ChildItem D:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release)"
     ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"

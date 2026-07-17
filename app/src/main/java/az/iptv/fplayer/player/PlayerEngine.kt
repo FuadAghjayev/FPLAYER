@@ -7,6 +7,14 @@ enum class PlayerType { EXOPLAYER, VLC }
 
 enum class AudioDecoderMode { AUTO, HARDWARE, SOFTWARE }
 
+data class PlaybackSettings(
+    val audioMode: AudioDecoderMode = AudioDecoderMode.AUTO,
+    val frameRateMatching: Boolean = false,
+    val rawAudioConvert: Boolean = false,
+    val tunneledPlayback: Boolean = false,
+    val fix1080i: Boolean = false
+)
+
 data class VideoInfo(
     val width: Int = 0,
     val height: Int = 0,

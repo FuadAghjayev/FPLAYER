@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,9 +51,16 @@ import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.VideoInfo
 import az.iptv.fplayer.ui.theme.Accent
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val OsdCardShape = RoundedCornerShape(16.dp)
 private val OsdTextDim = Color(0xFFAAB4BE)
+
+private fun currentClockText(): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
 @Composable
 fun ChannelInfoOsd(
@@ -66,6 +75,7 @@ fun ChannelInfoOsd(
     allChannelsLabel: String = "All channels",
     programLabel: String = "Program",
     audioLabel: String = "Audio",
+    showFps: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -91,9 +101,16 @@ fun ChannelInfoOsd(
         }
         val codec = videoInfo.codec.ifBlank { "--" }.uppercase()
         val fps = when {
+            !showFps -> ""
             videoInfo.frameRate > 0f -> "${videoInfo.frameRate.toInt()} fps"
             channel.frameRate > 0f -> "${channel.frameRate.toInt()} fps"
             else -> ""
+        }
+        val clock by produceState(initialValue = currentClockText()) {
+            while (true) {
+                value = currentClockText()
+                delay(20_000)
+            }
         }
         val isLive = playbackState is PlaybackState.Playing || playbackState is PlaybackState.Buffering
         val selectedAudioLabel = mediaTracks.audioTracks
@@ -218,7 +235,18 @@ fun ChannelInfoOsd(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = clock,
+                            color = Color.White.copy(alpha = 0.92f),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.width(2.dp))
                         OsdInfoPill(qualityLabel, highlight = true)
                         if (fps.isNotBlank()) {
                             OsdInfoPill(fps)

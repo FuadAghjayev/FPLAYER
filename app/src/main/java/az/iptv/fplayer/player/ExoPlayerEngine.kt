@@ -1,7 +1,9 @@
 package az.iptv.fplayer.player
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import android.view.Surface
 import android.view.SurfaceView
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -20,10 +22,14 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
 import java.net.URLDecoder
@@ -32,8 +38,10 @@ import java.nio.charset.StandardCharsets
 @OptIn(UnstableApi::class)
 class ExoPlayerEngine(
     private val context: Context,
-    private val audioMode: AudioDecoderMode = AudioDecoderMode.AUTO
+    private val settings: PlaybackSettings = PlaybackSettings()
 ) : PlayerEngine {
+
+    private val audioMode: AudioDecoderMode get() = settings.audioMode
 
     override val type = PlayerType.EXOPLAYER
 
@@ -52,10 +60,11 @@ class ExoPlayerEngine(
     override fun init(surfaceView: SurfaceView) {
         surface = surfaceView
 
-        val rendererMode = when (audioMode) {
-            AudioDecoderMode.SOFTWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-            AudioDecoderMode.HARDWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
-            AudioDecoderMode.AUTO     -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+        val rendererMode = when {
+            // RAW səs çevirmə: passthrough əvəzinə proqram dekoderi ilə PCM-ə çevrilir
+            settings.rawAudioConvert -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+            audioMode == AudioDecoderMode.HARDWARE -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+            else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
         }
 
         val audioAttributes = AudioAttributes.Builder()
@@ -74,12 +83,23 @@ class ExoPlayerEngine(
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        player = ExoPlayer.Builder(
-            context,
-            DefaultRenderersFactory(context)
-                .setExtensionRendererMode(rendererMode)
-                .setEnableDecoderFallback(true)
-        )
+        val renderersFactory = buildRenderersFactory()
+            .setExtensionRendererMode(rendererMode)
+            .setEnableDecoderFallback(true)
+        if (settings.fix1080i) {
+            // Android 14-də 1080i axınlarında sinxron MediaCodec sırası kadr düşməsinə səbəb olur
+            renderersFactory.forceEnableMediaCodecAsynchronousQueueing()
+        }
+
+        val trackSelector = DefaultTrackSelector(context)
+        if (settings.tunneledPlayback) {
+            trackSelector.parameters = trackSelector.buildUponParameters()
+                .setTunnelingEnabled(true)
+                .build()
+        }
+
+        player = ExoPlayer.Builder(context, renderersFactory)
+            .setTrackSelector(trackSelector)
             .setMediaSourceFactory(mediaSourceFactory())
             .setLoadControl(loadControl)
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
@@ -94,6 +114,40 @@ class ExoPlayerEngine(
                     .setId(MEDIA_SESSION_ID)
                     .build()
             }
+    }
+
+    private fun buildRenderersFactory(): DefaultRenderersFactory =
+        if (settings.rawAudioConvert) {
+            object : DefaultRenderersFactory(context) {
+                override fun buildAudioSink(
+                    context: Context,
+                    enableFloatOutput: Boolean,
+                    enableAudioTrackPlaybackParams: Boolean
+                ): AudioSink = DefaultAudioSink.Builder(context)
+                    .setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .build()
+            }
+        } else {
+            DefaultRenderersFactory(context)
+        }
+
+    private fun applyFrameRateMatching(frameRate: Float) {
+        if (!settings.frameRateMatching || settings.tunneledPlayback) return
+        if (frameRate <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val holderSurface = surface?.holder?.surface?.takeIf { it.isValid } ?: return
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                holderSurface.setFrameRate(
+                    frameRate,
+                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                    Surface.CHANGE_FRAME_RATE_ALWAYS
+                )
+            } else {
+                holderSurface.setFrameRate(frameRate, Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
+            }
+        }
     }
 
     override fun play(url: String) {
@@ -215,11 +269,13 @@ class ExoPlayerEngine(
         val size = videoSize ?: exo.videoSize
         if (size.width == 0) return
         val format = exo.videoFormat
+        val frameRate = format?.frameRate?.takeIf { it > 0f } ?: 0f
+        applyFrameRateMatching(frameRate)
         listener?.onVideoInfoChanged(
             VideoInfo(
                 width = size.width,
                 height = size.height,
-                frameRate = format?.frameRate?.takeIf { it > 0f } ?: 0f,
+                frameRate = frameRate,
                 codec = format?.sampleMimeType?.substringAfterLast("/") ?: ""
             )
         )

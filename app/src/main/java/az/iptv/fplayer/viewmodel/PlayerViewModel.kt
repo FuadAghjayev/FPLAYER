@@ -16,6 +16,7 @@ import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.data.preferences.PlaylistType
 import az.iptv.fplayer.data.repository.ChannelRepository
 import az.iptv.fplayer.player.AudioDecoderMode
+import az.iptv.fplayer.player.PlaybackSettings
 import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.PlayerType
 import az.iptv.fplayer.player.VideoInfo
@@ -118,6 +119,25 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _audioDecoderMode = MutableStateFlow(AudioDecoderMode.AUTO)
     val audioDecoderMode: StateFlow<AudioDecoderMode> = _audioDecoderMode
+
+    val showFps: StateFlow<Boolean> = prefs.showFps
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val playbackSettings: StateFlow<PlaybackSettings> = combine(
+        _audioDecoderMode,
+        prefs.frameRateMatching,
+        prefs.rawAudioConvert,
+        prefs.tunneledPlayback,
+        prefs.fix1080i
+    ) { audio, frameRate, rawAudio, tunneled, fix1080i ->
+        PlaybackSettings(
+            audioMode = audio,
+            frameRateMatching = frameRate,
+            rawAudioConvert = rawAudio,
+            tunneledPlayback = tunneled,
+            fix1080i = fix1080i
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackSettings())
 
     private var playlistLoadJob: Job? = null
     private var epgJob: Job? = null
@@ -451,6 +471,24 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch { prefs.setLastChannelId(channel.stableKey) }
         }
     }
+
+    // Netflix üslubu: kino/serial bölməsinə keçəndə heç bir kanal avtomatik başlamır
+    fun browseContentType(contentType: ChannelContentType) {
+        _selectedContentType.value = contentType
+        _selectedGroup.value = null
+        _selectedGroups.value = emptySet()
+    }
+
+    // VOD kataloqundan çıxanda seçilmiş tip hazırda oxudulan kanala qaytarılır
+    fun syncContentTypeToCurrent() {
+        _currentChannel.value?.let { _selectedContentType.value = it.contentType }
+    }
+
+    fun setShowFps(enabled: Boolean) = viewModelScope.launch { prefs.setShowFps(enabled) }
+    fun setFrameRateMatching(enabled: Boolean) = viewModelScope.launch { prefs.setFrameRateMatching(enabled) }
+    fun setRawAudioConvert(enabled: Boolean) = viewModelScope.launch { prefs.setRawAudioConvert(enabled) }
+    fun setTunneledPlayback(enabled: Boolean) = viewModelScope.launch { prefs.setTunneledPlayback(enabled) }
+    fun setFix1080i(enabled: Boolean) = viewModelScope.launch { prefs.setFix1080i(enabled) }
     fun toggleSidebar() { _sidebarVisible.value = !_sidebarVisible.value }
     fun showSidebar() { _sidebarVisible.value = true }
     fun hideSidebar() { _sidebarVisible.value = false }
