@@ -108,18 +108,27 @@ fun ChannelInfoOsd(
                 .clip(OsdCardShape)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xF00C1016), Color(0xF6090C11))
+                        listOf(
+                            Color(0x1A0C1016).copy(alpha = 0.3f),
+                            Color(0x1A090C11).copy(alpha = 0.25f)
+                        )
                     )
                 )
-                .border(1.dp, Color(0x2EFFFFFF), OsdCardShape)
+                .border(
+                    2.dp,
+                    Brush.verticalGradient(
+                        listOf(Color(0x4EFFFFFF), Color(0x15FFFFFF))
+                    ),
+                    OsdCardShape
+                )
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.dp)
+                    .height(2.5.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0x00FFC247), Accent, Color(0x00FFC247))
+                            listOf(Color(0x00FFC247), Accent.copy(alpha = 0.8f), Color(0x00FFC247))
                         )
                     )
             )
@@ -163,8 +172,8 @@ fun ChannelInfoOsd(
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .width(1.dp)
-                        .background(Color(0x1FFFFFFF))
+                        .width(1.5.dp)
+                        .background(Color(0xFFFFFF).copy(alpha = 0.15f))
                 )
 
                 Column(
@@ -236,28 +245,33 @@ fun ChannelInfoOsd(
 private fun LiveStatusBadge(isLive: Boolean) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (isLive) Color(0x2EFF4D5E) else Color(0x24FFFFFF))
-            .border(
-                1.dp,
-                if (isLive) Color(0x66FF4D5E) else Color(0x33FFFFFF),
-                RoundedCornerShape(4.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                when {
+                    isLive -> Color(0xFF4D5E).copy(alpha = 0.15f)
+                    else -> Color(0xFFFFFF).copy(alpha = 0.08f)
+                }
             )
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .border(
+                1.5.dp,
+                if (isLive) Color(0xFFFF4D5E).copy(alpha = 0.4f) else Color(0xFFFFFF).copy(alpha = 0.2f),
+                RoundedCornerShape(6.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(6.dp)
+                .size(7.dp)
                 .clip(CircleShape)
                 .background(if (isLive) Color(0xFFFF4D5E) else Color(0xFF8A939C))
         )
         Text(
             text = if (isLive) "LIVE" else "OFF",
-            color = if (isLive) Color(0xFFFFD7DB) else Color(0xFFC9D1D8),
+            color = if (isLive) Color(0xFFFFB8C2) else Color(0xFFC9D1D8),
             fontSize = 11.sp,
-            fontWeight = FontWeight.Black,
+            fontWeight = FontWeight.ExtraBold,
             maxLines = 1
         )
     }
@@ -294,12 +308,12 @@ private fun AudioTrackPill(label: String, value: String) {
     Row(
         modifier = Modifier
             .widthIn(max = 200.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0x1AFFFFFF))
-            .border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFFFFF).copy(alpha = 0.08f))
+            .border(1.5.dp, Color(0xFFFFFF).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SpeakerIcon(color = Accent)
         Column(
@@ -307,15 +321,15 @@ private fun AudioTrackPill(label: String, value: String) {
         ) {
             Text(
                 text = label.uppercase(),
-                color = OsdTextDim,
+                color = OsdTextDim.copy(alpha = 0.8f),
                 fontSize = 8.sp,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
             Text(
                 text = value,
-                color = Color.White,
-                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.95f),
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -323,9 +337,9 @@ private fun AudioTrackPill(label: String, value: String) {
             )
         }
         Text(
-            text = ">",
-            color = Accent,
-            fontSize = 13.sp,
+            text = "›",
+            color = Accent.copy(alpha = 0.7f),
+            fontSize = 14.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
@@ -361,20 +375,25 @@ private fun SpeakerIcon(color: Color) {
 private fun OsdInfoPill(text: String, highlight: Boolean = false) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(5.dp))
-            .background(if (highlight) Color(0x2EFFC247) else Color(0x1AFFFFFF))
-            .border(
-                1.dp,
-                if (highlight) Color(0x59FFC247) else Color(0x26FFFFFF),
-                RoundedCornerShape(5.dp)
+            .clip(RoundedCornerShape(7.dp))
+            .background(
+                when {
+                    highlight -> Color(0xFFC247).copy(alpha = 0.12f)
+                    else -> Color(0xFFFFFF).copy(alpha = 0.06f)
+                }
             )
-            .padding(horizontal = 8.dp, vertical = 3.dp)
+            .border(
+                1.5.dp,
+                if (highlight) Color(0xFFC247).copy(alpha = 0.35f) else Color(0xFFFFFF).copy(alpha = 0.18f),
+                RoundedCornerShape(7.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Text(
             text = text,
-            color = if (highlight) Color(0xFFFFDF9E) else Color(0xFFE6ECF1),
+            color = if (highlight) Color(0xFFFFE8B3) else Color(0xFFE6ECF1).copy(alpha = 0.9f),
             fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = if (highlight) FontWeight.ExtraBold else FontWeight.SemiBold,
             maxLines = 1
         )
     }
@@ -384,18 +403,19 @@ private fun OsdInfoPill(text: String, highlight: Boolean = false) {
 private fun OsdProgressLine(progress: Float, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .height(5.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color(0x30FFFFFF))
+            .height(6.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFFFFFF).copy(alpha = 0.12f))
+            .border(0.5.dp, Color(0xFFFFFF).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
     ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .clip(RoundedCornerShape(3.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xFFFFB020), Accent)
+                        listOf(Color(0xFFFFB020).copy(alpha = 0.9f), Accent.copy(alpha = 0.95f))
                     )
                 )
         )
@@ -413,15 +433,20 @@ fun RatingBadge(
     val label = "IMDb " + String.format(java.util.Locale.US, "%.1f", rating)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (onDark) Color(0xFFF5C518) else Color(0xFF14161A))
-            .padding(horizontal = if (compact) 5.dp else 7.dp, vertical = if (compact) 1.dp else 2.dp)
+            .clip(RoundedCornerShape(if (compact) 5.dp else 6.dp))
+            .background(if (onDark) Color(0xFFF5C518).copy(alpha = 0.85f) else Color(0xFF14161A).copy(alpha = 0.7f))
+            .border(
+                1.dp,
+                if (onDark) Color(0xFFF5C518).copy(alpha = 0.3f) else Color(0xFFF5C518).copy(alpha = 0.4f),
+                RoundedCornerShape(if (compact) 5.dp else 6.dp)
+            )
+            .padding(horizontal = if (compact) 6.dp else 8.dp, vertical = if (compact) 2.dp else 3.dp)
     ) {
         Text(
             text = label,
             color = if (onDark) Color(0xFF14161A) else Color(0xFFF5C518),
             fontSize = if (compact) 10.sp else 11.sp,
-            fontWeight = FontWeight.Black,
+            fontWeight = FontWeight.ExtraBold,
             maxLines = 1
         )
     }
@@ -435,9 +460,9 @@ fun ChannelPoster(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(5.dp))
-            .background(Color(0x1FFFFFFF))
-            .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(5.dp)),
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFFFFF).copy(alpha = 0.08f))
+            .border(1.5.dp, Color(0xFFFFFF).copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (posterUrl.isNotEmpty()) {
@@ -450,8 +475,8 @@ fun ChannelPoster(
         } else {
             Text(
                 text = name.trim().take(1).uppercase().ifBlank { "?" },
-                color = Color(0xFFEAF0F5),
-                fontSize = 18.sp,
+                color = Color(0xFFEAF0F5).copy(alpha = 0.9f),
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Black
             )
         }
@@ -463,16 +488,16 @@ fun ChannelLogo(
     logoUrl: String,
     size: Int,
     modifier: Modifier = Modifier,
-    backgroundColor: Color = Color(0x14FFFFFF),
-    borderColor: Color = Color(0x24FFFFFF),
+    backgroundColor: Color = Color(0xFFFFFF).copy(alpha = 0.08f),
+    borderColor: Color = Color(0xFFFFFF).copy(alpha = 0.2f),
     placeholderColor: Color = Color(0xFFEAF0F5)
 ) {
     Box(
         modifier = modifier
             .size(size.dp)
-            .clip(RoundedCornerShape((size / 8).dp))
+            .clip(RoundedCornerShape((size / 7).dp))
             .background(backgroundColor)
-            .border(1.dp, borderColor, RoundedCornerShape((size / 8).dp)),
+            .border(1.5.dp, borderColor, RoundedCornerShape((size / 7).dp)),
         contentAlignment = Alignment.Center
     ) {
         if (logoUrl.isNotEmpty()) {
@@ -482,12 +507,12 @@ fun ChannelLogo(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(5.dp)
+                    .padding(6.dp)
             )
         } else {
             Text(
                 text = "TV",
-                color = placeholderColor,
+                color = placeholderColor.copy(alpha = 0.9f),
                 fontSize = (size * 0.32f).sp,
                 fontWeight = FontWeight.Black
             )
