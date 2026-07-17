@@ -1660,135 +1660,204 @@ private fun ReceiverChannelRow(
     onClick: () -> Unit,
     programInfo: ProgramInfo? = null
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = RoundedCornerShape(12.dp)
     val accent = Accent
     val isVod = channel.contentType != ChannelContentType.TV
-    val nameColor = when {
-        isFocused -> Color(0xFF14161A)
-        isPlaying -> accent
-        else -> Color.White
-    }
-    val numberColor = if (isFocused) Color(0xB314161A) else Color(0xFF7C8894)
-    val groupColor = if (isFocused) Color(0x9914161A) else Color(0xFF7C8894)
-    val epgColor = if (isFocused) Color(0x7914161A) else Color(0xFF5C7A8A)
 
     val rowHeight = when {
-        isVod -> 68.dp
-        programInfo != null && programInfo.title.isNotBlank() -> 62.dp
-        else -> 48.dp
+        isVod -> 72.dp
+        programInfo != null && programInfo.title.isNotBlank() -> 68.dp
+        else -> 56.dp
     }
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 1.dp)
+            .padding(vertical = 3.dp, horizontal = 2.dp)
             .height(rowHeight)
             .clip(shape)
             .background(
                 when {
-                    isFocused -> accent
-                    isPlaying -> Color(0x1FFFFFFF)
-                    else -> Color.Transparent
+                    isFocused -> accent.copy(alpha = 0.95f)
+                    isPlaying -> Color(0x2EFFFFFF)
+                    else -> Color(0x0DFFFFFF)
                 }
+            )
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = when {
+                    isFocused -> accent
+                    isPlaying -> Color(0x3EFFFFFF)
+                    else -> Color(0x15FFFFFF)
+                },
+                shape = shape
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
-        Text(
-            text = index.toString(),
-            color = numberColor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(42.dp)
-        )
-        if (isVod) {
-            ChannelPoster(
-                posterUrl = channel.logoUrl,
-                name = channel.name,
+        if (isPlaying && !isFocused) {
+            Box(
                 modifier = Modifier
-                    .width(42.dp)
-                    .height(60.dp)
+                    .matchParentSize()
+                    .background(Color(0x08FFFFFF), shape)
             )
-        } else {
-            ChannelLogo(channel.logoUrl, size = 32)
         }
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
-                text = channel.name,
-                color = nameColor,
-                fontSize = 16.sp,
-                fontWeight = if (isFocused || isPlaying) FontWeight.Bold else FontWeight.SemiBold,
-                maxLines = if (isVod) 2 else 1,
-                overflow = TextOverflow.Ellipsis
+                text = index.toString(),
+                color = when {
+                    isFocused -> Color(0xFF14161A)
+                    isPlaying -> accent
+                    else -> Color(0xFF8A95A5)
+                },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(36.dp)
             )
-            if (!isVod && programInfo != null && programInfo.title.isNotBlank()) {
+
+            Box(
+                modifier = Modifier
+                    .size(if (isVod) 40.dp else 38.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0x1EFFFFFF))
+                    .border(1.dp, Color(0x15FFFFFF), RoundedCornerShape(8.dp))
+            ) {
+                if (isVod) {
+                    ChannelPoster(
+                        posterUrl = channel.logoUrl,
+                        name = channel.name,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    ChannelLogo(channel.logoUrl, size = 38)
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = programInfo.title,
-                    color = epgColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
+                    text = channel.name,
+                    color = when {
+                        isFocused -> Color(0xFF14161A)
+                        isPlaying -> Color.White
+                        else -> Color(0xFFE8ECEF)
+                    },
+                    fontSize = 15.sp,
+                    fontWeight = if (isFocused || isPlaying) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
+                    overflow = TextOverflow.Ellipsis
                 )
-                if (programInfo.timeRange.isNotBlank()) {
+
+                if (!isVod && programInfo != null && programInfo.title.isNotBlank()) {
                     Text(
-                        text = programInfo.timeRange,
-                        color = epgColor,
-                        fontSize = 10.sp,
+                        text = programInfo.title,
+                        color = when {
+                            isFocused -> Color(0x9914161A)
+                            else -> Color(0xFF7A8A9A)
+                        },
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp)
                     )
-                }
-            }
-            if (isVod || (programInfo == null || programInfo.title.isBlank())) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (isVod && channel.rating > 0f) {
-                        RatingBadge(rating = channel.rating, compact = true, onDark = !isFocused)
+                    if (programInfo.timeRange.isNotBlank()) {
+                        Text(
+                            text = programInfo.timeRange,
+                            color = when {
+                                isFocused -> Color(0x7914161A)
+                                else -> Color(0xFF6A7A8A)
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
                     }
+                } else if (isVod || (programInfo == null || programInfo.title.isBlank())) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        if (isVod && channel.rating > 0f) {
+                            RatingBadge(rating = channel.rating, compact = true, onDark = !isFocused)
+                        }
+                        Text(
+                            text = channel.group.ifBlank { groupFallbackLabel },
+                            color = when {
+                                isFocused -> Color(0x7914161A)
+                                else -> Color(0xFF7A8A9A)
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            if (isAdultLocked) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0x2D000000)),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = channel.group.ifBlank { groupFallbackLabel },
-                        color = groupColor,
+                        text = "🔒",
+                        fontSize = 12.sp
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+            }
+
+            if (channel.isFavorite) {
+                Text(
+                    text = "★",
+                    color = when {
+                        isFocused -> Color(0xFF14161A)
+                        else -> accent
+                    },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+
+            if (isPlaying) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            when {
+                                isFocused -> Color(0xFF14161A).copy(alpha = 0.8f)
+                                else -> accent.copy(alpha = 0.2f)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "▶",
+                        color = when {
+                            isFocused -> accent
+                            else -> accent
+                        },
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Black
                     )
                 }
             }
-        }
-        if (isAdultLocked) {
-            Text(
-                text = lockedLabel,
-                color = if (isFocused) Color(0xB314161A) else Color(0xFF7C8894),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        if (channel.isFavorite) {
-            Text(
-                text = "★",
-                color = if (isFocused) Color(0xFF14161A) else accent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        if (isPlaying) {
-            Text(
-                text = "▶",
-                color = if (isFocused) Color(0xFF14161A) else accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Black
-            )
         }
     }
 }
@@ -1805,103 +1874,154 @@ private fun ReceiverChannelCard(
     onClick: () -> Unit
 ) {
     val accent = Accent
-    val cardShape = RoundedCornerShape(10.dp)
+    val cardShape = RoundedCornerShape(16.dp)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(cardShape)
-            .background(if (isFocused) Color(0x1FFFFFFF) else Color.Transparent)
+            .background(
+                when {
+                    isFocused -> accent.copy(alpha = 0.95f)
+                    isPlaying -> Color(0x1EFFFFFF)
+                    else -> Color(0x0AFFFFFF)
+                }
+            )
             .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) accent else Color(0x14FFFFFF),
+                width = if (isFocused) 2.5.dp else 1.5.dp,
+                color = when {
+                    isFocused -> accent
+                    isPlaying -> Color(0x3EFFFFFF)
+                    else -> Color(0x18FFFFFF)
+                },
                 shape = cardShape
             )
             .clickable(onClick = onClick)
-            .padding(6.dp)
+            .padding(8.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
             ChannelPoster(
                 posterUrl = channel.logoUrl,
                 name = channel.name,
                 modifier = Modifier.fillMaxSize()
             )
+
             if (channel.rating > 0f) {
-                RatingBadge(
-                    rating = channel.rating,
-                    compact = true,
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(5.dp)
-                )
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xE6000000).copy(alpha = 0.4f))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                ) {
+                    RatingBadge(
+                        rating = channel.rating,
+                        compact = true,
+                        modifier = Modifier
+                    )
+                }
             }
+
             if (isPlaying) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(5.dp)
-                        .size(22.dp)
-                        .clip(RoundedCornerShape(11.dp))
+                        .padding(10.dp)
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(50))
                         .background(accent),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "▶",
                         color = Color(0xFF14161A),
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Black
                     )
                 }
             }
+
             if (channel.isFavorite) {
-                Text(
-                    text = "★",
-                    color = accent,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Black,
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(6.dp)
-                )
+                        .padding(8.dp)
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(accent.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "★",
+                        color = accent,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
+
             if (isAdultLocked) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xB3000000)),
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xCC000000)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = lockedLabel,
-                        color = Color(0xFFE6ECF1),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "🔒",
+                            fontSize = 28.sp
+                        )
+                        Text(
+                            text = lockedLabel,
+                            color = Color(0xFFE6ECF1),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(7.dp))
+
+        Spacer(Modifier.height(10.dp))
+
         Text(
             text = channel.name,
-            color = if (isFocused) Color.White else Color(0xFFD7DEE5),
-            fontSize = 12.sp,
-            lineHeight = 14.sp,
+            color = when {
+                isFocused -> Color(0xFF14161A)
+                else -> Color(0xFFE8ECEF)
+            },
+            fontSize = 13.sp,
+            lineHeight = 15.sp,
             fontWeight = if (isFocused || isPlaying) FontWeight.Bold else FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
+
         Text(
             text = channel.group.ifBlank { groupFallbackLabel },
-            color = if (isPlaying) accent else Color(0xFF7C8894),
+            color = when {
+                isFocused -> Color(0x7914161A)
+                isPlaying -> accent
+                else -> Color(0xFF7A8A9A)
+            },
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp)
         )
     }
 }
