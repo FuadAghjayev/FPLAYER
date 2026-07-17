@@ -74,6 +74,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import az.iptv.fplayer.data.model.Channel
 import az.iptv.fplayer.data.model.ChannelContentType
+import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.ExoPlayerEngine
@@ -812,6 +813,7 @@ fun PlayerScreen(
                 channels = guideChannels,
                 columns = guideColumns,
                 currentChannel = currentChannel,
+                currentProgram = currentProgram,
                 focusedChannelIndex = focusedChannelIndex,
                 focusedPane = if (channelOnlyGuideVisible) SelectorPane.CHANNELS else selectorPane,
                 guideWidth = guideWidth,
@@ -893,6 +895,7 @@ fun PlayerScreen(
             visible = recentOverlayVisible && !selectorVisible,
             channels = recentChannels.take(10),
             currentChannel = currentChannel,
+            currentProgram = currentProgram,
             focusedIndex = focusedRecentIndex,
             title = t.recentChannels,
             emptyLabel = t.noInfo,
@@ -1121,6 +1124,7 @@ private fun RecentChannelsOverlay(
     visible: Boolean,
     channels: List<Channel>,
     currentChannel: Channel?,
+    currentProgram: ProgramInfo?,
     focusedIndex: Int,
     title: String,
     emptyLabel: String,
@@ -1182,7 +1186,8 @@ private fun RecentChannelsOverlay(
                         favoriteLabel = favoriteLabel,
                         lockedLabel = lockedLabel,
                         isAdultLocked = isAdultLocked(channel),
-                        onClick = { onChannelClick(channel) }
+                        onClick = { onChannelClick(channel) },
+                        programInfo = if (currentChannel?.stableKey == channel.stableKey) currentProgram else null
                     )
                 }
             }
@@ -1205,6 +1210,7 @@ private fun ReceiverGuideOverlay(
     channels: List<Channel>,
     columns: Int = 1,
     currentChannel: Channel?,
+    currentProgram: ProgramInfo?,
     focusedChannelIndex: Int,
     focusedPane: SelectorPane,
     guideWidth: androidx.compose.ui.unit.Dp,
@@ -1285,6 +1291,7 @@ private fun ReceiverGuideOverlay(
                 channels = channels,
                 columns = columns,
                 currentChannel = currentChannel,
+                currentProgram = currentProgram,
                 focusedIndex = focusedChannelIndex,
                 focused = focusedPane == SelectorPane.CHANNELS,
                 isLoading = isLoading,
@@ -1549,6 +1556,7 @@ private fun ReceiverChannelColumn(
     channels: List<Channel>,
     columns: Int = 1,
     currentChannel: Channel?,
+    currentProgram: ProgramInfo?,
     focusedIndex: Int,
     focused: Boolean,
     isLoading: Boolean,
@@ -1628,7 +1636,8 @@ private fun ReceiverChannelColumn(
                             favoriteLabel = favoriteLabel,
                             lockedLabel = lockedLabel,
                             isAdultLocked = isAdultLocked(channel),
-                            onClick = { onChannelClick(channel) }
+                            onClick = { onChannelClick(channel) },
+                            programInfo = if (currentChannel?.stableKey == channel.stableKey) currentProgram else null
                         )
                     }
                 }
@@ -1648,7 +1657,8 @@ private fun ReceiverChannelRow(
     favoriteLabel: String,
     lockedLabel: String,
     isAdultLocked: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    programInfo: ProgramInfo? = null
 ) {
     val shape = RoundedCornerShape(6.dp)
     val accent = Accent
@@ -1660,11 +1670,19 @@ private fun ReceiverChannelRow(
     }
     val numberColor = if (isFocused) Color(0xB314161A) else Color(0xFF7C8894)
     val groupColor = if (isFocused) Color(0x9914161A) else Color(0xFF7C8894)
+    val epgColor = if (isFocused) Color(0x7914161A) else Color(0xFF5C7A8A)
+
+    val rowHeight = when {
+        isVod -> 68.dp
+        programInfo != null && programInfo.title.isNotBlank() -> 62.dp
+        else -> 48.dp
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 1.dp)
-            .height(if (isVod) 68.dp else 48.dp)
+            .height(rowHeight)
             .clip(shape)
             .background(
                 when {
@@ -1705,21 +1723,44 @@ private fun ReceiverChannelRow(
                 maxLines = if (isVod) 2 else 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (isVod && channel.rating > 0f) {
-                    RatingBadge(rating = channel.rating, compact = true, onDark = !isFocused)
-                }
+            if (!isVod && programInfo != null && programInfo.title.isNotBlank()) {
                 Text(
-                    text = channel.group.ifBlank { groupFallbackLabel },
-                    color = groupColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
+                    text = programInfo.title,
+                    color = epgColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
+                if (programInfo.timeRange.isNotBlank()) {
+                    Text(
+                        text = programInfo.timeRange,
+                        color = epgColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (isVod || (programInfo == null || programInfo.title.isBlank())) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isVod && channel.rating > 0f) {
+                        RatingBadge(rating = channel.rating, compact = true, onDark = !isFocused)
+                    }
+                    Text(
+                        text = channel.group.ifBlank { groupFallbackLabel },
+                        color = groupColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
         if (isAdultLocked) {
