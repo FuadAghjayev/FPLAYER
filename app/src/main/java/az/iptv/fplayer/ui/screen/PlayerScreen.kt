@@ -135,6 +135,7 @@ fun PlayerScreen(
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
     val recentChannels by vm.recentChannels.collectAsState()
+    val channelPrograms by vm.channelPrograms.collectAsState()
     val language by vm.appLanguage.collectAsState()
     val t = appTexts(language)
     fun isAdultLocked(channel: Channel): Boolean = false
@@ -259,6 +260,8 @@ fun PlayerScreen(
     }
     var focusedRecentIndex by remember { mutableIntStateOf(0) }
     var focusedAudioTrackIndex by remember { mutableIntStateOf(0) }
+    // OSD açıq olanda dil/subtitr pill-ləri arasında fokus: 0 = dil, 1 = subtitr, -1 = yoxdur
+    var osdFocusedTrackOption by remember { mutableIntStateOf(-1) }
     var vodBrowserVisible by remember { mutableStateOf(false) }
     var vodFocusedRow by remember { mutableIntStateOf(0) }
     var vodFocusedCol by remember { mutableIntStateOf(0) }
@@ -399,6 +402,20 @@ fun PlayerScreen(
                 0,
                 (recentChannels.take(10).size - 1).coerceAtLeast(0)
             )
+        }
+    }
+
+    // OSD göstəriləndə fokus mövcud pill-ə düşür; trek siyahısı dəyişəndə düzəldilir
+    LaunchedEffect(osdVisible, mediaTracks) {
+        if (osdVisible) {
+            osdFocusedTrackOption = when {
+                osdFocusedTrackOption == 1 && mediaTracks.subtitleTracks.isNotEmpty() -> 1
+                mediaTracks.audioTracks.isNotEmpty() -> 0
+                mediaTracks.subtitleTracks.isNotEmpty() -> 1
+                else -> -1
+            }
+        } else {
+            osdFocusedTrackOption = -1
         }
     }
 
@@ -679,6 +696,12 @@ fun PlayerScreen(
                                         SelectorPane.CONTENT_TYPES -> Unit
                                     }
                                 }
+                            } else if (osdVisible && osdFocusedTrackOption >= 0) {
+                                // OSD açıqdır: sol düymə dil pill-inə keçir
+                                if (mediaTracks.audioTracks.isNotEmpty()) {
+                                    osdFocusedTrackOption = 0
+                                }
+                                vm.showOsd()
                             } else {
                                 val now = System.currentTimeMillis()
                                 leftPressCount = if (now - lastLeftPressAt <= 1400L) leftPressCount + 1 else 1
@@ -729,26 +752,12 @@ fun PlayerScreen(
                                         }
                                     }
                                 }
-                            } else if (osdVisible && mediaTracks.audioTracks.size > 1) {
-                                recentOverlayVisible = false
-                                mediaOptionsVisible = false
-                                focusedMediaOption = 0
-                                if (mediaTracks.audioTracks.size > 2) {
-                                    focusedAudioTrackIndex = mediaTracks.audioTracks
-                                        .indexOfFirst { it.selected }
-                                        .takeIf { it >= 0 }
-                                        ?: 0
-                                    audioTrackPanelVisible = true
-                                } else {
-                                    changeSelectedMediaTrack(
-                                        mediaTracks = mediaTracks,
-                                        focusedMediaOption = 0,
-                                        delta = 1,
-                                        onAudioTrack = engine::selectAudioTrack,
-                                        onSubtitleTrack = engine::selectSubtitleTrack
-                                    )
-                                    vm.showOsd()
+                            } else if (osdVisible && osdFocusedTrackOption >= 0) {
+                                // OSD açıqdır: sağ düymə subtitr pill-inə keçir
+                                if (mediaTracks.subtitleTracks.isNotEmpty()) {
+                                    osdFocusedTrackOption = 1
                                 }
+                                vm.showOsd()
                             } else {
                                 val recentList = recentChannels.take(10)
                                 if (!osdVisible && recentList.isNotEmpty()) {
@@ -868,6 +877,36 @@ fun PlayerScreen(
                                     }
                                 }
                                 true
+                            } else if (osdVisible && osdFocusedTrackOption >= 0) {
+                                // OSD açıqdır: OK fokuslanan pill üzrə seçim edir
+                                if (osdFocusedTrackOption == 0) {
+                                    if (mediaTracks.audioTracks.size > 2) {
+                                        focusedAudioTrackIndex = mediaTracks.audioTracks
+                                            .indexOfFirst { it.selected }
+                                            .takeIf { it >= 0 }
+                                            ?: 0
+                                        audioTrackPanelVisible = true
+                                    } else {
+                                        changeSelectedMediaTrack(
+                                            mediaTracks = mediaTracks,
+                                            focusedMediaOption = 0,
+                                            delta = 1,
+                                            onAudioTrack = engine::selectAudioTrack,
+                                            onSubtitleTrack = engine::selectSubtitleTrack
+                                        )
+                                        vm.showOsd()
+                                    }
+                                } else {
+                                    changeSelectedMediaTrack(
+                                        mediaTracks = mediaTracks,
+                                        focusedMediaOption = 1,
+                                        delta = 1,
+                                        onAudioTrack = engine::selectAudioTrack,
+                                        onSubtitleTrack = engine::selectSubtitleTrack
+                                    )
+                                    vm.showOsd()
+                                }
+                                true
                             } else {
                                 recentOverlayVisible = false
                                 mediaOptionsVisible = false
@@ -916,6 +955,18 @@ fun PlayerScreen(
                 else -> guideChannels
             }
         }
+        // Siyahıda görünən pəncərə üçün EPG-ni arxa planda çək (fokus dəyişəndə qısa debounce ilə)
+        LaunchedEffect(selectorVisible, focusedChannelIndex, guideDisplayChannels) {
+            if (selectorVisible && guideDisplayChannels.isNotEmpty()) {
+                delay(180)
+                val from = (focusedChannelIndex - 6).coerceAtLeast(0)
+                vm.prefetchPrograms(guideDisplayChannels.drop(from).take(20))
+            }
+        }
+        LaunchedEffect(recentOverlayVisible, recentChannels) {
+            if (recentOverlayVisible) vm.prefetchPrograms(recentChannels.take(10))
+        }
+
         val startupLoadingVisible = !selectorVisible &&
             currentChannel == null &&
             loadState !is LoadState.Error
@@ -959,6 +1010,7 @@ fun PlayerScreen(
                 columns = guideColumns,
                 currentChannel = currentChannel,
                 currentProgram = currentProgram,
+                programs = channelPrograms,
                 focusedChannelIndex = focusedChannelIndex,
                 focusedPane = if (channelOnlyGuideVisible) SelectorPane.CHANNELS else selectorPane,
                 guideWidth = guideWidth,
@@ -1035,7 +1087,10 @@ fun PlayerScreen(
             allChannelsLabel = t.allChannels,
             programLabel = t.program,
             audioLabel = t.audio,
+            subtitlesLabel = t.subtitles,
+            subtitlesOffLabel = t.off,
             showFps = showFps && !playbackSettings.tunneledPlayback,
+            focusedTrackOption = osdFocusedTrackOption,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .zIndex(5f)
@@ -1066,6 +1121,7 @@ fun PlayerScreen(
             channels = recentChannels.take(10),
             currentChannel = currentChannel,
             currentProgram = currentProgram,
+            programs = channelPrograms,
             focusedIndex = focusedRecentIndex,
             title = t.recentChannels,
             emptyLabel = t.noInfo,
@@ -1295,6 +1351,7 @@ private fun RecentChannelsOverlay(
     channels: List<Channel>,
     currentChannel: Channel?,
     currentProgram: ProgramInfo?,
+    programs: Map<String, ProgramInfo>,
     focusedIndex: Int,
     title: String,
     emptyLabel: String,
@@ -1304,6 +1361,15 @@ private fun RecentChannelsOverlay(
     onChannelClick: (Channel) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
+    // Fokus dəyişəndə siyahı fokuslanan sətrə sürüşür — aşağıdakı kanallara keçid problemi düzəldildi
+    LaunchedEffect(visible, focusedIndex, channels.size) {
+        if (visible && focusedIndex in channels.indices) {
+            listState.animateScrollToItem(maxOf(0, focusedIndex - 3))
+        }
+    }
+
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Column(
             modifier = Modifier
@@ -1342,6 +1408,7 @@ private fun RecentChannelsOverlay(
             }
 
             LazyColumn(
+                state = listState,
                 contentPadding = PaddingValues(vertical = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.fillMaxSize()
@@ -1357,7 +1424,8 @@ private fun RecentChannelsOverlay(
                         lockedLabel = lockedLabel,
                         isAdultLocked = isAdultLocked(channel),
                         onClick = { onChannelClick(channel) },
-                        programInfo = if (currentChannel?.stableKey == channel.stableKey) currentProgram else null
+                        programInfo = programs[channel.stableKey]
+                            ?: currentProgram.takeIf { currentChannel?.stableKey == channel.stableKey }
                     )
                 }
             }
@@ -1381,6 +1449,7 @@ private fun ReceiverGuideOverlay(
     columns: Int = 1,
     currentChannel: Channel?,
     currentProgram: ProgramInfo?,
+    programs: Map<String, ProgramInfo>,
     focusedChannelIndex: Int,
     focusedPane: SelectorPane,
     guideWidth: androidx.compose.ui.unit.Dp,
@@ -1462,6 +1531,7 @@ private fun ReceiverGuideOverlay(
                 columns = columns,
                 currentChannel = currentChannel,
                 currentProgram = currentProgram,
+                programs = programs,
                 focusedIndex = focusedChannelIndex,
                 focused = focusedPane == SelectorPane.CHANNELS,
                 isLoading = isLoading,
@@ -1727,6 +1797,7 @@ private fun ReceiverChannelColumn(
     columns: Int = 1,
     currentChannel: Channel?,
     currentProgram: ProgramInfo?,
+    programs: Map<String, ProgramInfo>,
     focusedIndex: Int,
     focused: Boolean,
     isLoading: Boolean,
@@ -1807,7 +1878,8 @@ private fun ReceiverChannelColumn(
                             lockedLabel = lockedLabel,
                             isAdultLocked = isAdultLocked(channel),
                             onClick = { onChannelClick(channel) },
-                            programInfo = if (currentChannel?.stableKey == channel.stableKey) currentProgram else null
+                            programInfo = programs[channel.stableKey]
+                                ?: currentProgram.takeIf { currentChannel?.stableKey == channel.stableKey }
                         )
                     }
                 }
@@ -1833,12 +1905,9 @@ private fun ReceiverChannelRow(
     val shape = RoundedCornerShape(12.dp)
     val accent = Accent
     val isVod = channel.contentType != ChannelContentType.TV
-
-    val rowHeight = when {
-        isVod -> 72.dp
-        programInfo != null && programInfo.title.isNotBlank() -> 68.dp
-        else -> 56.dp
-    }
+    val program = programInfo?.takeIf { !isVod && it.title.isNotBlank() }
+    val progress = program?.progress()
+    val rowHeight = if (isVod) 72.dp else 64.dp
 
     Box(
         modifier = Modifier
@@ -1849,7 +1918,7 @@ private fun ReceiverChannelRow(
             .background(
                 when {
                     isFocused -> accent.copy(alpha = 0.95f)
-                    isPlaying -> Color(0x2EFFFFFF)
+                    isPlaying -> Color(0x24FFFFFF)
                     else -> Color(0x0DFFFFFF)
                 }
             )
@@ -1857,26 +1926,30 @@ private fun ReceiverChannelRow(
                 width = if (isFocused) 2.dp else 1.dp,
                 color = when {
                     isFocused -> accent
-                    isPlaying -> Color(0x3EFFFFFF)
+                    isPlaying -> accent.copy(alpha = 0.45f)
                     else -> Color(0x15FFFFFF)
                 },
                 shape = shape
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.CenterStart
     ) {
+        // Oxudulan kanal sol kənardakı incə vurğu zolağı ilə işarələnir (play ikonu əvəzinə)
         if (isPlaying && !isFocused) {
             Box(
                 modifier = Modifier
-                    .matchParentSize()
-                    .background(Color(0x08FFFFFF), shape)
+                    .align(Alignment.CenterStart)
+                    .width(4.dp)
+                    .fillMaxHeight(0.58f)
+                    .clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
+                    .background(accent)
             )
         }
 
         Row(
             modifier = Modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1889,15 +1962,15 @@ private fun ReceiverChannelRow(
                 },
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(36.dp)
+                modifier = Modifier.width(32.dp)
             )
 
             Box(
                 modifier = Modifier
-                    .size(if (isVod) 40.dp else 38.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0x1EFFFFFF))
-                    .border(1.dp, Color(0x15FFFFFF), RoundedCornerShape(8.dp))
+                    .size(if (isVod) 40.dp else 40.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (isFocused) Color(0x2E14161A) else Color(0x1EFFFFFF))
+                    .border(1.dp, Color(0x15FFFFFF), RoundedCornerShape(9.dp))
             ) {
                 if (isVod) {
                     ChannelPoster(
@@ -1906,11 +1979,14 @@ private fun ReceiverChannelRow(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    ChannelLogo(channel.logoUrl, size = 38)
+                    ChannelLogo(channel.logoUrl, size = 40)
                 }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 Text(
                     text = channel.name,
                     color = when {
@@ -1924,38 +2000,35 @@ private fun ReceiverChannelRow(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                if (!isVod && programInfo != null && programInfo.title.isNotBlank()) {
-                    Text(
-                        text = programInfo.title,
-                        color = when {
-                            isFocused -> Color(0x9914161A)
-                            else -> Color(0xFF7A8A9A)
-                        },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 3.dp)
-                    )
-                    if (programInfo.timeRange.isNotBlank()) {
-                        Text(
-                            text = programInfo.timeRange,
-                            color = when {
-                                isFocused -> Color(0x7914161A)
-                                else -> Color(0xFF6A7A8A)
-                            },
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 1.dp)
-                        )
-                    }
-                } else if (isVod || (programInfo == null || programInfo.title.isBlank())) {
+                if (program != null) {
+                    // Hər kanal üçün cari EPG proqramı: saat aralığı + verilişin adı
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 2.dp)
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        if (program.timeRange.isNotBlank()) {
+                            Text(
+                                text = program.timeRange,
+                                color = if (isFocused) Color(0xB014161A) else accent.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                        Text(
+                            text = program.title,
+                            color = if (isFocused) Color(0x9914161A) else Color(0xFF9AA9BA),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         if (isVod && channel.rating > 0f) {
                             RatingBadge(rating = channel.rating, compact = true, onDark = !isFocused)
@@ -1975,6 +2048,25 @@ private fun ReceiverChannelRow(
                 }
             }
 
+            // EPG gedişat halqası əvəzinə kompakt sütun: proqram irəliləyişi
+            if (progress != null) {
+                Box(
+                    modifier = Modifier
+                        .width(52.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (isFocused) Color(0x3314161A) else Color(0x26FFFFFF))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(progress.coerceIn(0.02f, 1f))
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isFocused) Color(0xE614161A) else accent.copy(alpha = 0.9f))
+                    )
+                }
+            }
+
             if (isAdultLocked) {
                 Box(
                     modifier = Modifier
@@ -1988,45 +2080,15 @@ private fun ReceiverChannelRow(
                         fontSize = 12.sp
                     )
                 }
-                Spacer(Modifier.width(4.dp))
             }
 
             if (channel.isFavorite) {
                 Text(
                     text = "★",
-                    color = when {
-                        isFocused -> Color(0xFF14161A)
-                        else -> accent
-                    },
+                    color = if (isFocused) Color(0xFF14161A) else accent,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Black
                 )
-                Spacer(Modifier.width(6.dp))
-            }
-
-            if (isPlaying) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            when {
-                                isFocused -> Color(0xFF14161A).copy(alpha = 0.8f)
-                                else -> accent.copy(alpha = 0.2f)
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "▶",
-                        color = when {
-                            isFocused -> accent
-                            else -> accent
-                        },
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
             }
         }
     }

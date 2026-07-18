@@ -25,6 +25,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 sealed class LoadState {
     data object Idle : LoadState()
@@ -104,6 +106,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _currentProgram = MutableStateFlow<ProgramInfo?>(null)
     val currentProgram: StateFlow<ProgramInfo?> = _currentProgram
+
+    // Kanal siyahısında hər kanal üçün EPG önbelleği (stableKey -> proqram)
+    private val _channelPrograms = MutableStateFlow<Map<String, ProgramInfo>>(emptyMap())
+    val channelPrograms: StateFlow<Map<String, ProgramInfo>> = _channelPrograms
+    private val programFetchTimes = mutableMapOf<String, Long>()
+    private val programFetchInFlight = mutableSetOf<String>()
+    private val programFetchSemaphore = Semaphore(4)
 
     private val _sidebarVisible = MutableStateFlow(false)
     val sidebarVisible: StateFlow<Boolean> = _sidebarVisible
@@ -234,6 +243,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             _selectedGroups.value = emptySet()
             _currentChannel.value = null
             _currentProgram.value = null
+            clearProgramCache()
             loadPlaylist(profile, revealSidebar = true)
         }
     }
@@ -250,6 +260,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             _selectedGroups.value = emptySet()
             _currentChannel.value = null
             _currentProgram.value = null
+            clearProgramCache()
             _recentChannels.value = emptyList()
             _selectedContentType.value = ChannelContentType.TV
             val nextProfile = prefs.activePlaylist.first()
@@ -527,6 +538,58 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun clearProgramCache() {
+        _channelPrograms.value = emptyMap()
+        programFetchTimes.clear()
+    }
+
+    // Siyahıda görünən kanallar üçün EPG-ni arxa planda yükləyir (yalnız Xtream + TV)
+    fun prefetchPrograms(channels: List<Channel>) {
+        val profile = activePlaylist.value ?: return
+        if (profile.type != PlaylistType.XTREAM) return
+        val config = xtreamConfig(profile.xtreamServer, profile.xtreamUser, profile.xtreamPass)
+        val nowMs = System.currentTimeMillis()
+        val nowSec = nowMs / 1000L
+        val targets = channels.asSequence()
+            .filter { it.contentType == ChannelContentType.TV }
+            .filter { it.id.toIntOrNull() != null }
+            .filter { channel ->
+                val key = channel.stableKey
+                if (key in programFetchInFlight) return@filter false
+                val cached = _channelPrograms.value[key]
+                val fresh = if (cached != null && cached.endEpochSeconds > 0L) {
+                    cached.endEpochSeconds > nowSec
+                } else {
+                    nowMs - (programFetchTimes[key] ?: 0L) < PROGRAM_CACHE_TTL_MS
+                }
+                !fresh
+            }
+            .take(24)
+            .toList()
+        if (targets.isEmpty()) return
+        targets.forEach { programFetchInFlight += it.stableKey }
+        targets.forEach { channel ->
+            val key = channel.stableKey
+            val streamId = channel.id.toIntOrNull() ?: return@forEach
+            viewModelScope.launch {
+                try {
+                    programFetchSemaphore.withPermit {
+                        repo.loadXtreamProgram(config, streamId)
+                            .onSuccess { program ->
+                                programFetchTimes[key] = System.currentTimeMillis()
+                                if (program != null) {
+                                    _channelPrograms.value = _channelPrograms.value + (key to program)
+                                }
+                            }
+                            .onFailure { programFetchTimes[key] = System.currentTimeMillis() }
+                    }
+                } finally {
+                    programFetchInFlight -= key
+                }
+            }
+        }
+    }
+
     private fun rememberRecentChannel(channel: Channel) {
         _recentChannels.value = (listOf(channel) + _recentChannels.value.filterNot {
             it.stableKey == channel.stableKey
@@ -625,6 +688,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val PLAYER_LOG_TAG = "FPLAYER_PLAYBACK"
+        private const val PROGRAM_CACHE_TTL_MS = 5 * 60_000L
         const val FAVORITE_GROUP_NAME = "Favoriler"
 
         private val contentTypeOrder = listOf(

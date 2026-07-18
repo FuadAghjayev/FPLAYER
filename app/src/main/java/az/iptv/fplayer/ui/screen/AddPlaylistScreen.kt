@@ -80,6 +80,22 @@ import az.iptv.fplayer.viewmodel.PlayerViewModel
 private enum class SourceTab { M3U, XTREAM }
 private enum class WizardStep { SOURCE, DETAILS }
 
+// Glassmorphism design tokens — matches ChannelInfoOsd premium style
+private val GlassCardShape = RoundedCornerShape(14.dp)
+private val GlassFieldShape = RoundedCornerShape(12.dp)
+private val GlassCardBrush = Brush.verticalGradient(
+    listOf(Color(0xFF141B25).copy(alpha = 0.72f), Color(0xFF0B0F16).copy(alpha = 0.62f))
+)
+private val GlassSelectedBrush = Brush.verticalGradient(
+    listOf(Color(0xFF2E2517).copy(alpha = 0.88f), Color(0xFF1C1710).copy(alpha = 0.80f))
+)
+private val GlassBorderBrush = Brush.verticalGradient(
+    listOf(Color(0x4DFFFFFF), Color(0x14FFFFFF))
+)
+private val GlassPanelBrush = Brush.verticalGradient(
+    listOf(Color(0xFF121A23).copy(alpha = 0.94f), Color(0xFF0A0E14).copy(alpha = 0.90f))
+)
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun AddPlaylistScreen(
@@ -439,14 +455,27 @@ private fun StepHeader(step: WizardStep, isEditing: Boolean, texts: AppTexts) {
                 fontWeight = FontWeight.SemiBold
             )
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(16.dp))
         Text(
             text = title,
             color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 0.3.sp
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
+        Box(
+            Modifier
+                .width(56.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Accent, Accent.copy(alpha = 0f))
+                    )
+                )
+        )
+        Spacer(Modifier.height(10.dp))
         Text(
             text = if (step == WizardStep.SOURCE) texts.welcomeSetup else texts.playlistSubtitle,
             color = TextSecondary,
@@ -511,18 +540,19 @@ private fun SelectedSourceBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xD730281A))
-            .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .clip(GlassCardShape)
+            .background(GlassSelectedBrush)
+            .border(1.5.dp, Accent.copy(alpha = 0.55f), GlassCardShape)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(5.dp))
+                .clip(RoundedCornerShape(7.dp))
                 .background(Accent.copy(alpha = 0.18f))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .border(1.dp, Accent.copy(alpha = 0.35f), RoundedCornerShape(7.dp))
+                .padding(horizontal = 9.dp, vertical = 5.dp)
         ) {
             Text(icon, color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Black)
         }
@@ -591,7 +621,7 @@ private fun PlaylistLibraryPanel(
         modifier = Modifier
             .width(330.dp)
             .fillMaxHeight()
-            .background(PanelBg)
+            .background(GlassPanelBrush)
             .padding(horizontal = 24.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.Top
     ) {
@@ -628,9 +658,9 @@ private fun PlaylistLibraryPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(74.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0x30241F16))
-                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp)),
+                    .clip(GlassCardShape)
+                    .background(GlassCardBrush)
+                    .border(1.dp, GlassBorderBrush, GlassCardShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(text = texts.noInfo, color = TextSecondary, fontSize = 13.sp)
@@ -667,26 +697,40 @@ private fun ActivePlaylistCard(profile: PlaylistProfile?, emptyLabel: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xD730281A))
-            .border(1.dp, Accent.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .clip(GlassCardShape)
+            .background(GlassSelectedBrush)
+            .border(1.5.dp, Accent.copy(alpha = 0.6f), GlassCardShape)
     ) {
-        Text(
-            text = profile?.name ?: emptyLabel,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.5.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0x00FFC247), Accent.copy(alpha = 0.8f), Color(0x00FFC247))
+                    )
+                )
         )
-        Text(
-            text = typeLabel,
-            color = Accent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = profile?.name ?: emptyLabel,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = typeLabel,
+                color = Accent,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+        }
     }
 }
 
@@ -782,23 +826,23 @@ private fun PlaylistChip(
 ) {
     var focused by remember { mutableStateOf(false) }
     val bg = when {
-        focused -> Color(0xFFFFF4D0)
-        selected -> Color(0xDD30281A)
-        else -> Color(0xD72B323A)
+        focused -> Brush.verticalGradient(listOf(Color(0xFFFFF6D8), Color(0xFFFFEDB8)))
+        selected -> GlassSelectedBrush
+        else -> GlassCardBrush
     }
     val border = when {
-        focused -> Color(0xFFFFC247)
-        selected -> Accent
-        else -> Color(0x66FFFFFF)
+        focused -> SolidColor(Color(0xFFFFC247))
+        selected -> SolidColor(Accent.copy(alpha = 0.75f))
+        else -> GlassBorderBrush
     }
     val primaryText = if (focused) Color(0xFF071116) else Color.White
     val secondaryText = if (focused) Color(0xFF24333A) else if (selected) Accent else Color(0xFFDCE2E7)
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(GlassCardShape)
             .background(bg)
-            .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(8.dp))
+            .border(if (focused) 2.dp else 1.dp, border, GlassCardShape)
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .padding(12.dp)
@@ -844,12 +888,17 @@ private fun PlaylistChip(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun FPlayerLogo(size: Int, modifier: Modifier = Modifier) {
+    val logoShape = RoundedCornerShape((size / 4).dp)
     Box(
         modifier = modifier
             .size(size.dp)
-            .clip(RoundedCornerShape((size / 5).dp))
-            .background(Color(0xFF0B0F14))
-            .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape((size / 5).dp)),
+            .clip(logoShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF1A2230), Color(0xFF0B0F14))
+                )
+            )
+            .border(1.dp, GlassBorderBrush, logoShape),
         contentAlignment = Alignment.Center
     ) {
         Text("F", color = Accent, fontSize = (size * 0.52f).sp, fontWeight = FontWeight.Black)
@@ -867,34 +916,34 @@ private fun SourceCard(
     modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
-    val borderColor = when {
-        focused -> Color(0xFFFFC247)
-        selected -> FocusBorder
-        else -> Color(0x66FFFFFF)
+    val borderBrush = when {
+        focused -> SolidColor(Color(0xFFFFC247))
+        selected -> SolidColor(FocusBorder.copy(alpha = 0.8f))
+        else -> GlassBorderBrush
     }
-    val bgColor = when {
-        focused -> Color(0xFFFFF4D0)
-        selected -> Color(0xDD30281A)
-        else -> Color(0xD72B323A)
+    val bgBrush = when {
+        focused -> Brush.verticalGradient(listOf(Color(0xFFFFF6D8), Color(0xFFFFEDB8)))
+        selected -> GlassSelectedBrush
+        else -> GlassCardBrush
     }
     val titleColor = if (focused) Color(0xFF071116) else if (selected) Color.White else Color(0xFFF2F5F7)
     val subColor = if (focused) Color(0xFF2D3A42) else Color(0xFFD4DBE0)
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
-            .border(width = if (focused) 2.dp else 1.5.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
+            .clip(GlassCardShape)
+            .background(bgBrush)
+            .border(width = if (focused) 2.dp else 1.dp, brush = borderBrush, shape = GlassCardShape)
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(5.dp))
+                    .clip(RoundedCornerShape(7.dp))
                     .background(if (selected) Accent.copy(alpha = 0.18f) else Color(0x18FFFFFF))
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                    .padding(horizontal = 9.dp, vertical = 4.dp)
             ) {
                 Text(
                     icon,
@@ -906,8 +955,8 @@ private fun SourceCard(
             Text(
                 text = title,
                 color = titleColor,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -968,12 +1017,16 @@ private fun FormField(
                     false
                 }
             }
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) Color(0x99342D22) else Color(0x801E1B16))
+            .clip(GlassFieldShape)
+            .background(
+                if (focused) Brush.verticalGradient(
+                    listOf(Color(0xFF2A2418).copy(alpha = 0.85f), Color(0xFF1B1710).copy(alpha = 0.75f))
+                ) else GlassCardBrush
+            )
             .border(
                 if (focused) 2.dp else 1.dp,
-                if (focused) Color(0xFFFFC247) else Color(0x66FFFFFF),
-                RoundedCornerShape(8.dp)
+                if (focused) SolidColor(Color(0xFFFFC247)) else GlassBorderBrush,
+                GlassFieldShape
             )
             .onFocusChanged {
                 focused = it.isFocused
@@ -999,28 +1052,32 @@ private fun LoadButton(label: String, enabled: Boolean, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(GlassFieldShape)
             .background(
                 when {
-                    focused && enabled -> Color(0xFFFFC247)
-                    enabled -> Accent
-                    else -> Accent.copy(alpha = 0.22f)
+                    focused && enabled -> Brush.horizontalGradient(
+                        listOf(Color(0xFFFFD166), Color(0xFFFFB020))
+                    )
+                    enabled -> Brush.horizontalGradient(
+                        listOf(Accent, Color(0xFFFFB020))
+                    )
+                    else -> SolidColor(Accent.copy(alpha = 0.22f))
                 }
             )
             .border(
                 if (focused) 2.dp else 0.dp,
                 if (focused) Color.White else Color.Transparent,
-                RoundedCornerShape(8.dp)
+                GlassFieldShape
             )
             .onFocusChanged { focused = it.isFocused }
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 30.dp, vertical = 13.dp)
+            .padding(horizontal = 32.dp, vertical = 13.dp)
     ) {
         Text(
             text = label,
-            color = if (focused && enabled) Color(0xFF081116) else Color.White,
+            color = if (enabled) Color(0xFF081116) else Color.White.copy(alpha = 0.6f),
             fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Black
         )
     }
 }
@@ -1031,22 +1088,28 @@ private fun SmallActionButton(label: String, enabled: Boolean, onClick: () -> Un
     var focused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(GlassFieldShape)
             .background(
                 when {
-                    focused && enabled -> Color(0xFFFFC247)
-                    enabled -> Color(0x66FFC247)
-                    else -> Color(0x18FFFFFF)
+                    focused && enabled -> Brush.horizontalGradient(
+                        listOf(Color(0xFFFFD166), Color(0xFFFFB020))
+                    )
+                    enabled -> SolidColor(Color(0x33FFC247))
+                    else -> SolidColor(Color(0x14FFFFFF))
                 }
             )
             .border(
                 if (focused) 2.dp else 1.dp,
-                if (focused) Color.White else Color(0x44FFFFFF),
-                RoundedCornerShape(8.dp)
+                when {
+                    focused -> SolidColor(Color.White)
+                    enabled -> SolidColor(Accent.copy(alpha = 0.4f))
+                    else -> GlassBorderBrush
+                },
+                GlassFieldShape
             )
             .onFocusChanged { focused = it.isFocused }
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp)
+            .padding(horizontal = 15.dp, vertical = 9.dp)
     ) {
         Text(
             text = label,
@@ -1097,24 +1160,24 @@ private fun SettingToggleRow(
     onToggle: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = GlassCardShape
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(
                 when {
-                    focused -> Color(0xFFFFF4D0)
-                    checked -> Color(0xDD30281A)
-                    else -> Color(0xD72B323A)
+                    focused -> Brush.verticalGradient(listOf(Color(0xFFFFF6D8), Color(0xFFFFEDB8)))
+                    checked -> GlassSelectedBrush
+                    else -> GlassCardBrush
                 }
             )
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = when {
-                    focused -> Color(0xFFFFC247)
-                    checked -> Accent.copy(alpha = 0.82f)
-                    else -> Color(0x44FFFFFF)
+                brush = when {
+                    focused -> SolidColor(Color(0xFFFFC247))
+                    checked -> SolidColor(Accent.copy(alpha = 0.7f))
+                    else -> GlassBorderBrush
                 },
                 shape = shape
             )
@@ -1177,19 +1240,19 @@ private fun PlayerChip(
 ) {
     var focused by remember { mutableStateOf(false) }
     val bg = when {
-        focused -> Color(0xFFFFF4D0)
-        selected -> Color(0xDD30281A)
-        else -> Color(0xD72B323A)
+        focused -> Brush.verticalGradient(listOf(Color(0xFFFFF6D8), Color(0xFFFFEDB8)))
+        selected -> GlassSelectedBrush
+        else -> GlassCardBrush
     }
     Box(
         modifier = Modifier
             .then(modifier)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(GlassFieldShape)
             .background(bg)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) Color(0xFFFFC247) else if (selected) Accent.copy(alpha = 0.82f) else Color(0x44FFFFFF),
-                shape = RoundedCornerShape(8.dp)
+                brush = if (focused) SolidColor(Color(0xFFFFC247)) else if (selected) SolidColor(Accent.copy(alpha = 0.7f)) else GlassBorderBrush,
+                shape = GlassFieldShape
             )
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,7 +76,10 @@ fun ChannelInfoOsd(
     allChannelsLabel: String = "All channels",
     programLabel: String = "Program",
     audioLabel: String = "Audio",
+    subtitlesLabel: String = "Subtitles",
+    subtitlesOffLabel: String = "Off",
     showFps: Boolean = true,
+    focusedTrackOption: Int = -1,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -117,24 +121,35 @@ fun ChannelInfoOsd(
             .firstOrNull { it.selected }
             ?.label
             ?: mediaTracks.audioTracks.firstOrNull()?.label
+        val extraAudioCount = (mediaTracks.audioTracks.size - 1).coerceAtLeast(0)
+        val hasSubtitles = mediaTracks.subtitleTracks.isNotEmpty()
+        val selectedSubtitleLabel = when {
+            !hasSubtitles -> null
+            !mediaTracks.subtitlesEnabled -> subtitlesOffLabel
+            else -> mediaTracks.subtitleTracks.firstOrNull { it.selected }?.label
+                ?: mediaTracks.subtitleTracks.firstOrNull()?.label
+                ?: subtitlesOffLabel
+        }
 
         Column(
             modifier = Modifier
+                // Uydu alıcısı üslubunda kompakt kart — tam ekran deyil
+                .padding(start = 40.dp, end = 40.dp, bottom = 24.dp)
+                .widthIn(max = 700.dp)
                 .fillMaxWidth()
-                .padding(start = 48.dp, end = 48.dp, bottom = 26.dp)
                 .clip(OsdCardShape)
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0x1A0C1016).copy(alpha = 0.3f),
-                            Color(0x1A090C11).copy(alpha = 0.25f)
+                            Color(0xFF0C1016).copy(alpha = 0.52f),
+                            Color(0xFF090C11).copy(alpha = 0.46f)
                         )
                     )
                 )
                 .border(
-                    2.dp,
+                    1.5.dp,
                     Brush.verticalGradient(
-                        listOf(Color(0x4EFFFFFF), Color(0x15FFFFFF))
+                        listOf(Color(0x52FFFFFF), Color(0x14FFFFFF))
                     ),
                     OsdCardShape
                 )
@@ -152,13 +167,13 @@ fun ChannelInfoOsd(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(116.dp)
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                    .heightIn(min = 92.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ChannelLogo(
                     logoUrl = channel.logoUrl,
-                    size = 64,
+                    size = 52,
                     backgroundColor = Color(0x14FFFFFF),
                     borderColor = Color(0x24FFFFFF),
                     placeholderColor = Color(0xFFEAF0F5)
@@ -166,21 +181,21 @@ fun ChannelInfoOsd(
 
                 Column(
                     modifier = Modifier
-                        .padding(start = 16.dp)
-                        .width(78.dp),
+                        .padding(start = 12.dp)
+                        .width(64.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         text = channelIndex.coerceAtLeast(0).toString(),
                         color = Accent,
-                        fontSize = 28.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1
                     )
                     Text(
                         text = "/ ${totalChannels.coerceAtLeast(0)}",
                         color = OsdTextDim,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
@@ -196,13 +211,13 @@ fun ChannelInfoOsd(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text(
                         text = channel.name,
                         color = Color.White,
-                        fontSize = 25.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -215,7 +230,7 @@ fun ChannelInfoOsd(
                         Text(
                             text = channel.group.ifBlank { allChannelsLabel },
                             color = OsdTextDim,
-                            fontSize = 14.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -227,13 +242,23 @@ fun ChannelInfoOsd(
                             program = programInfo,
                             programLabel = programLabel
                         )
+                        if (programInfo.description.isNotBlank()) {
+                            Text(
+                                text = programInfo.description,
+                                color = Color(0xFF9FB0BE),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
                 Column(
-                    modifier = Modifier.widthIn(min = 150.dp, max = 232.dp),
+                    modifier = Modifier.widthIn(min = 130.dp, max = 250.dp),
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -242,7 +267,7 @@ fun ChannelInfoOsd(
                         Text(
                             text = clock,
                             color = Color.White.copy(alpha = 0.92f),
-                            fontSize = 15.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
@@ -257,11 +282,28 @@ fun ChannelInfoOsd(
                         OsdInfoPill(codec)
                         OsdInfoPill(resolution)
                     }
-                    if (selectedAudioLabel != null) {
-                        AudioTrackPill(
-                            label = audioLabel,
-                            value = selectedAudioLabel
-                        )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (selectedAudioLabel != null) {
+                            MediaTrackPill(
+                                label = audioLabel,
+                                value = selectedAudioLabel,
+                                extraCount = extraAudioCount,
+                                focused = focusedTrackOption == 0,
+                                icon = { SpeakerIcon(color = if (focusedTrackOption == 0) Color(0xFF14161A) else Accent) }
+                            )
+                        }
+                        if (selectedSubtitleLabel != null) {
+                            MediaTrackPill(
+                                label = subtitlesLabel,
+                                value = selectedSubtitleLabel,
+                                extraCount = 0,
+                                focused = focusedTrackOption == 1,
+                                icon = { SubtitleIcon(color = if (focusedTrackOption == 1) Color(0xFF14161A) else Accent) }
+                            )
+                        }
                     }
                 }
             }
@@ -332,42 +374,84 @@ private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
 }
 
 @Composable
-private fun AudioTrackPill(label: String, value: String) {
+private fun MediaTrackPill(
+    label: String,
+    value: String,
+    extraCount: Int = 0,
+    focused: Boolean = false,
+    icon: @Composable () -> Unit
+) {
     Row(
         modifier = Modifier
-            .widthIn(max = 200.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFFFFF).copy(alpha = 0.08f))
-            .border(1.5.dp, Color(0xFFFFFF).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .background(
+                if (focused) Color(0xFFE9EDF1)
+                else Color(0xFFFFFF).copy(alpha = 0.08f)
+            )
+            .border(
+                if (focused) 2.dp else 1.5.dp,
+                if (focused) Accent else Color(0xFFFFFF).copy(alpha = 0.2f),
+                RoundedCornerShape(8.dp)
+            )
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        SpeakerIcon(color = Accent)
+        icon()
         Column(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = label.uppercase(),
-                color = OsdTextDim.copy(alpha = 0.8f),
+                color = if (focused) Color(0x9914161A) else OsdTextDim.copy(alpha = 0.8f),
                 fontSize = 8.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
             Text(
                 text = value,
-                color = Color.White.copy(alpha = 0.95f),
+                color = if (focused) Color(0xFF14161A) else Color.White.copy(alpha = 0.95f),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 140.dp)
+                // Dil adı tam görünsün deyə genişlik limiti böyüdüldü
+                modifier = Modifier.widthIn(max = 210.dp)
             )
         }
+        if (extraCount > 0) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Accent.copy(alpha = 0.16f))
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "+$extraCount",
+                    color = Accent,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubtitleIcon(color: Color) {
+    // Sadə "CC" altyazı nişanı
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.5.dp, color, RoundedCornerShape(4.dp)),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = "›",
-            color = Accent.copy(alpha = 0.7f),
-            fontSize = 14.sp,
+            text = "CC",
+            color = color,
+            fontSize = 8.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )

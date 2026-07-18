@@ -32,7 +32,13 @@
       "PowerShell($apkPath = \"d:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; if \\(Test-Path $apkPath\\) { Copy-Item $apkPath \"d:\\\\FPLAYER\\\\FTV-release-v1.4-transparent.apk\" -Force; Get-Item \"d:\\\\FPLAYER\\\\FTV-release-v1.4-transparent.apk\" | Select-Object Name, @{Name=\"SizeMB\"; Expression={\"{0:F2}\" -f \\($_.Length / 1MB\\)}} } else { \"APK not found\" })",
       "PowerShell($candidates = @\\(\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\", \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Java\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { Write-Output $c } }; Get-ChildItem \"C:\\\\Program Files\\\\Android\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)",
       "PowerShell(cd D:\\\\FPLAYER; $env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; & .\\\\gradlew.bat \":app:compileReleaseKotlin\" --console=plain -q)",
-      "PowerShell(cd D:\\\\FPLAYER; $env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; & .\\\\gradlew.bat \":app:assembleRelease\" --console=plain -q; Write-Output \"EXIT=$LASTEXITCODE\"; Get-ChildItem D:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release)"
+      "PowerShell(cd D:\\\\FPLAYER; $env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; & .\\\\gradlew.bat \":app:assembleRelease\" --console=plain -q; Write-Output \"EXIT=$LASTEXITCODE\"; Get-ChildItem D:\\\\FPLAYER\\\\app\\\\build\\\\outputs\\\\apk\\\\release)",
+      "PowerShell(.\\\\gradlew.bat assembleRelease --console=plain)",
+      "Read(//c/Program Files/Android/Android Studio/jbr/bin/**)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; .\\\\gradlew.bat assembleRelease --console=plain)",
+      "Read(//d/FPLAYER/**)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat assembleRelease --console=plain -q)",
+      "PowerShell(Copy-Item \"app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" \"FTV-release-v1.7.apk\" -Force; Get-Item \"FTV-release-v1.7.apk\" | Select-Object Name, @{n='MB';e={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)"
     ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"
