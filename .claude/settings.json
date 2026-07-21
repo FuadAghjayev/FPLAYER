@@ -38,7 +38,11 @@
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:Path = \"$env:JAVA_HOME\\\\bin;$env:Path\"; .\\\\gradlew.bat assembleRelease --console=plain)",
       "Read(//d/FPLAYER/**)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat assembleRelease --console=plain -q)",
-      "PowerShell(Copy-Item \"app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" \"FTV-release-v1.7.apk\" -Force; Get-Item \"FTV-release-v1.7.apk\" | Select-Object Name, @{n='MB';e={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)"
+      "PowerShell(Copy-Item \"app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" \"FTV-release-v1.7.apk\" -Force; Get-Item \"FTV-release-v1.7.apk\" | Select-Object Name, @{n='MB';e={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)",
+      "PowerShell(git push)",
+      "Bash(./gradlew.bat :app:compileDebugKotlin -q)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
+      "Bash(./gradlew.bat :app:assembleRelease -q)"
     ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"

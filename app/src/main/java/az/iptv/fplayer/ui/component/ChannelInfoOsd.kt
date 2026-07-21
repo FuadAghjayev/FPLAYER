@@ -133,9 +133,9 @@ fun ChannelInfoOsd(
 
         Column(
             modifier = Modifier
-                // Uydu alıcısı üslubunda kompakt kart — tam ekran deyil
+                // Uydu alıcısı üslubunda kiçik kompakt kart — tam ekran deyil
                 .padding(start = 40.dp, end = 40.dp, bottom = 24.dp)
-                .widthIn(max = 700.dp)
+                .widthIn(max = 460.dp)
                 .fillMaxWidth()
                 .clip(OsdCardShape)
                 .background(
@@ -167,13 +167,13 @@ fun ChannelInfoOsd(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 92.dp)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .heightIn(min = 64.dp)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ChannelLogo(
                     logoUrl = channel.logoUrl,
-                    size = 52,
+                    size = 38,
                     backgroundColor = Color(0x14FFFFFF),
                     borderColor = Color(0x24FFFFFF),
                     placeholderColor = Color(0xFFEAF0F5)
@@ -181,21 +181,21 @@ fun ChannelInfoOsd(
 
                 Column(
                     modifier = Modifier
-                        .padding(start = 12.dp)
-                        .width(64.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                        .padding(start = 8.dp)
+                        .width(46.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
                     Text(
                         text = channelIndex.coerceAtLeast(0).toString(),
                         color = Accent,
-                        fontSize = 22.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1
                     )
                     Text(
                         text = "/ ${totalChannels.coerceAtLeast(0)}",
                         color = OsdTextDim,
-                        fontSize = 11.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
@@ -211,26 +211,26 @@ fun ChannelInfoOsd(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                        .padding(horizontal = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Text(
                         text = channel.name,
                         color = Color.White,
-                        fontSize = 19.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         LiveStatusBadge(isLive = isLive)
                         Text(
                             text = channel.group.ifBlank { allChannelsLabel },
                             color = OsdTextDim,
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -246,7 +246,7 @@ fun ChannelInfoOsd(
                             Text(
                                 text = programInfo.description,
                                 color = Color(0xFF9FB0BE),
-                                fontSize = 12.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -256,34 +256,34 @@ fun ChannelInfoOsd(
                 }
 
                 Column(
-                    modifier = Modifier.widthIn(min = 130.dp, max = 250.dp),
+                    modifier = Modifier.widthIn(min = 90.dp, max = 160.dp),
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = clock,
                             color = Color.White.copy(alpha = 0.92f),
-                            fontSize = 13.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
-                        Spacer(Modifier.width(2.dp))
+                        Spacer(Modifier.width(1.dp))
                         OsdInfoPill(qualityLabel, highlight = true)
                         if (fps.isNotBlank()) {
                             OsdInfoPill(fps)
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        RatingBadge(rating = channel.rating)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        RatingBadge(rating = channel.rating, compact = true)
                         OsdInfoPill(codec)
                         OsdInfoPill(resolution)
                     }
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (selectedAudioLabel != null) {
@@ -323,24 +323,24 @@ private fun LiveStatusBadge(isLive: Boolean) {
                 }
             )
             .border(
-                1.5.dp,
+                1.dp,
                 if (isLive) Color(0xFFFF4D5E).copy(alpha = 0.4f) else Color(0xFFFFFF).copy(alpha = 0.2f),
                 RoundedCornerShape(6.dp)
             )
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 6.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(7.dp)
+                .size(5.dp)
                 .clip(CircleShape)
                 .background(if (isLive) Color(0xFFFF4D5E) else Color(0xFF8A939C))
         )
         Text(
             text = if (isLive) "LIVE" else "OFF",
             color = if (isLive) Color(0xFFFFB8C2) else Color(0xFFC9D1D8),
-            fontSize = 11.sp,
+            fontSize = 8.sp,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1
         )
@@ -356,15 +356,15 @@ private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
         .ifBlank { programLabel }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         if (progress != null) {
-            OsdProgressLine(progress = progress, modifier = Modifier.width(84.dp))
+            OsdProgressLine(progress = progress, modifier = Modifier.width(48.dp))
         }
         Text(
             text = programText,
             color = Color(0xFFDDE4EA),
-            fontSize = 14.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -389,13 +389,13 @@ private fun MediaTrackPill(
                 else Color(0xFFFFFF).copy(alpha = 0.08f)
             )
             .border(
-                if (focused) 2.dp else 1.5.dp,
+                if (focused) 1.5.dp else 1.dp,
                 if (focused) Accent else Color(0xFFFFFF).copy(alpha = 0.2f),
                 RoundedCornerShape(8.dp)
             )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         icon()
         Column(
@@ -404,19 +404,18 @@ private fun MediaTrackPill(
             Text(
                 text = label.uppercase(),
                 color = if (focused) Color(0x9914161A) else OsdTextDim.copy(alpha = 0.8f),
-                fontSize = 8.sp,
+                fontSize = 6.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
             Text(
                 text = value,
                 color = if (focused) Color(0xFF14161A) else Color.White.copy(alpha = 0.95f),
-                fontSize = 12.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                // Dil adı tam görünsün deyə genişlik limiti böyüdüldü
-                modifier = Modifier.widthIn(max = 210.dp)
+                modifier = Modifier.widthIn(max = 110.dp)
             )
         }
         if (extraCount > 0) {
@@ -424,12 +423,12 @@ private fun MediaTrackPill(
                 modifier = Modifier
                     .clip(RoundedCornerShape(5.dp))
                     .background(Accent.copy(alpha = 0.16f))
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
             ) {
                 Text(
                     text = "+$extraCount",
                     color = Accent,
-                    fontSize = 10.sp,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1
                 )
@@ -443,15 +442,15 @@ private fun SubtitleIcon(color: Color) {
     // Sadə "CC" altyazı nişanı
     Box(
         modifier = Modifier
-            .size(18.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .border(1.5.dp, color, RoundedCornerShape(4.dp)),
+            .size(14.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .border(1.dp, color, RoundedCornerShape(3.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "CC",
             color = color,
-            fontSize = 8.sp,
+            fontSize = 6.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
@@ -460,7 +459,7 @@ private fun SubtitleIcon(color: Color) {
 
 @Composable
 private fun SpeakerIcon(color: Color) {
-    Canvas(modifier = Modifier.size(18.dp)) {
+    Canvas(modifier = Modifier.size(14.dp)) {
         val body = Path().apply {
             moveTo(size.width * 0.10f, size.height * 0.40f)
             lineTo(size.width * 0.33f, size.height * 0.40f)
@@ -495,16 +494,16 @@ private fun OsdInfoPill(text: String, highlight: Boolean = false) {
                 }
             )
             .border(
-                1.5.dp,
+                1.dp,
                 if (highlight) Color(0xFFC247).copy(alpha = 0.35f) else Color(0xFFFFFF).copy(alpha = 0.18f),
                 RoundedCornerShape(7.dp)
             )
-            .padding(horizontal = 10.dp, vertical = 5.dp)
+            .padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
         Text(
             text = text,
             color = if (highlight) Color(0xFFFFE8B3) else Color(0xFFE6ECF1).copy(alpha = 0.9f),
-            fontSize = 11.sp,
+            fontSize = 8.sp,
             fontWeight = if (highlight) FontWeight.ExtraBold else FontWeight.SemiBold,
             maxLines = 1
         )
@@ -515,10 +514,10 @@ private fun OsdInfoPill(text: String, highlight: Boolean = false) {
 private fun OsdProgressLine(progress: Float, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .height(6.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .height(4.dp)
+            .clip(RoundedCornerShape(3.dp))
             .background(Color(0xFFFFFF).copy(alpha = 0.12f))
-            .border(0.5.dp, Color(0xFFFFFF).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+            .border(0.5.dp, Color(0xFFFFFF).copy(alpha = 0.1f), RoundedCornerShape(3.dp))
     ) {
         Box(
             modifier = Modifier
