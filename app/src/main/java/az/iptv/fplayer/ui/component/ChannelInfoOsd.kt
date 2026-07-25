@@ -131,11 +131,12 @@ fun ChannelInfoOsd(
                 ?: subtitlesOffLabel
         }
 
+        val programProgress = programInfo?.progress()
+
         Column(
             modifier = Modifier
-                // Uydu alıcısı üslubunda kiçik kompakt kart — tam ekran deyil
-                .padding(start = 40.dp, end = 40.dp, bottom = 24.dp)
-                .widthIn(max = 460.dp)
+                // TiViMate üslubunda tam genişlikli alt bilgi barı
+                .padding(start = 28.dp, end = 28.dp, bottom = 28.dp)
                 .fillMaxWidth()
                 .clip(OsdCardShape)
                 .background(
@@ -157,7 +158,7 @@ fun ChannelInfoOsd(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.5.dp)
+                    .height(3.dp)
                     .background(
                         Brush.horizontalGradient(
                             listOf(Color(0x00FFC247), Accent.copy(alpha = 0.8f), Color(0x00FFC247))
@@ -167,13 +168,13 @@ fun ChannelInfoOsd(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 64.dp)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .heightIn(min = 92.dp)
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ChannelLogo(
                     logoUrl = channel.logoUrl,
-                    size = 38,
+                    size = 64,
                     backgroundColor = Color(0x14FFFFFF),
                     borderColor = Color(0x24FFFFFF),
                     placeholderColor = Color(0xFFEAF0F5)
@@ -181,21 +182,21 @@ fun ChannelInfoOsd(
 
                 Column(
                     modifier = Modifier
-                        .padding(start = 8.dp)
-                        .width(46.dp),
+                        .padding(start = 16.dp)
+                        .widthIn(min = 56.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
                     Text(
                         text = channelIndex.coerceAtLeast(0).toString(),
                         color = Accent,
-                        fontSize = 16.sp,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1
                     )
                     Text(
                         text = "/ ${totalChannels.coerceAtLeast(0)}",
                         color = OsdTextDim,
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
@@ -203,6 +204,7 @@ fun ChannelInfoOsd(
 
                 Box(
                     modifier = Modifier
+                        .padding(start = 16.dp)
                         .fillMaxHeight()
                         .width(1.5.dp)
                         .background(Color(0xFFFFFF).copy(alpha = 0.15f))
@@ -211,26 +213,26 @@ fun ChannelInfoOsd(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                        .padding(horizontal = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text(
                         text = channel.name,
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         LiveStatusBadge(isLive = isLive)
                         Text(
                             text = channel.group.ifBlank { allChannelsLabel },
                             color = OsdTextDim,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -238,15 +240,23 @@ fun ChannelInfoOsd(
                         )
                     }
                     if (programInfo != null) {
-                        ProgramInfoLine(
-                            program = programInfo,
-                            programLabel = programLabel
+                        val programText = listOf(programInfo.timeRange, programInfo.title)
+                            .filter { it.isNotBlank() }
+                            .joinToString("   ")
+                            .ifBlank { programLabel }
+                        Text(
+                            text = programText,
+                            color = Color(0xFFDDE4EA),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (programInfo.description.isNotBlank()) {
                             Text(
                                 text = programInfo.description,
                                 color = Color(0xFF9FB0BE),
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -256,34 +266,34 @@ fun ChannelInfoOsd(
                 }
 
                 Column(
-                    modifier = Modifier.widthIn(min = 90.dp, max = 160.dp),
+                    modifier = Modifier.widthIn(min = 110.dp, max = 220.dp),
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = clock,
                             color = Color.White.copy(alpha = 0.92f),
-                            fontSize = 10.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
-                        Spacer(Modifier.width(1.dp))
+                        Spacer(Modifier.width(2.dp))
                         OsdInfoPill(qualityLabel, highlight = true)
                         if (fps.isNotBlank()) {
                             OsdInfoPill(fps)
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         RatingBadge(rating = channel.rating, compact = true)
                         OsdInfoPill(codec)
                         OsdInfoPill(resolution)
                     }
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (selectedAudioLabel != null) {
@@ -304,6 +314,40 @@ fun ChannelInfoOsd(
                                 icon = { SubtitleIcon(color = if (focusedTrackOption == 1) Color(0xFF14161A) else Accent) }
                             )
                         }
+                    }
+                }
+            }
+
+            // TiViMate üslubunda alt kenardakı tam genişlikli proqram gedişat çubuğu
+            if (programInfo != null && programProgress != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (programInfo.startTime.isNotBlank()) {
+                        Text(
+                            text = programInfo.startTime,
+                            color = OsdTextDim,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                    OsdProgressLine(
+                        progress = programProgress,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (programInfo.endTime.isNotBlank()) {
+                        Text(
+                            text = programInfo.endTime,
+                            color = OsdTextDim,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                     }
                 }
             }
@@ -343,32 +387,6 @@ private fun LiveStatusBadge(isLive: Boolean) {
             fontSize = 8.sp,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun ProgramInfoLine(program: ProgramInfo, programLabel: String) {
-    val progress = program.progress()
-    val programText = listOf(program.timeRange, program.title)
-        .filter { it.isNotBlank() }
-        .joinToString("   ")
-        .ifBlank { programLabel }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        if (progress != null) {
-            OsdProgressLine(progress = progress, modifier = Modifier.width(48.dp))
-        }
-        Text(
-            text = programText,
-            color = Color(0xFFDDE4EA),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
         )
     }
 }

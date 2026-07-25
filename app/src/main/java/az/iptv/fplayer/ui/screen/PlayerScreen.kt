@@ -1092,7 +1092,7 @@ fun PlayerScreen(
             showFps = showFps && !playbackSettings.tunneledPlayback,
             focusedTrackOption = osdFocusedTrackOption,
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.BottomCenter)
                 .zIndex(5f)
         )
 
