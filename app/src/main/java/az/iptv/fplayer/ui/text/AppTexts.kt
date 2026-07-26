@@ -82,7 +82,15 @@ data class AppTexts(
     val watch: String,
     val movies: String,
     val series: String,
-    val nowPlaying: String
+    val nowPlaying: String,
+    val menu: String,
+    val appearance: String,
+    val about: String,
+    val delete: String,
+    val playlistsHint: String,
+    val playbackHint: String,
+    val appearanceHint: String,
+    val aboutHint: String
 )
 
 fun appTexts(language: String): AppTexts =
@@ -168,7 +176,15 @@ private val azTexts = AppTexts(
     watch = "İzlə",
     movies = "Kino",
     series = "Seriallar",
-    nowPlaying = "İndi oxudulur"
+    nowPlaying = "İndi oxudulur",
+    menu = "Menyu",
+    appearance = "Görünüş",
+    about = "Haqqında",
+    delete = "Sil",
+    playlistsHint = "Siyahını seçin, düzəldin və ya silin",
+    playbackHint = "Görüntü və səs davranışını tənzimləyin",
+    appearanceHint = "Dil və rəng temasını seçin",
+    aboutHint = "Tətbiq və versiya məlumatı"
 )
 
 private val enTexts = AppTexts(
@@ -251,5 +267,13 @@ private val enTexts = AppTexts(
     watch = "Watch",
     movies = "Movies",
     series = "Series",
-    nowPlaying = "Now playing"
+    nowPlaying = "Now playing",
+    menu = "Menu",
+    appearance = "Appearance",
+    about = "About",
+    delete = "Delete",
+    playlistsHint = "Switch, edit or remove your playlists",
+    playbackHint = "Tune video and audio behaviour",
+    appearanceHint = "Pick the language and colour theme",
+    aboutHint = "App and version information"
 )

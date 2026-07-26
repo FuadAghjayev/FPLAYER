@@ -42,7 +42,26 @@
       "PowerShell(git push)",
       "Bash(./gradlew.bat :app:compileDebugKotlin -q)",
       "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
-      "Bash(./gradlew.bat :app:assembleRelease -q)"
+      "Bash(./gradlew.bat :app:assembleRelease -q)",
+      "PowerShell(.\\\\gradlew.bat :app:compileDebugKotlin -q 2>&1)",
+      "PowerShell($paths = @\\(\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\", \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\", \"$env:ProgramFiles\\\\Java\", \"C:\\\\Program Files\\\\Eclipse Adoptium\"\\); foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output \"FOUND: $p\" } })",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :app:compileDebugKotlin -q 2>&1 | Select-Object -Last 40)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :app:assembleRelease 2>&1 | Select-Object -Last 30)",
+      "Read(//d/FPLAYER/app/build/outputs/apk/release/**)",
+      "PowerShell(Copy-Item \"app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" \"FTV-release-v1.8.apk\")",
+      "PowerShell(git check-ignore -v \"FTV-release-v1.8.apk\")",
+      "PowerShell(git add \"app/src/main/java/az/iptv/fplayer/ui/component/ChannelInfoOsd.kt\" \"app/src/main/java/az/iptv/fplayer/ui/screen/PlayerScreen.kt\" \"FTV-release-v1.8.apk\")",
+      "PowerShell($paths = @\\(\"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\",\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\",\"$env:ProgramFiles\\\\Java\",\"$env:ProgramFiles\\\\Eclipse Adoptium\"\\); foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output \"FOUND: $p\"; Get-ChildItem $p -Depth 0 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name } }; Get-Content local.properties)",
+      "PowerShell(Copy-Item app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk -Destination FTV-release-v1.8.apk -Force)",
+      "PowerShell(git add app/src/main/java/az/iptv/fplayer/ui/component/ChannelInfoOsd.kt)",
+      "PowerShell(git push origin main)",
+      "PowerShell(.\\\\gradlew.bat compileReleaseKotlin --console=plain -q 2>&1)",
+      "PowerShell(Get-Content local.properties; Get-ChildItem \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\java.exe\",\"C:\\\\Program Files\\\\Java\",\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\\\\bin\\\\java.exe\" -ErrorAction SilentlyContinue | Select-Object FullName)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat compileReleaseKotlin --console=plain 2>&1 | Select-Object -Last 70)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat compileReleaseKotlin --console=plain 2>&1 | Select-Object -Last 60)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; .\\\\gradlew.bat assembleRelease --console=plain 2>&1 | Select-Object -Last 40)",
+      "PowerShell($bt = Get-ChildItem \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\build-tools\" -Directory | Sort-Object Name -Descending | Select-Object -First 1; $aapt = Join-Path $bt.FullName \"aapt2.exe\"; & $aapt dump badging \"FTV-release-v1.9.apk\" 2>&1 | Select-String \"package:|application-label:\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\User\\.claude\\projects\\d--FPLAYER"

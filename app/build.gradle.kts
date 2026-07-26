@@ -11,8 +11,8 @@ android {
         applicationId = "az.iptv.fplayer"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.8"
+        versionCode = 7
+        versionName = "1.9"
     }
 
     signingConfigs {
@@ -41,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -132,224 +133,228 @@ fun ChannelInfoOsd(
         }
 
         val programProgress = programInfo?.progress()
+        val hasTrackPills = selectedAudioLabel != null || selectedSubtitleLabel != null
 
-        Column(
-            modifier = Modifier
-                // Klassik peyk qəbuledici infobar ölçüsü: ekranın tamamını deyil,
-                // alt orta hissəsini tutan kompakt kart
-                .padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
-                .fillMaxWidth(0.68f)
-                .widthIn(max = 680.dp)
-                .clip(OsdCardShape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0C1016).copy(alpha = 0.52f),
-                            Color(0xFF090C11).copy(alpha = 0.46f)
-                        )
-                    )
-                )
-                .border(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(Color(0x52FFFFFF), Color(0x14FFFFFF))
-                    ),
-                    OsdCardShape
-                )
+        // Klassik peyk qəbuledicisindəki infobar ölçüsü: ekranın altında,
+        // eni ekranın yarısından bir az çox, hündürlüyü iki sətirlik kompakt lövhə
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Box(
+            val cardWidth = (maxWidth * 0.56f).coerceIn(300.dp, 560.dp)
+
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
+                    .padding(bottom = 20.dp)
+                    .width(cardWidth)
+                    .clip(OsdCardShape)
                     .background(
-                        Brush.horizontalGradient(
-                            listOf(Color(0x00FFC247), Accent.copy(alpha = 0.8f), Color(0x00FFC247))
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF0C1016).copy(alpha = 0.86f),
+                                Color(0xFF06080C).copy(alpha = 0.82f)
+                            )
                         )
                     )
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 68.dp)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(Color(0x52FFFFFF), Color(0x14FFFFFF))
+                        ),
+                        OsdCardShape
+                    )
             ) {
-                ChannelLogo(
-                    logoUrl = channel.logoUrl,
-                    size = 46,
-                    backgroundColor = Color(0x14FFFFFF),
-                    borderColor = Color(0x24FFFFFF),
-                    placeholderColor = Color(0xFFEAF0F5)
-                )
-
-                Column(
-                    modifier = Modifier
-                        .padding(start = 12.dp)
-                        .widthIn(min = 40.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                ) {
-                    Text(
-                        text = channelIndex.coerceAtLeast(0).toString(),
-                        color = Accent,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = "/ ${totalChannels.coerceAtLeast(0)}",
-                        color = OsdTextDim,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
-
                 Box(
                     modifier = Modifier
-                        .padding(start = 12.dp)
-                        .fillMaxHeight()
-                        .width(1.dp)
-                        .background(Color(0xFFFFFF).copy(alpha = 0.15f))
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0x00FFC247), Accent.copy(alpha = 0.8f), Color(0x00FFC247))
+                            )
+                        )
                 )
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Text(
-                        text = channel.name,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        LiveStatusBadge(isLive = isLive)
-                        Text(
-                            text = channel.group.ifBlank { allChannelsLabel },
-                            color = OsdTextDim,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                    }
-                    if (programInfo != null) {
-                        val programText = listOf(programInfo.timeRange, programInfo.title)
-                            .filter { it.isNotBlank() }
-                            .joinToString("   ")
-                            .ifBlank { programLabel }
-                        Text(
-                            text = programText,
-                            color = Color(0xFFDDE4EA),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (programInfo.description.isNotBlank()) {
-                            Text(
-                                text = programInfo.description,
-                                color = Color(0xFF9FB0BE),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.widthIn(min = 92.dp, max = 180.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = clock,
-                            color = Color.White.copy(alpha = 0.92f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            maxLines = 1
-                        )
-                        Spacer(Modifier.width(1.dp))
-                        OsdInfoPill(qualityLabel, highlight = true)
-                        if (fps.isNotBlank()) {
-                            OsdInfoPill(fps)
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        RatingBadge(rating = channel.rating, compact = true)
-                        OsdInfoPill(codec)
-                        OsdInfoPill(resolution)
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (selectedAudioLabel != null) {
-                            MediaTrackPill(
-                                label = audioLabel,
-                                value = selectedAudioLabel,
-                                extraCount = extraAudioCount,
-                                focused = focusedTrackOption == 0,
-                                icon = { SpeakerIcon(color = if (focusedTrackOption == 0) Color(0xFF14161A) else Accent) }
-                            )
-                        }
-                        if (selectedSubtitleLabel != null) {
-                            MediaTrackPill(
-                                label = subtitlesLabel,
-                                value = selectedSubtitleLabel,
-                                extraCount = 0,
-                                focused = focusedTrackOption == 1,
-                                icon = { SubtitleIcon(color = if (focusedTrackOption == 1) Color(0xFF14161A) else Accent) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Kartın alt kenarındakı proqram gedişat çubuğu
-            if (programInfo != null && programProgress != null) {
+                // Üst sətir: loqo, kanal nömrəsi, ad və texniki nişanlar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .heightIn(min = 52.dp)
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (programInfo.startTime.isNotBlank()) {
+                    ChannelLogo(
+                        logoUrl = channel.logoUrl,
+                        size = 34,
+                        backgroundColor = Color(0x14FFFFFF),
+                        borderColor = Color(0x24FFFFFF),
+                        placeholderColor = Color(0xFFEAF0F5)
+                    )
+
+                    Column(
+                        modifier = Modifier.padding(start = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
                         Text(
-                            text = programInfo.startTime,
+                            text = channelIndex.coerceAtLeast(0).toString(),
+                            color = Accent,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "/${totalChannels.coerceAtLeast(0)}",
                             color = OsdTextDim,
-                            fontSize = 9.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
                     }
-                    OsdProgressLine(
-                        progress = programProgress,
-                        modifier = Modifier.weight(1f)
+
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .height(30.dp)
+                            .width(1.dp)
+                            .background(Color.White.copy(alpha = 0.14f))
                     )
-                    if (programInfo.endTime.isNotBlank()) {
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
                         Text(
-                            text = programInfo.endTime,
-                            color = OsdTextDim,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                            text = channel.name,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            LiveStatusBadge(isLive = isLive)
+                            Text(
+                                text = channel.group.ifBlank { allChannelsLabel },
+                                color = OsdTextDim,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = clock,
+                                color = Color.White.copy(alpha = 0.92f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1
+                            )
+                            OsdInfoPill(qualityLabel, highlight = true)
+                            if (fps.isNotBlank()) {
+                                OsdInfoPill(fps)
+                            }
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RatingBadge(rating = channel.rating, compact = true)
+                            OsdInfoPill(codec)
+                            OsdInfoPill(resolution)
+                        }
+                    }
+                }
+
+                // Alt sətir: cari proqram, gedişat çubuğu və səs/subtitr seçimi
+                if (programInfo != null || hasTrackPills) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (programInfo != null) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = programInfo.title.ifBlank { programLabel },
+                                        color = Color(0xFFDDE4EA),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (programInfo.timeRange.isNotBlank()) {
+                                        Text(
+                                            text = programInfo.timeRange,
+                                            color = OsdTextDim,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                                if (programProgress != null) {
+                                    OsdProgressLine(
+                                        progress = programProgress,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+
+                        if (hasTrackPills) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (selectedAudioLabel != null) {
+                                    MediaTrackPill(
+                                        label = audioLabel,
+                                        value = selectedAudioLabel,
+                                        extraCount = extraAudioCount,
+                                        focused = focusedTrackOption == 0,
+                                        icon = { SpeakerIcon(color = if (focusedTrackOption == 0) Color(0xFF14161A) else Accent) }
+                                    )
+                                }
+                                if (selectedSubtitleLabel != null) {
+                                    MediaTrackPill(
+                                        label = subtitlesLabel,
+                                        value = selectedSubtitleLabel,
+                                        extraCount = 0,
+                                        focused = focusedTrackOption == 1,
+                                        icon = { SubtitleIcon(color = if (focusedTrackOption == 1) Color(0xFF14161A) else Accent) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
