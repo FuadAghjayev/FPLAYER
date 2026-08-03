@@ -48,7 +48,28 @@ sealed class PlaybackState {
     data object Buffering : PlaybackState()
     data object Playing : PlaybackState()
     data object Paused : PlaybackState()
+    data object Ended : PlaybackState()
     data class Error(val message: String) : PlaybackState()
+}
+
+/**
+ * Bəzi Xtream serverləri eyni kanalı yalnız bir formatda verir: birində `.ts`,
+ * digərində `.m3u8` işləyir. İlk cəhd uğursuz olanda alternativ format sınanır.
+ * Uyğun alternativ yoxdursa null qaytarır.
+ */
+fun alternateStreamUrl(rawUrl: String): String? {
+    val headerSeparator = rawUrl.indexOf('|')
+    val streamPart = if (headerSeparator > 0) rawUrl.substring(0, headerSeparator) else rawUrl
+    val headerPart = if (headerSeparator > 0) rawUrl.substring(headerSeparator) else ""
+    val query = streamPart.substringAfter('?', "")
+    val path = streamPart.substringBefore('?')
+    if (!path.contains("/live/", ignoreCase = true)) return null
+    val swappedPath = when {
+        path.endsWith(".m3u8", ignoreCase = true) -> path.dropLast(4) + "ts"
+        path.endsWith(".ts", ignoreCase = true) -> path.dropLast(2) + "m3u8"
+        else -> return null
+    }
+    return swappedPath + (if (query.isBlank()) "" else "?$query") + headerPart
 }
 
 interface PlayerEventListener {

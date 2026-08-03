@@ -79,6 +79,7 @@ import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.preferences.PlaylistProfile
 import az.iptv.fplayer.player.AudioDecoderMode
 import az.iptv.fplayer.player.ExoPlayerEngine
+import az.iptv.fplayer.player.alternateStreamUrl
 import az.iptv.fplayer.player.MediaTrackOption
 import az.iptv.fplayer.player.MediaTracks
 import az.iptv.fplayer.player.PlaybackState
@@ -95,7 +96,16 @@ import az.iptv.fplayer.ui.theme.AppBg
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.absoluteValue
+
+// Yayımın açılması üçün gözləmə və təkrar cəhd limitləri
+private const val PLAYBACK_START_TIMEOUT_MS = 11_000L
+private const val PLAYBACK_STALL_TIMEOUT_MS = 15_000L
+private const val PLAYBACK_RETRY_DELAY_MS = 900L
+private const val MAX_PLAYBACK_ATTEMPTS = 3
 
 private enum class SelectorPane { CONTENT_TYPES, GROUPS, CHANNELS }
 private enum class GuideCategoryType { PLAYLIST, ALL, GROUP }
@@ -178,47 +188,33 @@ fun PlayerScreen(
 
     val playbackUrl = currentChannel?.url
     val playRequestNonce by vm.playRequestNonce.collectAsState()
-    var recoveryAttemptKey by remember { mutableStateOf<String?>(null) }
-    var recoveryAttemptCount by remember { mutableIntStateOf(0) }
+    // Bir kanalın oxudulması tam olaraq bu korutinin öhdəsindədir: ilk cəhd,
+    // gözləmə, alternativ format (.ts / .m3u8) və təkrar cəhdlər ardıcıl gedir.
+    // Əvvəlki quruluşda təkrar cəhd `playbackState` dəyişməsindən asılı idi;
+    // StateFlow eyni dəyəri (məsələn təkrar Buffering) buraxmadığı üçün ikinci
+    // cəhddən sonra proses susurdu və kanal həmişəlik qara ekranda qalırdı.
     LaunchedEffect(engine, playbackUrl, playRequestNonce) {
-        playbackUrl?.let {
-            channelOffKey = null
-            recoveryAttemptKey = null
-            recoveryAttemptCount = 0
+        val url = playbackUrl ?: return@LaunchedEffect
+        val channelKey = currentChannel?.stableKey
+        val isLiveChannel = currentChannel?.contentType == ChannelContentType.TV
+        val alternateUrl = alternateStreamUrl(url)
+        channelOffKey = null
+        var attempt = 0
+        while (true) {
+            val attemptUrl = if (alternateUrl != null && attempt % 2 == 1) alternateUrl else url
             vm.onVideoInfoChanged(VideoInfo())
-            engine.play(it)
-        }
-    }
-
-    LaunchedEffect(playbackState, currentChannel?.stableKey, playbackUrl) {
-        val channel = currentChannel ?: return@LaunchedEffect
-        val key = channel.stableKey
-        if (playbackState is PlaybackState.Playing) {
-            recoveryAttemptKey = null
-            recoveryAttemptCount = 0
-            channelOffKey = null
-            return@LaunchedEffect
-        }
-        // OFF elan olunmuş kanal üçün nə təkrar cəhd, nə də siyahı yeniləməsi olmur
-        if (channelOffKey == key) return@LaunchedEffect
-        val waitMs = when (playbackState) {
-            is PlaybackState.Buffering -> 18_000L
-            is PlaybackState.Error -> 1_400L
-            is PlaybackState.Idle -> 2_200L
-            else -> return@LaunchedEffect
-        }
-        if (recoveryAttemptKey != key) {
-            recoveryAttemptKey = key
-            recoveryAttemptCount = 0
-        }
-        delay(waitMs)
-        if (recoveryAttemptCount < 2 && playbackUrl != null) {
-            recoveryAttemptCount += 1
-            vm.onVideoInfoChanged(VideoInfo())
-            engine.play(playbackUrl)
-        } else {
-            channelOffKey = key
-            engine.stop()
+            engine.play(attemptUrl)
+            val outcome = awaitPlaybackFailure(vm.playbackState)
+            // Film/serial sona çatıbsa təkrar başlatmırıq; canlı yayımda isə
+            // axının kəsilməsi deməkdir və yenidən cəhd edilir
+            if (outcome == PlaybackOutcome.ENDED && !isLiveChannel) return@LaunchedEffect
+            attempt += 1
+            if (attempt > MAX_PLAYBACK_ATTEMPTS) {
+                channelOffKey = channelKey
+                engine.stop()
+                return@LaunchedEffect
+            }
+            delay(PLAYBACK_RETRY_DELAY_MS)
         }
     }
 
@@ -2530,6 +2526,42 @@ private fun selectedContentTypeIndex(
 private fun wrapIndex(current: Int, delta: Int, size: Int): Int {
     if (size <= 0) return 0
     return (current + delta + size) % size
+}
+
+private enum class PlaybackOutcome { FAILED, ENDED }
+
+/**
+ * Cari cəhdin nəticəsini gözləyir. Vəziyyət axınının dəyəri birbaşa oxunduğu üçün
+ * eyni vəziyyətin təkrar yayımlanmaması (StateFlow conflation) prosesi dayandırmır.
+ */
+private suspend fun awaitPlaybackFailure(states: StateFlow<PlaybackState>): PlaybackOutcome {
+    var everPlayed = false
+    while (true) {
+        when (states.value) {
+            is PlaybackState.Playing -> {
+                everPlayed = true
+                states.first { it !is PlaybackState.Playing }
+            }
+            // İstifadəçi/media sessiyası dayandırıbsa, gözləyirik — bu nasazlıq deyil
+            is PlaybackState.Paused -> states.first { it !is PlaybackState.Paused }
+            is PlaybackState.Ended -> return PlaybackOutcome.ENDED
+            is PlaybackState.Error -> return PlaybackOutcome.FAILED
+            // Buffering / Idle: verilmiş vaxtda oxunmağa başlamasa, uğursuz sayılır
+            else -> {
+                val timeoutMs = if (everPlayed) PLAYBACK_STALL_TIMEOUT_MS else PLAYBACK_START_TIMEOUT_MS
+                val next = withTimeoutOrNull(timeoutMs) {
+                    states.first {
+                        it is PlaybackState.Playing || it is PlaybackState.Error || it is PlaybackState.Ended
+                    }
+                } ?: return PlaybackOutcome.FAILED
+                when (next) {
+                    is PlaybackState.Error -> return PlaybackOutcome.FAILED
+                    is PlaybackState.Ended -> return PlaybackOutcome.ENDED
+                    else -> Unit
+                }
+            }
+        }
+    }
 }
 
 private fun hasSelectableMediaTracks(tracks: MediaTracks): Boolean =

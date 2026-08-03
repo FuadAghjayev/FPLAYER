@@ -141,11 +141,11 @@ fun ChannelInfoOsd(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.BottomCenter
         ) {
-            val cardWidth = (maxWidth * 0.56f).coerceIn(300.dp, 560.dp)
+            val cardWidth = (maxWidth * 0.66f).coerceIn(360.dp, 680.dp)
 
             Column(
                 modifier = Modifier
-                    .padding(bottom = 20.dp)
+                    .padding(bottom = 22.dp)
                     .width(cardWidth)
                     .clip(OsdCardShape)
                     .background(
@@ -179,13 +179,13 @@ fun ChannelInfoOsd(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                        .heightIn(min = 62.dp)
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ChannelLogo(
                         logoUrl = channel.logoUrl,
-                        size = 34,
+                        size = 42,
                         backgroundColor = Color(0x14FFFFFF),
                         borderColor = Color(0x24FFFFFF),
                         placeholderColor = Color(0xFFEAF0F5)
@@ -199,14 +199,14 @@ fun ChannelInfoOsd(
                         Text(
                             text = channelIndex.coerceAtLeast(0).toString(),
                             color = Accent,
-                            fontSize = 15.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
                         Text(
                             text = "/${totalChannels.coerceAtLeast(0)}",
                             color = OsdTextDim,
-                            fontSize = 8.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
@@ -215,7 +215,7 @@ fun ChannelInfoOsd(
                     Box(
                         modifier = Modifier
                             .padding(start = 8.dp)
-                            .height(30.dp)
+                            .height(36.dp)
                             .width(1.dp)
                             .background(Color.White.copy(alpha = 0.14f))
                     )
@@ -229,7 +229,7 @@ fun ChannelInfoOsd(
                         Text(
                             text = channel.name,
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -242,7 +242,7 @@ fun ChannelInfoOsd(
                             Text(
                                 text = channel.group.ifBlank { allChannelsLabel },
                                 color = OsdTextDim,
-                                fontSize = 9.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -262,7 +262,7 @@ fun ChannelInfoOsd(
                             Text(
                                 text = clock,
                                 color = Color.White.copy(alpha = 0.92f),
-                                fontSize = 11.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Black,
                                 maxLines = 1
                             )
@@ -287,7 +287,7 @@ fun ChannelInfoOsd(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
+                            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -303,7 +303,7 @@ fun ChannelInfoOsd(
                                     Text(
                                         text = programInfo.title.ifBlank { programLabel },
                                         color = Color(0xFFDDE4EA),
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -313,7 +313,7 @@ fun ChannelInfoOsd(
                                         Text(
                                             text = programInfo.timeRange,
                                             color = OsdTextDim,
-                                            fontSize = 9.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
                                         )
@@ -391,7 +391,7 @@ private fun LiveStatusBadge(isLive: Boolean) {
         Text(
             text = if (isLive) "LIVE" else "OFF",
             color = if (isLive) Color(0xFFFFB8C2) else Color(0xFFC9D1D8),
-            fontSize = 8.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1
         )
@@ -429,18 +429,18 @@ private fun MediaTrackPill(
             Text(
                 text = label.uppercase(),
                 color = if (focused) Color(0x9914161A) else OsdTextDim.copy(alpha = 0.8f),
-                fontSize = 6.sp,
+                fontSize = 7.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
             Text(
                 text = value,
                 color = if (focused) Color(0xFF14161A) else Color.White.copy(alpha = 0.95f),
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 84.dp)
+                modifier = Modifier.widthIn(max = 100.dp)
             )
         }
         if (extraCount > 0) {
@@ -453,7 +453,7 @@ private fun MediaTrackPill(
                 Text(
                     text = "+$extraCount",
                     color = Accent,
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1
                 )
@@ -467,7 +467,7 @@ private fun SubtitleIcon(color: Color) {
     // Sadə "CC" altyazı nişanı
     Box(
         modifier = Modifier
-            .size(14.dp)
+            .size(16.dp)
             .clip(RoundedCornerShape(3.dp))
             .border(1.dp, color, RoundedCornerShape(3.dp)),
         contentAlignment = Alignment.Center
@@ -475,7 +475,7 @@ private fun SubtitleIcon(color: Color) {
         Text(
             text = "CC",
             color = color,
-            fontSize = 6.sp,
+            fontSize = 7.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
@@ -484,7 +484,7 @@ private fun SubtitleIcon(color: Color) {
 
 @Composable
 private fun SpeakerIcon(color: Color) {
-    Canvas(modifier = Modifier.size(14.dp)) {
+    Canvas(modifier = Modifier.size(16.dp)) {
         val body = Path().apply {
             moveTo(size.width * 0.10f, size.height * 0.40f)
             lineTo(size.width * 0.33f, size.height * 0.40f)
@@ -523,12 +523,12 @@ private fun OsdInfoPill(text: String, highlight: Boolean = false) {
                 if (highlight) Color(0xFFC247).copy(alpha = 0.35f) else Color(0xFFFFFF).copy(alpha = 0.18f),
                 RoundedCornerShape(7.dp)
             )
-            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
         Text(
             text = text,
             color = if (highlight) Color(0xFFFFE8B3) else Color(0xFFE6ECF1).copy(alpha = 0.9f),
-            fontSize = 8.sp,
+            fontSize = 9.5.sp,
             fontWeight = if (highlight) FontWeight.ExtraBold else FontWeight.SemiBold,
             maxLines = 1
         )

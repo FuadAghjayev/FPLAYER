@@ -51,6 +51,8 @@ class ExoPlayerEngine(
     private var surface: SurfaceView? = null
     private var autoAudioSelectionAttempted = false
     private var audioDisabledRecoveryAttempted = false
+    // init() bitməmiş gələn oxutma tələbi itməsin deyə saxlanılır
+    private var pendingUrl: String? = null
     private val trackRefs = mutableMapOf<String, TrackRef>()
     private val defaultHeaders = mapOf(
         "User-Agent" to DEFAULT_USER_AGENT,
@@ -114,6 +116,12 @@ class ExoPlayerEngine(
                     .setId(MEDIA_SESSION_ID)
                     .build()
             }
+
+        // Səth hazır olmamışdan əvvəl gələn tələb indi icra olunur
+        pendingUrl?.let { url ->
+            pendingUrl = null
+            play(url)
+        }
     }
 
     private fun buildRenderersFactory(): DefaultRenderersFactory =
@@ -151,7 +159,6 @@ class ExoPlayerEngine(
     }
 
     override fun play(url: String) {
-        val exo = player ?: return
         val stream = StreamRequest.from(url)
         Log.d(
             LOG_TAG,
@@ -162,7 +169,20 @@ class ExoPlayerEngine(
         trackRefs.clear()
         autoAudioSelectionAttempted = false
         audioDisabledRecoveryAttempted = false
+
+        val exo = player
+        if (exo == null) {
+            // Mühərrik hələ qurulmayıb — tələb yaddaşda saxlanır və init()-də oxudulur
+            Log.w(LOG_TAG, "play deferred: player not initialised yet")
+            pendingUrl = url
+            return
+        }
+        pendingUrl = null
+
         exo.stop()
+        // Köhnə axının yükləyicisi/soketi tam bağlanmasa, bir bağlantı limitli
+        // serverlər yeni tələbi rədd edir (kanala geri qayıdanda "açılmır" problemi)
+        exo.clearMediaItems()
         exo.volume = 1f
         exo.playWhenReady = true
         exo.trackSelectionParameters = exo.trackSelectionParameters
@@ -176,9 +196,13 @@ class ExoPlayerEngine(
 
     override fun pause() { player?.pause() }
     override fun resume() { player?.play() }
-    override fun stop() { player?.stop() }
+    override fun stop() {
+        pendingUrl = null
+        player?.stop()
+    }
 
     override fun release() {
+        pendingUrl = null
         mediaSession?.release()
         mediaSession = null
         player?.removeListener(exoListener)
@@ -227,7 +251,7 @@ class ExoPlayerEngine(
             val s = when (state) {
                 Player.STATE_BUFFERING -> PlaybackState.Buffering
                 Player.STATE_READY -> if (player?.playWhenReady == true) PlaybackState.Playing else PlaybackState.Paused
-                Player.STATE_ENDED -> PlaybackState.Idle
+                Player.STATE_ENDED -> PlaybackState.Ended
                 else -> PlaybackState.Idle
             }
             Log.d(
@@ -516,7 +540,7 @@ class ExoPlayerEngine(
         private const val LIVE_MAX_OFFSET_MS = 22_000L
         private const val LIVE_MIN_PLAYBACK_SPEED = 0.97f
         private const val LIVE_MAX_PLAYBACK_SPEED = 1.04f
-        private const val HTTP_CONNECT_TIMEOUT_MS = 8_000
-        private const val HTTP_READ_TIMEOUT_MS = 14_000
+        private const val HTTP_CONNECT_TIMEOUT_MS = 12_000
+        private const val HTTP_READ_TIMEOUT_MS = 20_000
     }
 }
