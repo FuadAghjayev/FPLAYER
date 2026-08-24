@@ -106,6 +106,9 @@ private const val PLAYBACK_START_TIMEOUT_MS = 11_000L
 private const val PLAYBACK_STALL_TIMEOUT_MS = 15_000L
 private const val PLAYBACK_RETRY_DELAY_MS = 900L
 private const val MAX_PLAYBACK_ATTEMPTS = 3
+// Ardıcıl zap zamanı hər düymə basılışında serverə yeni bağlantı açılmasın deyə
+// qısa fasilə saxlanılır; fasilə bitmədən növbəti kanal seçilsə, cəhd ləğv olunur.
+private const val ZAP_SETTLE_DELAY_MS = 420L
 
 private enum class SelectorPane { CONTENT_TYPES, GROUPS, CHANNELS }
 private enum class GuideCategoryType { PLAYLIST, ALL, GROUP }
@@ -203,6 +206,12 @@ fun PlayerScreen(
         while (true) {
             val attemptUrl = if (alternateUrl != null && attempt % 2 == 1) alternateUrl else url
             vm.onVideoInfoChanged(VideoInfo())
+            // Köhnə axın dərhal bağlanır: bir bağlantı limitli Xtream serverləri
+            // əvvəlki sessiya qapanmadan yeni tələbi rədd edir (ardıcıl zap problemi).
+            engine.stop()
+            // Bu gözləmə eyni zamanda zap "debounce"udur: düymə ardıcıl basılanda
+            // korutin ləğv olunur və serverə artıq bağlantı açılmır.
+            delay(if (attempt == 0) ZAP_SETTLE_DELAY_MS else PLAYBACK_RETRY_DELAY_MS * attempt)
             engine.play(attemptUrl)
             val outcome = awaitPlaybackFailure(vm.playbackState)
             // Film/serial sona çatıbsa təkrar başlatmırıq; canlı yayımda isə
@@ -214,7 +223,6 @@ fun PlayerScreen(
                 engine.stop()
                 return@LaunchedEffect
             }
-            delay(PLAYBACK_RETRY_DELAY_MS)
         }
     }
 

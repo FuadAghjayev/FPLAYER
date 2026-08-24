@@ -162,7 +162,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 .filter { it.name in selectedGroups }
                 .flatMap { it.channels }
                 .distinctBy { it.stableKey }
-            group == null -> groups.flatMap { it.channels }
+            // Favorilər qrupu siyahının başına əlavə olunduğu üçün eyni kanal iki dəfə
+            // düşə bilər; təkrarlar qalsa, yuxarı/aşağı zap sırası pozulur
+            group == null -> groups.flatMap { it.channels }.distinctBy { it.stableKey }
             else -> groups.find { it.name == group }?.channels ?: emptyList()
         }
     }.flowOn(Dispatchers.Default)
@@ -439,6 +441,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         )
         _selectedContentType.value = channel.contentType
         _currentChannel.value = channel
+        // Əvvəlki kanaldan qalan "oynayır"/"xəta" vəziyyəti yeni cəhdə qarışmasın
+        _playbackState.value = PlaybackState.Buffering
         _playRequestNonce.value += 1
         loadCurrentProgram(channel)
         rememberRecentChannel(channel)
