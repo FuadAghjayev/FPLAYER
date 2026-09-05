@@ -101,11 +101,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.absoluteValue
 
-// Yayımın açılması üçün gözləmə və təkrar cəhd limitləri
-private const val PLAYBACK_START_TIMEOUT_MS = 11_000L
-private const val PLAYBACK_STALL_TIMEOUT_MS = 15_000L
-private const val PLAYBACK_RETRY_DELAY_MS = 900L
-private const val MAX_PLAYBACK_ATTEMPTS = 3
+// Yayımın açılması üçün gözləmə və təkrar cəhd limitləri.
+// Bu limitlər "boş gözləmə" ölçüsüdür: yükləmə irəlilədiyi müddətdə sayğac sıfırlanır,
+// yəni yavaş açılan (amma işləyən) kanal vaxtından əvvəl kəsilmir.
+private const val PLAYBACK_IDLE_TIMEOUT_MS = 7_000L
+private const val PLAYBACK_STALL_TIMEOUT_MS = 10_000L
+// İrəliləyiş davam etsə belə bir cəhdin ümumi həddi
+private const val PLAYBACK_ATTEMPT_LIMIT_MS = 26_000L
+// İrəliləyiş sayğacının yoxlanma addımı
+private const val PLAYBACK_PROGRESS_POLL_MS = 500L
+private const val PLAYBACK_RETRY_DELAY_MS = 700L
+private const val MAX_PLAYBACK_ATTEMPTS = 5
 // Ardıcıl zap zamanı hər düymə basılışında serverə yeni bağlantı açılmasın deyə
 // qısa fasilə saxlanılır; fasilə bitmədən növbəti kanal seçilsə, cəhd ləğv olunur.
 private const val ZAP_SETTLE_DELAY_MS = 420L
@@ -203,8 +209,14 @@ fun PlayerScreen(
         val alternateUrl = alternateStreamUrl(url)
         channelOffKey = null
         var attempt = 0
+        // Format dəyişimi (.ts <-> .m3u8) yalnız serverin qəti xətasından sonra
+        // sınanır. Əvvəllər hər ikinci cəhd avtomatik alternativ formata keçirdi;
+        // server yalnız bir formatı verəndə bu, cəhdlərin yarısını boşa çıxarır və
+        // yavaş açılan işlək kanal limit dolduğu üçün heç vaxt oxunmurdu.
+        var useAlternate = false
+        var alternateTried = false
         while (true) {
-            val attemptUrl = if (alternateUrl != null && attempt % 2 == 1) alternateUrl else url
+            val attemptUrl = if (useAlternate && alternateUrl != null) alternateUrl else url
             vm.onVideoInfoChanged(VideoInfo())
             // Köhnə axın dərhal bağlanır: bir bağlantı limitli Xtream serverləri
             // əvvəlki sessiya qapanmadan yeni tələbi rədd edir (ardıcıl zap problemi).
@@ -212,8 +224,11 @@ fun PlayerScreen(
             // Bu gözləmə eyni zamanda zap "debounce"udur: düymə ardıcıl basılanda
             // korutin ləğv olunur və serverə artıq bağlantı açılmır.
             delay(if (attempt == 0) ZAP_SETTLE_DELAY_MS else PLAYBACK_RETRY_DELAY_MS * attempt)
+            // Cəhdin öz başlanğıc vəziyyəti: əvvəlki cəhddən qalan "Playing"/"Error"
+            // dəyəri gözləmə məntiqinə qarışmasın deyə hər dəfə sıfırlanır.
+            vm.onPlaybackStateChanged(PlaybackState.Buffering)
             engine.play(attemptUrl)
-            val outcome = awaitPlaybackFailure(vm.playbackState)
+            val outcome = awaitPlaybackFailure(vm.playbackState, engine)
             // Film/serial sona çatıbsa təkrar başlatmırıq; canlı yayımda isə
             // axının kəsilməsi deməkdir və yenidən cəhd edilir
             if (outcome == PlaybackOutcome.ENDED && !isLiveChannel) return@LaunchedEffect
@@ -223,6 +238,10 @@ fun PlayerScreen(
                 engine.stop()
                 return@LaunchedEffect
             }
+            useAlternate = alternateUrl != null &&
+                !alternateTried &&
+                outcome == PlaybackOutcome.FAILED_ERROR
+            if (useAlternate) alternateTried = true
         }
     }
 
@@ -2536,13 +2555,18 @@ private fun wrapIndex(current: Int, delta: Int, size: Int): Int {
     return (current + delta + size) % size
 }
 
-private enum class PlaybackOutcome { FAILED, ENDED }
+// FAILED_ERROR — serverin/dekoderin qəti xətası (format dəyişməyə dəyər).
+// FAILED_STALL — vaxtında açılmadı və ya yayım dondu (eyni URL ilə təkrar cəhd).
+private enum class PlaybackOutcome { FAILED_ERROR, FAILED_STALL, ENDED }
 
 /**
  * Cari cəhdin nəticəsini gözləyir. Vəziyyət axınının dəyəri birbaşa oxunduğu üçün
  * eyni vəziyyətin təkrar yayımlanmaması (StateFlow conflation) prosesi dayandırmır.
  */
-private suspend fun awaitPlaybackFailure(states: StateFlow<PlaybackState>): PlaybackOutcome {
+private suspend fun awaitPlaybackFailure(
+    states: StateFlow<PlaybackState>,
+    engine: PlayerEngine
+): PlaybackOutcome {
     var everPlayed = false
     while (true) {
         when (states.value) {
@@ -2553,23 +2577,56 @@ private suspend fun awaitPlaybackFailure(states: StateFlow<PlaybackState>): Play
             // İstifadəçi/media sessiyası dayandırıbsa, gözləyirik — bu nasazlıq deyil
             is PlaybackState.Paused -> states.first { it !is PlaybackState.Paused }
             is PlaybackState.Ended -> return PlaybackOutcome.ENDED
-            is PlaybackState.Error -> return PlaybackOutcome.FAILED
-            // Buffering / Idle: verilmiş vaxtda oxunmağa başlamasa, uğursuz sayılır
+            is PlaybackState.Error -> return PlaybackOutcome.FAILED_ERROR
+            // Buffering / Idle: yükləmə irəlilədiyi müddətdə gözləyirik
             else -> {
-                val timeoutMs = if (everPlayed) PLAYBACK_STALL_TIMEOUT_MS else PLAYBACK_START_TIMEOUT_MS
-                val next = withTimeoutOrNull(timeoutMs) {
-                    states.first {
-                        it is PlaybackState.Playing || it is PlaybackState.Error || it is PlaybackState.Ended
-                    }
-                } ?: return PlaybackOutcome.FAILED
+                val idleTimeoutMs =
+                    if (everPlayed) PLAYBACK_STALL_TIMEOUT_MS else PLAYBACK_IDLE_TIMEOUT_MS
+                val next = awaitPlaybackProgress(states, engine, idleTimeoutMs)
+                    ?: return PlaybackOutcome.FAILED_STALL
                 when (next) {
-                    is PlaybackState.Error -> return PlaybackOutcome.FAILED
+                    is PlaybackState.Error -> return PlaybackOutcome.FAILED_ERROR
                     is PlaybackState.Ended -> return PlaybackOutcome.ENDED
                     else -> Unit
                 }
             }
         }
     }
+}
+
+/**
+ * "Buffering" vəziyyətində gözləyir və mühərrikin yükləmə sayğacına baxır.
+ * Sabit `withTimeout` yavaş, amma işlək kanalı səhvən uğursuz sayır və onu
+ * hər dəfə yenidən başladır — kanal bu səbəbdən heç vaxt açılmır. Burada
+ * sayğac artdıqca gözləmə sıfırlanır; yalnız irəliləyiş tamam dayananda və ya
+ * ümumi hədd aşılanda null qaytarılır.
+ */
+private suspend fun awaitPlaybackProgress(
+    states: StateFlow<PlaybackState>,
+    engine: PlayerEngine,
+    idleTimeoutMs: Long
+): PlaybackState? {
+    var lastMark = engine.loadProgressMark()
+    var idleMs = 0L
+    var totalMs = 0L
+    while (totalMs < PLAYBACK_ATTEMPT_LIMIT_MS) {
+        val next = withTimeoutOrNull(PLAYBACK_PROGRESS_POLL_MS) {
+            states.first {
+                it is PlaybackState.Playing || it is PlaybackState.Error || it is PlaybackState.Ended
+            }
+        }
+        if (next != null) return next
+        totalMs += PLAYBACK_PROGRESS_POLL_MS
+        val mark = engine.loadProgressMark()
+        if (mark > lastMark) {
+            lastMark = mark
+            idleMs = 0L
+        } else {
+            idleMs += PLAYBACK_PROGRESS_POLL_MS
+            if (idleMs >= idleTimeoutMs) return null
+        }
+    }
+    return null
 }
 
 private fun hasSelectableMediaTracks(tracks: MediaTracks): Boolean =

@@ -164,7 +164,6 @@ class ExoPlayerEngine(
             LOG_TAG,
             "play request=${stream.debugLabel()} hls=${stream.isLikelyHls()} audioMode=$audioMode"
         )
-        listener?.onStateChanged(PlaybackState.Buffering)
         listener?.onMediaTracksChanged(MediaTracks())
         trackRefs.clear()
         autoAudioSelectionAttempted = false
@@ -174,6 +173,7 @@ class ExoPlayerEngine(
         if (exo == null) {
             // Mühərrik hələ qurulmayıb — tələb yaddaşda saxlanır və init()-də oxudulur
             Log.w(LOG_TAG, "play deferred: player not initialised yet")
+            listener?.onStateChanged(PlaybackState.Buffering)
             pendingUrl = url
             return
         }
@@ -192,13 +192,29 @@ class ExoPlayerEngine(
             .build()
         exo.setMediaSource(stream.toMediaSource())
         exo.prepare()
+        // `stop()` sinxron olaraq IDLE göndərir; ona görə "Buffering" bildirişi
+        // prepare()-dən sonra verilir, əks halda cəhdin başlanğıc vəziyyəti itir
+        listener?.onStateChanged(PlaybackState.Buffering)
     }
 
     override fun pause() { player?.pause() }
     override fun resume() { player?.play() }
     override fun stop() {
         pendingUrl = null
-        player?.stop()
+        player?.let { exo ->
+            exo.stop()
+            // Yalnız `stop()` media mənbəyini buraxmır: soket bağlanmayana qədər
+            // bir bağlantı limitli serverdə növbəti kanal açılmır. Elementləri
+            // burada təmizləyib bağlantının dərhal qapanmasına başlayırıq.
+            exo.clearMediaItems()
+        }
+    }
+
+    override fun loadProgressMark(): Long {
+        val exo = player ?: return 0L
+        val buffered = exo.totalBufferedDuration.coerceAtLeast(0L)
+        val position = exo.currentPosition.coerceAtLeast(0L)
+        return position + buffered
     }
 
     override fun release() {
@@ -540,7 +556,9 @@ class ExoPlayerEngine(
         private const val LIVE_MAX_OFFSET_MS = 22_000L
         private const val LIVE_MIN_PLAYBACK_SPEED = 0.97f
         private const val LIVE_MAX_PLAYBACK_SPEED = 1.04f
-        private const val HTTP_CONNECT_TIMEOUT_MS = 12_000
-        private const val HTTP_READ_TIMEOUT_MS = 20_000
+        // Timeout-lar cəhd pəncərəsindən qısa saxlanılır: əks halda ölü soket
+        // növbəti cəhd başlayanda hələ açıq qalır və server ikinci bağlantını rədd edir
+        private const val HTTP_CONNECT_TIMEOUT_MS = 7_000
+        private const val HTTP_READ_TIMEOUT_MS = 9_000
     }
 }

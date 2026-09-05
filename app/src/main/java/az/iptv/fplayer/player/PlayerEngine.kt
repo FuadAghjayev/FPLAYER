@@ -89,4 +89,11 @@ interface PlayerEngine {
     fun setEventListener(listener: PlayerEventListener)
     fun selectAudioTrack(trackId: String) = Unit
     fun selectSubtitleTrack(trackId: String?) = Unit
+
+    /**
+     * Yüklənmənin irəlilədiyini göstərən sayğac (ms). Yavaş açılan kanalı sabit
+     * vaxt limiti ilə "işləmir" saymamaq üçündür: sayğac artdıqca gözləmə uzadılır,
+     * dayandığı anda isə cəhd uğursuz sayılır.
+     */
+    fun loadProgressMark(): Long = 0L
 }
