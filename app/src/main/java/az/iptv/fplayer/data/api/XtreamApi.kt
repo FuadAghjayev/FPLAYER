@@ -5,12 +5,19 @@ import az.iptv.fplayer.data.model.ChannelContentType
 import az.iptv.fplayer.data.model.ChannelGroup
 import az.iptv.fplayer.data.model.ProgramInfo
 import az.iptv.fplayer.data.model.XtreamConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import java.io.IOException
+import kotlin.coroutines.resumeWithException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -66,13 +73,19 @@ object XtreamApi {
             }
         }
 
-    fun fetchCurrentProgram(config: XtreamConfig, streamId: Int, client: OkHttpClient): ProgramInfo? =
-        runCatching {
-            val body = get(
+    suspend fun fetchCurrentProgram(config: XtreamConfig, streamId: Int, client: OkHttpClient): ProgramInfo? {
+        val body = try {
+            getCancellable(
                 client = client,
                 url = "${config.apiUrl}&action=get_short_epg&stream_id=$streamId&limit=4",
                 timeoutSeconds = SERIES_INFO_TIMEOUT_SECONDS
             )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return runCatching {
             val listings = parseEpgListings(body) ?: return@runCatching null
             if (listings.length() == 0) return@runCatching null
             val now = System.currentTimeMillis() / 1000L
@@ -87,6 +100,7 @@ object XtreamApi {
                 ?: return@runCatching null
             selected.toProgramInfo()
         }.getOrNull()
+    }
 
     private fun fetchCategories(
         config: XtreamConfig,
@@ -328,6 +342,36 @@ object XtreamApi {
             if (!resp.isSuccessful) error("HTTP ${resp.code}")
             return resp.body?.string() ?: error("Boş cavab")
         }
+    }
+
+    /**
+     * `execute()` korutin ləğv olunanda dayanmır — zap zamanı ləğv edilmiş EPG
+     * sorğuları timeout-a qədər arxa planda işləyib yayımla eyni serverə yük verirdi.
+     * Bu variant ləğvetmədə OkHttp çağırışını dərhal bağlayır.
+     */
+    private suspend fun getCancellable(
+        client: OkHttpClient,
+        url: String,
+        timeoutSeconds: Long? = null
+    ): String = suspendCancellableCoroutine { cont ->
+        val call = client.newCall(Request.Builder().url(url).build())
+        timeoutSeconds?.let { call.timeout().timeout(it, TimeUnit.SECONDS) }
+        cont.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                if (cont.isActive) cont.resumeWithException(e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = response.use { resp ->
+                    runCatching {
+                        if (!resp.isSuccessful) error("HTTP ${resp.code}")
+                        resp.body?.string() ?: error("Boş cavab")
+                    }
+                }
+                if (cont.isActive) cont.resumeWith(result)
+            }
+        })
     }
 
     private fun parseEpgListings(body: String): JSONArray? {

@@ -82,6 +82,7 @@ import az.iptv.fplayer.player.ExoPlayerEngine
 import az.iptv.fplayer.player.alternateStreamUrl
 import az.iptv.fplayer.player.MediaTrackOption
 import az.iptv.fplayer.player.MediaTracks
+import az.iptv.fplayer.player.PlaybackSettings
 import az.iptv.fplayer.player.PlaybackState
 import az.iptv.fplayer.player.PlayerEngine
 import az.iptv.fplayer.player.PlayerEventListener
@@ -95,6 +96,7 @@ import az.iptv.fplayer.ui.theme.Accent
 import az.iptv.fplayer.ui.theme.AppBg
 import az.iptv.fplayer.viewmodel.LoadState
 import az.iptv.fplayer.viewmodel.PlayerViewModel
+import az.iptv.fplayer.viewmodel.resolveZapChannels
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -149,7 +151,11 @@ fun PlayerScreen(
     val selectedContentType by vm.selectedContentType.collectAsState()
     val availableContentTypes by vm.availableContentTypes.collectAsState()
     val loadState by vm.loadState.collectAsState()
-    val playbackSettings by vm.playbackSettings.collectAsState()
+    val loadedPlaybackSettings by vm.loadedPlaybackSettings.collectAsState()
+    val playbackSettings = loadedPlaybackSettings ?: PlaybackSettings()
+    // Ayarlar oxunmamış səth/ExoPlayer qurulmur: yoxsa əvvəl standart ayarlarla
+    // qurulub dərhal söküləcək və açılışda codec iki dəfə başladılacaqdı
+    val playbackReady = loadedPlaybackSettings != null
     val showFps by vm.showFps.collectAsState()
     val playlists by vm.playlists.collectAsState()
     val activePlaylist by vm.activePlaylist.collectAsState()
@@ -202,7 +208,8 @@ fun PlayerScreen(
     // Əvvəlki quruluşda təkrar cəhd `playbackState` dəyişməsindən asılı idi;
     // StateFlow eyni dəyəri (məsələn təkrar Buffering) buraxmadığı üçün ikinci
     // cəhddən sonra proses susurdu və kanal həmişəlik qara ekranda qalırdı.
-    LaunchedEffect(engine, playbackUrl, playRequestNonce) {
+    LaunchedEffect(engine, playbackUrl, playRequestNonce, playbackReady) {
+        if (!playbackReady) return@LaunchedEffect
         val url = playbackUrl ?: return@LaunchedEffect
         val channelKey = currentChannel?.stableKey
         val isLiveChannel = currentChannel?.contentType == ChannelContentType.TV
@@ -246,13 +253,11 @@ fun PlayerScreen(
     }
 
     val currentChannelKey = currentChannel?.stableKey
-    val currentChannelGroupChannels = remember(groups, currentChannel?.group, currentChannelKey) {
-        val groupName = currentChannel?.group?.takeIf { it.isNotBlank() }
-        groups.find { it.name == groupName }?.channels.orEmpty()
+    // OSD nömrəsi zapın getdiyi siyahı ilə eyni olmalıdır, əks halda "5/40" göstərib
+    // yuxarı basanda başqa siyahının kanalına keçir
+    val osdChannels = remember(visibleChannels, groups, currentChannelKey) {
+        resolveZapChannels(currentChannel, visibleChannels, groups)
     }
-    val osdChannels = currentChannelGroupChannels
-        .takeIf { channels -> currentChannelKey != null && channels.any { it.stableKey == currentChannelKey } }
-        ?: visibleChannels
     val currentVisibleChannelIndex = remember(osdChannels, currentChannelKey) {
         osdChannels.indexOfFirst { it.stableKey == currentChannelKey }
     }
@@ -994,7 +999,9 @@ fun PlayerScreen(
             currentChannel == null &&
             loadState !is LoadState.Error
         // Ayar dəyişəndə mühərrik yenidən qurulur — səth də yenidən bağlanmalıdır
-        key(engine) { VideoSurface(engine = engine) }
+        if (playbackReady) {
+            key(engine) { VideoSurface(engine = engine) }
+        }
 
         StartupLoadingOverlay(
             visible = startupLoadingVisible || loadState is LoadState.Loading,

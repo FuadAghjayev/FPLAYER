@@ -28,6 +28,33 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
+/**
+ * Yuxarı/aşağı zapın və OSD nömrəsinin istifadə etdiyi siyahı.
+ *
+ * Bələdçidə başqa kateqoriyaya baxıb kanal seçmədən çıxanda `visibleChannels`
+ * həmin kateqoriyanı göstərir və cari kanal orada olmur; əvvəllər zap bu halda
+ * yad kateqoriyanın ilk kanalına tullanırdı. İndi seçilmiş siyahı cari kanalı
+ * ehtiva edirsə o, əks halda cari kanalın öz kateqoriyası istifadə olunur.
+ */
+fun resolveZapChannels(
+    current: Channel?,
+    visibleChannels: List<Channel>,
+    groups: List<ChannelGroup>
+): List<Channel> {
+    val key = current?.stableKey ?: return visibleChannels
+    if (visibleChannels.any { it.stableKey == key }) return visibleChannels
+    fun ChannelGroup.hasCurrent() = channels.any { it.stableKey == key }
+    return groups.firstOrNull { it.name == current.group && it.hasCurrent() }?.channels
+        ?: groups.firstOrNull { it.hasCurrent() }?.channels
+        ?: visibleChannels
+}
+
+private fun parseAudioDecoderMode(saved: String): AudioDecoderMode = when (saved) {
+    "HARDWARE" -> AudioDecoderMode.HARDWARE
+    "SOFTWARE" -> AudioDecoderMode.SOFTWARE
+    else -> AudioDecoderMode.AUTO
+}
+
 sealed class LoadState {
     data object Idle : LoadState()
     data object Loading : LoadState()
@@ -132,8 +159,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val showFps: StateFlow<Boolean> = prefs.showFps
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
-    val playbackSettings: StateFlow<PlaybackSettings> = combine(
-        _audioDecoderMode,
+    // Yalnız yadda saxlanmış dəyərlərdən qurulur: ilk emissiya artıq real ayarlardır.
+    // null — ayarlar hələ oxunmayıb. Əvvəllər ilk kadrda standart ayarlarla mühərrik
+    // qurulur, bir an sonra real ayarlar gələndə ExoPlayer və səth yenidən yaradılırdı.
+    val loadedPlaybackSettings: StateFlow<PlaybackSettings?> = combine(
+        prefs.audioDecoderMode.map(::parseAudioDecoderMode),
         prefs.frameRateMatching,
         prefs.rawAudioConvert,
         prefs.tunneledPlayback,
@@ -146,7 +176,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             tunneledPlayback = tunneled,
             fix1080i = fix1080i
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackSettings())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val playbackSettings: StateFlow<PlaybackSettings> = loadedPlaybackSettings
+        .map { it ?: PlaybackSettings() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackSettings())
 
     private var playlistLoadJob: Job? = null
     private var epgJob: Job? = null
@@ -189,11 +223,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             prefs.audioDecoderMode.collect { saved ->
-                _audioDecoderMode.value = when (saved) {
-                    "HARDWARE" -> AudioDecoderMode.HARDWARE
-                    "SOFTWARE" -> AudioDecoderMode.SOFTWARE
-                    else -> AudioDecoderMode.AUTO
-                }
+                _audioDecoderMode.value = parseAudioDecoderMode(saved)
             }
         }
     }
@@ -431,6 +461,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var osdJob: Job? = null
+    private var lastChannelSaveJob: Job? = null
 
     fun selectChannel(channel: Channel) {
         if (!channel.isPlayable()) return
@@ -444,11 +475,19 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         // Əvvəlki kanaldan qalan "oynayır"/"xəta" vəziyyəti yeni cəhdə qarışmasın
         _playbackState.value = PlaybackState.Buffering
         _playRequestNonce.value += 1
-        loadCurrentProgram(channel)
+        // Ardıcıl zapda hər basışda EPG sorğusu göndərilmir: yayım bağlantısı ilə eyni
+        // serverə yarışır və açılışı ləngidir. Kanal üzərində dayananda yüklənir.
+        loadCurrentProgram(channel, debounceMs = EPG_ZAP_DEBOUNCE_MS)
         rememberRecentChannel(channel)
         _sidebarVisible.value = false
         _osdVisible.value = true
-        viewModelScope.launch { prefs.setLastChannelId(channel.stableKey) }
+        // DataStore-a hər yazı bütün ayar axınlarını (pleylist JSON-u daxil) yenidən
+        // işlədir; ona görə son kanal yalnız zap sakitləşəndən sonra yazılır.
+        lastChannelSaveJob?.cancel()
+        lastChannelSaveJob = viewModelScope.launch {
+            delay(LAST_CHANNEL_SAVE_DELAY_MS)
+            prefs.setLastChannelId(channel.stableKey)
+        }
         osdJob?.cancel()
         osdJob = viewModelScope.launch {
             delay(5000)
@@ -522,25 +561,37 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _osdVisible.value = false
     }
 
-    private fun loadCurrentProgram(channel: Channel) {
+    private fun loadCurrentProgram(channel: Channel, debounceMs: Long = 0L) {
         epgJob?.cancel()
-        _currentProgram.value = null
+        val channelKey = channel.stableKey
+        // Bələdçidə artıq yüklənmiş və hələ bitməmiş proqram varsa, dərhal göstərilir
+        // və şəbəkə sorğusuna ehtiyac qalmır
+        val cached = _channelPrograms.value[channelKey]?.takeIf { it.isStillRunning() }
+        _currentProgram.value = cached
+        if (cached != null) return
 
         val profile = activePlaylist.value ?: return
         if (profile.type != PlaylistType.XTREAM || channel.contentType != ChannelContentType.TV) return
         val streamId = channel.id.toIntOrNull() ?: return
         val config = xtreamConfig(profile.xtreamServer, profile.xtreamUser, profile.xtreamPass)
-        val channelKey = channel.stableKey
 
         epgJob = viewModelScope.launch {
+            if (debounceMs > 0L) delay(debounceMs)
             repo.loadXtreamProgram(config, streamId)
                 .onSuccess { program ->
+                    programFetchTimes[channelKey] = System.currentTimeMillis()
+                    if (program != null) {
+                        _channelPrograms.value = _channelPrograms.value + (channelKey to program)
+                    }
                     if (_currentChannel.value?.stableKey == channelKey) {
                         _currentProgram.value = program
                     }
                 }
         }
     }
+
+    private fun ProgramInfo.isStillRunning(nowSeconds: Long = System.currentTimeMillis() / 1000L): Boolean =
+        endEpochSeconds > nowSeconds && (startEpochSeconds <= 0L || startEpochSeconds <= nowSeconds)
 
     private fun clearProgramCache() {
         _channelPrograms.value = emptyMap()
@@ -633,18 +684,30 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun nextChannel() {
-        val channels = visibleChannels.value.filter { isChannelPlayable(it) }
-        val currentKey = _currentChannel.value?.stableKey
-        val idx = channels.indexOfFirst { it.stableKey == currentKey }
-        (channels.getOrNull(idx + 1) ?: channels.firstOrNull())?.let { selectChannel(it) }
-    }
+    fun nextChannel() = zapBy(1)
 
-    fun prevChannel() {
-        val channels = visibleChannels.value.filter { isChannelPlayable(it) }
-        val currentKey = _currentChannel.value?.stableKey
+    fun prevChannel() = zapBy(-1)
+
+    private fun zapBy(step: Int) {
+        val current = _currentChannel.value
+        val channels = resolveZapChannels(current, visibleChannels.value, groups.value)
+        if (channels.isEmpty()) return
+        val currentKey = current?.stableKey
         val idx = channels.indexOfFirst { it.stableKey == currentKey }
-        (channels.getOrNull(idx - 1) ?: channels.lastOrNull())?.let { selectChannel(it) }
+        val start = when {
+            idx >= 0 -> idx + step
+            step > 0 -> 0
+            else -> channels.lastIndex
+        }
+        // Oynadıla bilməyən (URL-siz) kanallar atlanır. Siyahıda tək kanal qalıbsa,
+        // dövrün sonunda elə cari kanal seçilir — bu, yayımı yenidən başladır.
+        for (offset in channels.indices) {
+            val candidate = channels[Math.floorMod(start + offset * step, channels.size)]
+            if (isChannelPlayable(candidate)) {
+                selectChannel(candidate)
+                return
+            }
+        }
     }
 
     private fun preferredContentTypeChannels(groups: List<ChannelGroup>): List<Channel> =
@@ -693,6 +756,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val PLAYER_LOG_TAG = "FPLAYER_PLAYBACK"
         private const val PROGRAM_CACHE_TTL_MS = 5 * 60_000L
+        // Zap zamanı EPG sorğusu kanal üzərində bu qədər dayandıqdan sonra göndərilir
+        private const val EPG_ZAP_DEBOUNCE_MS = 700L
+        private const val LAST_CHANNEL_SAVE_DELAY_MS = 1_500L
         const val FAVORITE_GROUP_NAME = "Favoriler"
 
         private val contentTypeOrder = listOf(

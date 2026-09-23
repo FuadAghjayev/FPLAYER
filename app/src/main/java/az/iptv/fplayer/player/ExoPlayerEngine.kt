@@ -49,6 +49,7 @@ class ExoPlayerEngine(
     private var mediaSession: MediaSession? = null
     private var listener: PlayerEventListener? = null
     private var surface: SurfaceView? = null
+    private var appliedFrameRate = 0f
     private var autoAudioSelectionAttempted = false
     private var audioDisabledRecoveryAttempted = false
     // init() bitməmiş gələn oxutma tələbi itməsin deyə saxlanılır
@@ -61,6 +62,7 @@ class ExoPlayerEngine(
 
     override fun init(surfaceView: SurfaceView) {
         surface = surfaceView
+        appliedFrameRate = 0f
 
         val rendererMode = when {
             // RAW səs çevirmə: passthrough əvəzinə proqram dekoderi ilə PCM-ə çevrilir
@@ -144,7 +146,11 @@ class ExoPlayerEngine(
     private fun applyFrameRateMatching(frameRate: Float) {
         if (!settings.frameRateMatching || settings.tunneledPlayback) return
         if (frameRate <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        // Hər trek/ölçü hadisəsində eyni tezlik yenidən istənməsin: bəzi qutular
+        // hər çağırışda HDMI rejimini yoxlayır və ekran bir anlıq qaralır
+        if (frameRate == appliedFrameRate) return
         val holderSurface = surface?.holder?.surface?.takeIf { it.isValid } ?: return
+        appliedFrameRate = frameRate
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 holderSurface.setFrameRate(

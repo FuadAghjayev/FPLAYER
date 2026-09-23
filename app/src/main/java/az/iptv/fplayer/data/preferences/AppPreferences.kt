@@ -7,7 +7,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
@@ -59,15 +62,23 @@ class AppPreferences(private val context: Context) {
         private val KEY_FIX_1080I = stringPreferencesKey("fix_1080i")
     }
 
-    val playlists: Flow<List<PlaylistProfile>> = context.dataStore.data.map { readProfiles(it) }
+    // Pleylist JSON-u yalnız özü dəyişəndə təhlil olunur və əsas axında deyil:
+    // hər hansı ayar yazısı (məs. son kanal) əvvəllər UI axınında JSON parse edirdi
+    val playlists: Flow<List<PlaylistProfile>> = context.dataStore.data
+        .map { readProfiles(it) }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
     val activePlaylistId: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_ACTIVE_PLAYLIST_ID].orEmpty()
     }
-    val activePlaylist: Flow<PlaylistProfile?> = context.dataStore.data.map { prefs ->
-        val profiles = readProfiles(prefs)
-        val activeId = prefs[KEY_ACTIVE_PLAYLIST_ID]
-        profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
-    }
+    val activePlaylist: Flow<PlaylistProfile?> = context.dataStore.data
+        .map { prefs ->
+            val profiles = readProfiles(prefs)
+            val activeId = prefs[KEY_ACTIVE_PLAYLIST_ID]
+            profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
+        }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
     val playlistType: Flow<String> = activePlaylist.map { it?.type?.name.orEmpty() }
     val m3uUrl: Flow<String> = activePlaylist.map { it?.m3uUrl.orEmpty() }
     val xtreamServer: Flow<String> = activePlaylist.map { it?.xtreamServer.orEmpty() }
